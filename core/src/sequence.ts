@@ -3,6 +3,7 @@
  * no DOM, no framework. This is the logic behind Sequence view.
  */
 
+import { moveItem } from './collections'
 import type { Page, PageId, Project, Spread } from './types'
 
 /**
@@ -37,18 +38,11 @@ export function pageNumber(pages: readonly Page[], pageId: PageId): number {
   return pages.findIndex((page) => page.id === pageId)
 }
 
-/** Move a page to a new position, shifting everything between. This is the
- *  drag-and-drop reorder in Sequence view. */
+/** Move a page to a new position, shifting everything between. Shares its
+ *  implementation with edit-member reordering — the same operation on a
+ *  different list. */
 export function movePage(pages: readonly Page[], from: number, to: number): Page[] {
-  const next = [...pages]
-  if (from < 0 || from >= next.length) return next
-
-  const clampedTo = Math.max(0, Math.min(to, next.length - 1))
-  const [moved] = next.splice(from, 1)
-  if (!moved) return next
-
-  next.splice(clampedTo, 0, moved)
-  return next
+  return moveItem(pages, from, to)
 }
 
 /** Exchange two pages in place, leaving every other position untouched.
