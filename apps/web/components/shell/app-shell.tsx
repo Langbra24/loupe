@@ -1,10 +1,13 @@
 "use client"
 
+import { useEffect } from "react"
+
 import { CanvasRegion } from "@/components/shell/canvas-region"
 import { InspectorPanel } from "@/components/shell/inspector-panel"
 import { LayersPanel } from "@/components/shell/layers-panel"
 import { ModeSwitcher } from "@/components/shell/mode-switcher"
 import { TopNav } from "@/components/shell/top-nav"
+import { registerSaveFlush } from "@/lib/storage/project"
 import { useEditorStore } from "@/state/editor-store"
 
 const LEFT_PANEL_WIDTH = "15rem" // 240px — matches LayersPanel's w-60
@@ -22,6 +25,15 @@ const RIGHT_PANEL_WIDTH = "18rem" // 288px — matches InspectorPanel's w-72
 export function AppShell() {
   const leftPanelOpen = useEditorStore((state) => state.leftPanelOpen)
   const rightPanelOpen = useEditorStore((state) => state.rightPanelOpen)
+  const hydrate = useEditorStore((state) => state.hydrate)
+
+  // IndexedDB is client-only, so the store starts as a valid empty project and
+  // real state arrives after mount. Doing this any earlier is a hydration
+  // mismatch rather than a visible error.
+  useEffect(() => {
+    void hydrate()
+    return registerSaveFlush()
+  }, [hydrate])
 
   return (
     <div className="flex h-svh flex-col overflow-hidden">
