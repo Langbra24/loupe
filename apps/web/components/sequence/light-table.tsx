@@ -1,13 +1,23 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { ImagesIcon } from "@phosphor-icons/react"
+import { ImagesIcon, PlusIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { CanvasControls } from "@/components/sequence/canvas-controls"
 import { useFabricCanvas } from "@/components/sequence/use-fabric-canvas"
 import { useEditorStore } from "@/state/editor-store"
 
-export interface ContextMenuTarget {
+interface MenuTarget {
   placementId: string
   x: number
   y: number
@@ -16,7 +26,7 @@ export interface ContextMenuTarget {
 /**
  * Stage one: the light table.
  *
- * The whole point is absence of structure — photographs sit wherever they are
+ * The point is the absence of structure — photographs sit wherever they are
  * put, at whatever size, and the only question the surface answers is how they
  * look next to each other.
  */
@@ -26,7 +36,7 @@ export function LightTable() {
   const movePlacement = useEditorStore((state) => state.movePlacement)
   const scalePlacement = useEditorStore((state) => state.scalePlacement)
 
-  const [menu, setMenu] = useState<ContextMenuTarget | null>(null)
+  const [menu, setMenu] = useState<MenuTarget | null>(null)
 
   const { containerRef, canvasElementRef, controls } = useFabricCanvas({
     placements,
@@ -47,32 +57,91 @@ export function LightTable() {
 
       {assets.length === 0 && <EmptyTable />}
 
-      {menu && (
-        <PromotionMenu target={menu} onClose={() => setMenu(null)} />
-      )}
+      {menu && <PromotionMenu target={menu} onClose={() => setMenu(null)} />}
 
-      <CanvasControlsSlot controls={controls} />
+      <CanvasControls controls={controls} />
     </div>
   )
 }
 
-/** Filled in by U6; kept as a named seam so the canvas doesn't need editing. */
-function CanvasControlsSlot({ controls }: { controls: ReturnType<typeof useFabricCanvas>["controls"] }) {
-  void controls
-  return null
-}
-
-/** Filled in by U7. */
+/**
+ * Right-click promotion.
+ *
+ * Scoped to promotion actions only — the build brief deferred canvas context
+ * menus, and this reverses that narrowly rather than opening the door to a
+ * general duplicate/delete/z-order menu.
+ */
 function PromotionMenu({
   target,
   onClose,
 }: {
-  target: ContextMenuTarget
+  target: MenuTarget
   onClose: () => void
 }) {
-  void target
-  void onClose
-  return null
+  const edits = useEditorStore((state) => state.project.edits)
+  const placements = useEditorStore((state) => state.project.canvas.placements)
+  const addAssetToEdit = useEditorStore((state) => state.addAssetToEdit)
+  const newEditFromAsset = useEditorStore((state) => state.newEditFromAsset)
+
+  const assetId = placements.find((p) => p.id === target.placementId)?.assetId
+  if (!assetId) return null
+
+  return (
+    <DropdownMenu open onOpenChange={(open) => !open && onClose()}>
+      {/* A zero-size anchor at the cursor, so the menu opens where the user
+          right-clicked rather than against some fixed element. Base UI expects
+          a real button here — a span loses native button semantics. */}
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            className="pointer-events-none absolute"
+            style={{ left: target.x, top: target.y, width: 0, height: 0 }}
+          />
+        }
+      />
+      <DropdownMenuContent align="start" side="bottom" className="w-56">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Add to edit</DropdownMenuLabel>
+
+          {edits.length === 0 && (
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">
+              No edits yet.
+            </p>
+          )}
+
+          {edits.map((edit) => (
+            <DropdownMenuItem
+              key={edit.id}
+              onClick={() => {
+                addAssetToEdit(edit.id, assetId)
+                onClose()
+              }}
+            >
+              {edit.name}
+              <span className="ml-auto font-mono text-xs text-muted-foreground">
+                {edit.memberIds.length}
+              </span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem
+          onClick={() => {
+            newEditFromAsset(assetId)
+            onClose()
+          }}
+        >
+          <PlusIcon data-icon="inline-start" />
+          New edit from this photo
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
 function EmptyTable() {
