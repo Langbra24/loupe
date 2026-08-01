@@ -1,0 +1,19 @@
+{
+  "name": "loupe",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Browser-based photobook/zine layout tool — sequence, design, and print-impose a booklet.",
+  "license": "MIT",
+  "workspaces": [
+    "core",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=web",
+    "build": "npm run build --workspace=web",
+    "start": "npm run start --workspace=web",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "format": "npm run format --workspaces --if-present"
+  }
+}
