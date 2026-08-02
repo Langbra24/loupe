@@ -1,6 +1,6 @@
 import { thumbnailTarget, type Asset } from "@loupe/core"
 
-import { getDb, isQuotaError } from "@/lib/storage/db"
+import { getDb, isQuotaError, requestPersistentStorage } from "@/lib/storage/db"
 
 /** Long edge of a canvas thumbnail, in pixels. Large enough to judge an image
  *  at working zoom, small enough that a hundred of them stay responsive. */
@@ -27,6 +27,11 @@ export async function importFiles(
   files: readonly File[],
   onProgress?: (done: number, total: number) => void,
 ): Promise<ImportResult> {
+  // Ask before writing anything, so the first photographs a user brings in are
+  // already covered. Fire-and-forget: a denial is a browser policy they cannot
+  // change, and blocking an import on it would be worse than degrading quietly.
+  void ensurePersistenceRequested()
+
   const assets: Asset[] = []
   const failures: ImportFailure[] = []
 
@@ -40,6 +45,14 @@ export async function importFiles(
   }
 
   return { assets, failures }
+}
+
+/** Requested once per session — the browser's answer does not change mid-run. */
+let persistenceRequested: Promise<boolean> | null = null
+
+function ensurePersistenceRequested(): Promise<boolean> {
+  persistenceRequested ??= requestPersistentStorage()
+  return persistenceRequested
 }
 
 async function importOne(file: File): Promise<Asset> {

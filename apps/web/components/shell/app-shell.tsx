@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 
 import { CanvasRegion } from "@/components/shell/canvas-region"
+import { ErrorBanner } from "@/components/shell/error-banner"
 import { InspectorPanel } from "@/components/shell/inspector-panel"
 import { LayersPanel } from "@/components/shell/layers-panel"
 import { ModeSwitcher } from "@/components/shell/mode-switcher"
@@ -62,6 +63,8 @@ export function AppShell() {
         {/* Floats above the canvas, anchored to the top-right of the whole
             region so the right panel reads as growing out of it. */}
         <ModeSwitcher />
+
+        <ErrorBanner />
       </div>
     </div>
   )

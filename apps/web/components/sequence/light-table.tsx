@@ -1,9 +1,9 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useState } from "react"
 import { ImagesIcon, PlusIcon } from "@phosphor-icons/react"
 
-import { Button } from "@/components/ui/button"
+import { ImportPhotosButton } from "@/components/sequence/import-photos"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,7 +55,7 @@ export function LightTable() {
         <canvas ref={canvasElementRef} className="absolute inset-0" />
       </div>
 
-      {assets.length === 0 && <EmptyTable />}
+      {assets.length === 0 ? <EmptyTable /> : <ImportAffordance />}
 
       {menu && <PromotionMenu target={menu} onClose={() => setMenu(null)} />}
 
@@ -145,10 +145,6 @@ function PromotionMenu({
 }
 
 function EmptyTable() {
-  const inputRef = useRef<HTMLInputElement | null>(null)
-  const importPhotos = useEditorStore((state) => state.importPhotos)
-  const progress = useEditorStore((state) => state.importProgress)
-
   return (
     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
       <div className="pointer-events-auto flex max-w-sm flex-col items-center gap-3 text-center">
@@ -157,22 +153,25 @@ function EmptyTable() {
           Bring in your photographs and spread them out. Move them around, put
           pairs side by side, and see what the sequence wants to be.
         </p>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(event) => {
-            const files = Array.from(event.target.files ?? [])
-            event.target.value = ""
-            void importPhotos(files)
-          }}
-        />
-        <Button size="sm" onClick={() => inputRef.current?.click()} disabled={!!progress}>
-          {progress ? `Importing ${progress.done} of ${progress.total}…` : "Import photos"}
-        </Button>
+        <ImportPhotosButton />
       </div>
+    </div>
+  )
+}
+
+/** Import stays reachable once the table has photographs on it — the empty
+ *  state is copy, not the only door in. */
+function ImportAffordance() {
+  const progress = useEditorStore((state) => state.importProgress)
+
+  return (
+    <div className="absolute top-3 left-3 z-20 flex items-center gap-2 rounded-xl border bg-background/90 p-1 shadow-sm backdrop-blur">
+      <ImportPhotosButton variant="icon" />
+      {progress && (
+        <span className="pr-2 text-xs text-muted-foreground">
+          Importing {progress.done} of {progress.total}…
+        </span>
+      )}
     </div>
   )
 }

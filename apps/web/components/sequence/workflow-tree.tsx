@@ -14,6 +14,7 @@ import {
 import type { Asset, Edit } from "@loupe/core"
 
 import { Button } from "@/components/ui/button"
+import { ImportPhotosButton } from "@/components/sequence/import-photos"
 import { cn } from "@/lib/utils"
 import { useEditorStore, type SequenceStage } from "@/state/editor-store"
 
@@ -36,13 +37,17 @@ export function WorkflowTree() {
 
   return (
     <div className="flex flex-col gap-0.5 px-2 pb-3">
-      <Node
-        icon={<ImagesIcon className="size-3.5" />}
-        label="Canvas"
-        count={project.assets.length}
-        active={stage === "canvas"}
-        onClick={() => setSequenceStage("canvas")}
-      />
+      <div className="flex items-center">
+        <Node
+          icon={<ImagesIcon className="size-3.5" />}
+          label="Canvas"
+          count={project.assets.length}
+          active={stage === "canvas"}
+          onClick={() => setSequenceStage("canvas")}
+          className="flex-1"
+        />
+        <ImportPhotosButton variant="icon" />
+      </div>
 
       <div className="flex items-center">
         <button
@@ -220,12 +225,14 @@ function Node({
   count,
   active,
   onClick,
+  className,
 }: {
   icon: React.ReactNode
   label: string
   count: number
   active: boolean
   onClick: () => void
+  className?: string
 }) {
   return (
     <button
@@ -233,6 +240,7 @@ function Node({
       className={cn(
         "flex items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm text-foreground/90 hover:bg-muted",
         active && "bg-muted font-medium",
+        className,
       )}
     >
       <span className="ml-4 flex shrink-0 items-center text-muted-foreground">

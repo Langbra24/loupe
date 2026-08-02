@@ -56,6 +56,9 @@ export function useFabricCanvas(options: Options) {
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
   const canvasRef = useRef<Canvas | null>(null)
   const objectsRef = useRef(new Map<string, PlacedObject>())
+  /** Placements whose image is loading. Reserved synchronously so a second
+   *  overlapping sync pass cannot start drawing the same one. */
+  const pendingRef = useRef(new Set<string>())
 
   const [zoom, setZoom] = useState(1)
   const [ready, setReady] = useState(false)
@@ -183,11 +186,13 @@ export function useFabricCanvas(options: Options) {
     })()
 
     const objects = objectsRef.current
+    const inFlight = pendingRef.current
 
     return () => {
       disposed = true
       setReady(false)
       objects.clear()
+      inFlight.clear()
       const target = canvasRef.current
       canvasRef.current = null
       void target?.dispose()
@@ -247,17 +252,41 @@ export function useFabricCanvas(options: Options) {
 
     // Add objects for placements not yet drawn. Existing objects are left
     // alone — the canvas owns their position while mounted.
+    //
+    // Drawing awaits a blob URL and a dynamic import, so two overlapping sync
+    // passes (import a batch, then another before the first finishes) would
+    // both pass a plain `live.has` check and both add an object. The second
+    // would win the map and the first would become an untracked ghost the
+    // cleanup loop can never remove. The pending set closes that window by
+    // reserving the id synchronously.
+    const pending = pendingRef.current
+
     for (const placement of current) {
-      if (live.has(placement.id)) continue
+      if (live.has(placement.id) || pending.has(placement.id)) continue
 
       const asset = assetById.get(placement.assetId)
       if (!asset) continue
 
+      pending.add(placement.id)
+      try {
+        await drawPlacement(placement, asset)
+      } finally {
+        pending.delete(placement.id)
+      }
+    }
+
+    canvasRef.current?.requestRenderAll()
+
+    async function drawPlacement(placement: CanvasPlacement, asset: Asset) {
       const url = await thumbnailUrl(placement.assetId)
-      if (!url || !canvasRef.current) continue
+      if (!url || !canvasRef.current) return
+
+      // The placement can be deleted while its image loads.
+      if (!latest.current.placements.some((p) => p.id === placement.id)) return
 
       const fabric = await import("fabric")
       const image: FabricImage = await fabric.FabricImage.fromURL(url)
+      if (!canvasRef.current) return
 
       // The thumbnail is smaller than the original, so scale it back up to the
       // asset's natural size — placement scale is defined against that.
@@ -282,9 +311,8 @@ export function useFabricCanvas(options: Options) {
 
       canvasRef.current.add(image)
       live.set(placement.id, placed)
+      canvasRef.current.requestRenderAll()
     }
-
-    canvasRef.current?.requestRenderAll()
   }, [])
 
   useEffect(() => {
