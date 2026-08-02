@@ -9,6 +9,7 @@ import {
 import { toSpreads, type Page, type PageElement } from "@loupe/core"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { WorkflowTree } from "@/components/sequence/workflow-tree"
 import { cn } from "@/lib/utils"
 import { useEditorStore } from "@/state/editor-store"
 
@@ -22,6 +23,7 @@ import { useEditorStore } from "@/state/editor-store"
  */
 export function LayersPanel() {
   const project = useEditorStore((state) => state.project)
+  const mode = useEditorStore((state) => state.mode)
   const selection = useEditorStore((state) => state.selection)
 
   const selectedPageId = selection?.kind ? selection.pageId : null
@@ -36,13 +38,15 @@ export function LayersPanel() {
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="px-2 pb-3">
-          {selectedPage ? (
-            <ElementList page={selectedPage} />
-          ) : (
-            <SpreadList />
-          )}
-        </div>
+        {/* Sequence navigates the whole book; Design and Print drill into one
+            page. Same panel, same visual language, different scope. */}
+        {mode === "sequence" ? (
+          <WorkflowTree />
+        ) : (
+          <div className="px-2 pb-3">
+            {selectedPage ? <ElementList page={selectedPage} /> : <SpreadList />}
+          </div>
+        )}
       </ScrollArea>
     </aside>
   )

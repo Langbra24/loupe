@@ -60,13 +60,12 @@ export function useFabricCanvas(options: Options) {
   const [zoom, setZoom] = useState(1)
   const [ready, setReady] = useState(false)
 
-  // Handlers are read through a ref so the Fabric listeners can be bound once.
-  // Rebinding them on every render would tear down the canvas mid-gesture.
+  // Handlers and current data are read through refs so the Fabric listeners can
+  // be bound once — rebinding them on every render would tear down the canvas
+  // mid-gesture. Written in an effect rather than during render, which React
+  // Compiler correctly rejects.
   const handlers = useRef({ onMove, onScale, onContextMenu })
-  handlers.current = { onMove, onScale, onContextMenu }
-
   const latest = useRef({ placements, assets })
-  latest.current = { placements, assets }
 
   /** Set once `fitToView` is defined below; read by the first-frame effect so
    *  that effect does not depend on the callback's identity. */
@@ -75,6 +74,11 @@ export function useFabricCanvas(options: Options) {
   /* ---------------------------------------------------------------- */
   /* Create and dispose                                                */
   /* ---------------------------------------------------------------- */
+
+  useEffect(() => {
+    handlers.current = { onMove, onScale, onContextMenu }
+    latest.current = { placements, assets }
+  })
 
   useEffect(() => {
     let disposed = false
@@ -174,20 +178,22 @@ export function useFabricCanvas(options: Options) {
         )
       })
 
+      // The sync effect below runs off `ready`, so it performs the first draw.
       setReady(true)
-      void syncObjects()
     })()
+
+    const objects = objectsRef.current
 
     return () => {
       disposed = true
       setReady(false)
-      objectsRef.current.clear()
+      objects.clear()
       const target = canvasRef.current
       canvasRef.current = null
       void target?.dispose()
     }
     // Created once for the lifetime of the mounted stage.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [])
 
   /* ---------------------------------------------------------------- */
@@ -367,7 +373,9 @@ export function useFabricCanvas(options: Options) {
     canvas.requestRenderAll()
   }, [])
 
-  fitToViewRef.current = fitToView
+  useEffect(() => {
+    fitToViewRef.current = fitToView
+  }, [fitToView])
 
   const controls: CanvasControls = { zoom, ready, zoomIn, zoomOut, resetZoom, fitToView }
 

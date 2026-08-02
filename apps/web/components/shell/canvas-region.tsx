@@ -6,6 +6,7 @@ import {
   sizeForRole,
   toSpreads,
   vandeGraafMargins,
+  type ImageElement,
   type Page,
   type PageElement,
   type Project,
@@ -14,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { LightTable } from "@/components/sequence/light-table"
 import { EditStage } from "@/components/sequence/edit-stage"
+import { useThumbnail } from "@/components/sequence/use-thumbnail"
 import { cn } from "@/lib/utils"
 import { useEditorStore } from "@/state/editor-store"
 
@@ -58,6 +60,14 @@ export function CanvasRegion() {
 function SequenceView() {
   const project = useEditorStore((state) => state.project)
   const spreads = toSpreads(project.pages)
+
+  if (spreads.length === 0) {
+    return (
+      <Empty>
+        The book is empty. Build an edit, then commit it to see the spreads here.
+      </Empty>
+    )
+  }
 
   return (
     <div className="p-8 pt-16">
@@ -167,7 +177,11 @@ function DesignView() {
   const spread = spreads[index]
 
   if (!spread) {
-    return <Empty>No pages yet.</Empty>
+    return (
+      <Empty>
+        No book yet. Commit an edit in Sequence and its spreads will appear here.
+      </Empty>
+    )
   }
 
   return (
@@ -251,6 +265,14 @@ function PrintView() {
   const project = useEditorStore((state) => state.project)
   const check = checkPageCount(project.pages.length)
   const margins = vandeGraafMargins(project.pageSize)
+
+  if (project.pages.length === 0) {
+    return (
+      <Empty>
+        Nothing to impose yet. Commit an edit in Sequence to make a book first.
+      </Empty>
+    )
+  }
 
   // Two pages side by side on one press sheet, folded down the middle.
   const sheetAspect = (project.pageSize.width * 2) / project.pageSize.height
@@ -349,9 +371,11 @@ function ElementBox({
 
   if (element.kind === "image") {
     return (
-      <div
+      <ImageElementBox
+        element={element}
         style={style}
-        onClick={
+        isSelected={isSelected}
+        onSelect={
           isInteractive
             ? (event) => {
                 event.stopPropagation()
@@ -359,18 +383,7 @@ function ElementBox({
               }
             : undefined
         }
-        className={cn(
-          "absolute bg-muted",
-          isInteractive && "cursor-pointer",
-          isSelected && "outline-2 outline-ring",
-        )}
-      >
-        {scale === "full" && (
-          <span className="absolute inset-x-0 bottom-1 truncate px-2 text-center text-[0.65rem] text-muted-foreground">
-            {element.name}
-          </span>
-        )}
-      </div>
+      />
     )
   }
 
@@ -400,6 +413,51 @@ function ElementBox({
       )}
     >
       {element.content}
+    </div>
+  )
+}
+
+/**
+ * Renders a committed photograph.
+ *
+ * Until this existed nothing in the app drew image pixels — an image element
+ * was a grey box that never read its `assetId` — so the whole funnel ended in
+ * placeholders no matter how many photographs were imported.
+ */
+function ImageElementBox({
+  element,
+  style,
+  isSelected,
+  onSelect,
+}: {
+  element: ImageElement
+  style: React.CSSProperties
+  isSelected: boolean
+  onSelect?: (event: React.MouseEvent) => void
+}) {
+  const url = useThumbnail(element.assetId)
+
+  return (
+    <div
+      style={style}
+      onClick={onSelect}
+      className={cn(
+        "absolute overflow-hidden bg-muted",
+        onSelect && "cursor-pointer",
+        isSelected && "outline-2 outline-ring",
+      )}
+    >
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={url}
+          alt={element.name}
+          className={cn(
+            "h-full w-full",
+            element.fit === "cover" ? "object-cover" : "object-contain",
+          )}
+        />
+      ) : null}
     </div>
   )
 }
