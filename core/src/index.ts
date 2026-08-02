@@ -7,6 +7,10 @@
  */
 
 export * from './types'
+export * from './collections'
 export * from './sequence'
+export * from './edits'
+export * from './geometry'
+export * from './commit'
 export * from './typography'
 export * from './fixtures'
