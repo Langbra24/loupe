@@ -100,6 +100,11 @@ export function useFabricCanvas(options: Options) {
         fireRightClick: true,
         stopContextMenu: true,
         fireMiddleClick: true,
+        // A placement stores a single `scale`, so corner drags must stay
+        // proportional. `uniScaleKey` is the modifier that inverts this;
+        // clearing it removes the escape hatch into non-uniform scaling.
+        uniformScaling: true,
+        uniScaleKey: null,
       })
 
       canvasRef.current = canvas
@@ -304,6 +309,22 @@ export function useFabricCanvas(options: Options) {
         cornerColor: "#6366f1",
         cornerSize: 8,
         transparentCorners: false,
+        // The model stores position and one uniform scale. Fabric's default
+        // controls offer more than that — a rotation handle and per-axis side
+        // handles — and `object:modified` has nowhere to put either, so a
+        // rotated or stretched photograph would silently snap back on reload.
+        // Restrict the controls to what a placement can actually remember.
+        lockRotation: true,
+        lockSkewingX: true,
+        lockSkewingY: true,
+      })
+
+      image.setControlsVisibility({
+        mtr: false, // rotation handle
+        ml: false,
+        mr: false,
+        mt: false,
+        mb: false, // per-axis side handles
       })
       const placed = image as PlacedObject
       placed.placementId = placement.id
