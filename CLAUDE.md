@@ -38,11 +38,49 @@ todos/                  triage and review findings
 
 ## Three modes, three cognitive tasks
 
-1. **Sequence** — whole-book ordering. Filmstrip/lightbox, no editing chrome, speed is the entire point. Lightweight state array, no canvas rendering.
-2. **Design** — per-spread composition against the facing-page pair. The only place doing real canvas rendering (Fabric.js, once it lands).
+1. **Sequence** — whole-book ordering, in three stages (below).
+2. **Design** — per-spread composition against the facing-page pair.
 3. **Print** — imposition, fold preview, bleed/margins, page-count validation. Read-only against assembled state.
 
 Keep these boundaries in the code, not just the UI — they are why the engine stays simple.
+
+## The Sequence funnel
+
+Sequence mode is three stages, not one view. Structure increases and freedom decreases at each step, and the two transitions have deliberately different semantics.
+
+1. **Canvas** — the light table. Every imported photograph on an infinite Fabric.js surface, positioned and scaled freely. No structure. This is where photographs permanently live.
+2. **Edits** — candidate sequences. Ordered lists of photographs, promoted by right-click. Multiple edits can exist side by side as competing versions.
+3. **Book** — `pages[]`, the committed result. Design and Print work against this.
+
+**Canvas → Edit is by reference.** Promoting a photograph does not remove it from the canvas, and the same asset may belong to several edits at once. That is what makes competing edits comparable.
+
+**Edit → Book is a one-way snapshot.** Committing copies the edit's order into pages; afterward the two are independent. There is no live binding, so there is exactly one editable representation of an ordering at a time.
+
+**Order inside an edit is explicit.** It is set by dragging, never inferred from where a photograph happens to sit on the canvas.
+
+## Data model notes
+
+- `Asset` is metadata only. Pixels live in IndexedDB (`originals` and `thumbnails` stores) addressed by asset id.
+- `CanvasPlacement.x/y` is the placement's **center**, matching Fabric v7's `originX`/`originY` default of `'center'`.
+- One scene unit is one pixel of the original image. The canvas scales thumbnails up to that size on draw, and divides the factor back out when reading a placement's scale — otherwise every drag would persist the rendering factor as user intent.
+- `Edit.memberIds` holds asset ids, not placement ids, so an edit survives a photograph being moved or removed from the canvas.
+- Spreads stay derived from page order; they are never stored.
+
+## Storage rules
+
+- The project record addresses the blobs, so it is flushed **immediately** after an import commits and on `pagehide`. Only placement and edit mutations use the debounce.
+- Load reconciles blob stores against the asset list and deletes orphans.
+- `navigator.storage.persist()` is requested on first import. IndexedDB is evicted LRU, and with no account and no backup that is silent total data loss. A denial degrades quietly — it is a browser policy the user cannot change. The real answer is the deferred project export.
+
+## Fabric.js v7 gotchas
+
+Most published examples are v5/v6 and will not work as written.
+
+- `getPointer()` is gone — use `getScenePoint()` / `getViewportPoint()`.
+- `setWidth()`/`setHeight()` are gone — use `setDimensions()`. The panel-collapse resize path depends on this.
+- `originX`/`originY` default to `'center'`.
+- `fireRightClick` and `stopContextMenu` default to `true`, but set them explicitly — the context menu depends on them entirely.
+- The canvas must observe a dedicated `overflow-hidden` wrapper, never a scrollable ancestor, or a growing canvas summons a scrollbar and re-fires its own `ResizeObserver`.
 
 ## Stack notes
 
@@ -58,4 +96,13 @@ npm install          # root — workspaces
 npm run dev          # apps/web dev server
 npm run build        # apps/web production build
 npm run typecheck    # all workspaces
+npm run lint         # all workspaces
+npm test --workspace=@loupe/core   # Vitest
+```
+
+Core purity gates (both must return nothing):
+
+```bash
+rg "from ['\"](react|next|fabric|stripe)" core/src
+rg "document\.|window\.|localStorage|navigator" core/src
 ```
