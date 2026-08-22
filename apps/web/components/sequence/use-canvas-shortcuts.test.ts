@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { handleFrameKeyDown } from "@/components/sequence/use-canvas-shortcuts"
+import { handleFrameKeyDown, shouldCreateTextbox } from "@/components/sequence/use-canvas-shortcuts"
 
 /**
  * Exercises the pure decision logic directly, bypassing a real DOM keydown —
@@ -127,5 +127,33 @@ describe("handleFrameKeyDown", () => {
       reorderFrameById,
     })
     expect(reorderFrameById).not.toHaveBeenCalled()
+  })
+})
+
+describe("shouldCreateTextbox", () => {
+  const base = { key: "t", hasModifier: false, isDomTypingTarget: false, isTextboxEditing: false }
+
+  it("creates on a bare 't'", () => {
+    expect(shouldCreateTextbox(base)).toBe(true)
+  })
+
+  it("creates on a bare 'T' (shift+t reports as uppercase, not a modifier)", () => {
+    expect(shouldCreateTextbox({ ...base, key: "T" })).toBe(true)
+  })
+
+  it("is inert for any other key", () => {
+    expect(shouldCreateTextbox({ ...base, key: "a" })).toBe(false)
+  })
+
+  it("is inert when a modifier key is held", () => {
+    expect(shouldCreateTextbox({ ...base, hasModifier: true })).toBe(false)
+  })
+
+  it("is inert when a DOM input/textarea/etc has focus", () => {
+    expect(shouldCreateTextbox({ ...base, isDomTypingTarget: true })).toBe(false)
+  })
+
+  it("is inert when a Fabric textbox already has editing focus — typing 'The' must not spawn a second box", () => {
+    expect(shouldCreateTextbox({ ...base, isTextboxEditing: true })).toBe(false)
   })
 })

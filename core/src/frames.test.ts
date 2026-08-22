@@ -8,8 +8,11 @@ import {
   refitElementsForPageSize,
   removeFromFrame,
   reorderFrame,
+  updateElement,
+  updateFrame,
   type FrameBounds,
 } from "./frames"
+import { vandeGraafMargins } from "./typography"
 import type { BookSetup, Frame, ImageElement, PageSize } from "./types"
 
 const A5: PageSize = { name: "A5 portrait", width: 148, height: 210 }
@@ -24,7 +27,22 @@ function bounds(frameId: string, x: number, y: number, width: number, height: nu
 
 describe("createFrame", () => {
   it("starts with an empty element list unless seeded", () => {
-    expect(createFrame("f1", A5, 0)).toEqual({ id: "f1", pageSize: A5, position: 0, elements: [] })
+    expect(createFrame("f1", A5, 0)).toEqual({
+      id: "f1",
+      pageSize: A5,
+      position: 0,
+      elements: [],
+      margins: vandeGraafMargins(A5),
+    })
+  })
+
+  it("defaults margins to the Van de Graaf canon for the frame's page size", () => {
+    expect(createFrame("f1", A5, 0).margins).toEqual(vandeGraafMargins(A5))
+  })
+
+  it("accepts an explicit margins override", () => {
+    const custom = { top: 1, inner: 2, outer: 3, bottom: 4 }
+    expect(createFrame("f1", A5, 0, [], custom).margins).toEqual(custom)
   })
 })
 
@@ -155,6 +173,50 @@ describe("removeFromFrame", () => {
     const withOne: Frame = { ...frame("f0", 0), elements: [image("e1")] }
     const result = removeFromFrame([withOne], "f0", "missing")
 
+    expect(result[0]?.elements).toEqual([image("e1")])
+  })
+})
+
+describe("updateFrame", () => {
+  it("applies the updater to the named frame only", () => {
+    const frames = [frame("f0", 0), frame("f1", 1)]
+    const custom = { top: 9, inner: 9, outer: 9, bottom: 9 }
+    const result = updateFrame(frames, "f0", (f) => ({ ...f, margins: custom }))
+
+    expect(result.find((f) => f.id === "f0")?.margins).toEqual(custom)
+    expect(result.find((f) => f.id === "f1")?.margins).toEqual(frame("f1", 1).margins)
+  })
+
+  it("leaves the array unchanged (new array, same contents) when the frame id is not found", () => {
+    const frames = [frame("f0", 0)]
+    const result = updateFrame(frames, "missing", (f) => ({ ...f, position: 99 }))
+
+    expect(result).toEqual(frames)
+    expect(result).not.toBe(frames)
+  })
+})
+
+describe("updateElement", () => {
+  it("applies the updater to the named element inside the named frame only", () => {
+    const withTwo: Frame = { ...frame("f0", 0), elements: [image("e1"), image("e2")] }
+    const other: Frame = { ...frame("f1", 1), elements: [image("e1")] }
+    const result = updateElement([withTwo, other], "f0", "e1", (el) => ({ ...el, name: "renamed" }))
+
+    expect(result[0]?.elements.find((e) => e.id === "e1")?.name).toBe("renamed")
+    expect(result[0]?.elements.find((e) => e.id === "e2")?.name).toBe(image("e2").name)
+    // A same-id element in a different frame is untouched.
+    expect(result[1]?.elements[0]?.name).toBe(image("e1").name)
+  })
+
+  it("is a no-op if the frame is not found", () => {
+    const frames = [frame("f0", 0)]
+    const result = updateElement(frames, "missing", "e1", (el) => ({ ...el, name: "renamed" }))
+    expect(result).toEqual(frames)
+  })
+
+  it("is a no-op if the element is not found in the frame", () => {
+    const withOne: Frame = { ...frame("f0", 0), elements: [image("e1")] }
+    const result = updateElement([withOne], "f0", "missing", (el) => ({ ...el, name: "renamed" }))
     expect(result[0]?.elements).toEqual([image("e1")])
   })
 })

@@ -105,6 +105,20 @@ export interface Page {
 }
 
 /**
+ * A frame's page margins, in the same units as its `pageSize` (millimetres,
+ * by convention — see `PageSize`). Structurally identical to `PageMargins` in
+ * typography.ts but declared separately rather than imported from there:
+ * typography.ts already imports `PageSize`/`TypeRole` from this file, and
+ * importing back from typography.ts would make that a cycle.
+ */
+export interface Margins {
+  top: number
+  inner: number
+  outer: number
+  bottom: number
+}
+
+/**
  * A page-in-progress on the canvas — a frame the user drags photographs and
  * text into before it becomes a committed `Page`.
  *
@@ -113,6 +127,12 @@ export interface Page {
  * sit anywhere on the canvas and still be, say, page 3 in the flow. Reordering
  * the flow (`reorderFrame` in frames.ts) never touches where the frame sits on
  * the canvas.
+ *
+ * `margins` is optional (U7): every frame `createFrame` builds gets a real
+ * value (defaulted from the Van de Graaf canon for its `pageSize`), but the
+ * field stays optional in the type rather than required so hand-built `Frame`
+ * fixtures elsewhere (tests predating this unit) don't all need updating for
+ * a field that has one obvious default — see `createFrame` in frames.ts.
  */
 export interface Frame {
   id: PageId
@@ -120,6 +140,7 @@ export interface Frame {
   /** 0-based position in the book's reading order. */
   position: number
   elements: PageElement[]
+  margins?: Margins
 }
 
 /**
@@ -176,10 +197,23 @@ export interface Project {
   typeRatio: number
 }
 
-/** What the layers panel and inspector are currently pointed at.
- *  `null` means nothing is selected, which is a meaningful state: the layers
- *  panel shows the book's page order instead of one page's contents. */
+/**
+ * What the layers panel and inspector are currently pointed at.
+ *
+ * Redesigned in U7 for the frame model: the old shape (`page`/`element`,
+ * keyed by `pageId`) predates `Frame` entirely and doesn't fit it — a
+ * page-in-progress is a `Frame`, not a `Page`, and its elements live at
+ * `Frame.elements`, not `Page.elements`. `image-element` and `text-element`
+ * are split rather than a single `element` kind because the inspector shows
+ * different fields for each (fit/position vs. role/alignment/width), and a
+ * single kind would just push that same discrimination into every reader.
+ *
+ * `null` means nothing is selected, which is a meaningful state: the
+ * inspector shows book-level settings (page size, count, saddle-stitch
+ * validation) instead of one frame's or element's properties.
+ */
 export type Selection =
-  | { kind: 'page'; pageId: PageId }
-  | { kind: 'element'; pageId: PageId; elementId: ElementId }
+  | { kind: 'frame'; frameId: PageId }
+  | { kind: 'text-element'; frameId: PageId; elementId: ElementId }
+  | { kind: 'image-element'; frameId: PageId; elementId: ElementId }
   | null

@@ -154,3 +154,99 @@ export function useFrameKeyboardShortcuts({
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [enabled, frameCount, focusedFrameIndex, setFocusedFrameIndex, reorderFrameById])
 }
+
+/**
+ * Decides whether a bare `T` keypress should create a new pasteboard text
+ * box (U6). Extracted as a pure function — mirroring `handleFrameKeyDown`
+ * above — so the decision is testable without a real DOM keydown or a Fabric
+ * canvas.
+ *
+ * Two independent things can make `T` inert:
+ * - focus is already inside a DOM input/textarea/etc (`isTypingTarget`,
+ *   checked by the caller and passed in as `isDomTypingTarget`) — typing
+ *   into, say, the project name field should never spawn a text box.
+ * - a Fabric `Textbox` already has editing focus (`isTextboxEditing`) —
+ *   typing "The" into an existing box must never create a second one. This
+ *   is a Fabric-level fact (`canvas.getActiveObject()?.isEditing`), not a
+ *   DOM one, which is why it can't be folded into `isTypingTarget` itself.
+ *
+ * Any modifier key (Ctrl/Cmd/Alt) also makes it inert — `T` alone is the
+ * shortcut, so `Ctrl+T` and friends stay free for the browser/OS.
+ */
+export function shouldCreateTextbox(input: {
+  key: string
+  hasModifier: boolean
+  isDomTypingTarget: boolean
+  isTextboxEditing: boolean
+}): boolean {
+  if (input.hasModifier) return false
+  if (input.isDomTypingTarget) return false
+  if (input.isTextboxEditing) return false
+  return input.key.toLowerCase() === "t"
+}
+
+export interface TextToolOptions {
+  enabled: boolean
+  /** Fabric-level fact, not React state — see `shouldCreateTextbox`. */
+  isTextboxEditing: () => boolean
+  createTextbox: () => void
+}
+
+/** Wires the `T` shortcut (create-and-edit a pasteboard text box, U6) to
+ *  `window`'s keydown stream. Split from `shouldCreateTextbox` for the same
+ *  reason `useFrameKeyboardShortcuts` is split from `handleFrameKeyDown`. */
+export function useTextToolShortcut({ enabled, isTextboxEditing, createTextbox }: TextToolOptions): void {
+  useEffect(() => {
+    if (!enabled) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const shouldCreate = shouldCreateTextbox({
+        key: event.key,
+        hasModifier: event.ctrlKey || event.metaKey || event.altKey,
+        isDomTypingTarget: isTypingTarget(event.target),
+        isTextboxEditing: isTextboxEditing(),
+      })
+      if (!shouldCreate) return
+
+      event.preventDefault()
+      createTextbox()
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [enabled, isTextboxEditing, createTextbox])
+}
+
+export interface UndoShortcutOptions {
+  enabled: boolean
+  undo: () => void
+}
+
+/**
+ * Binds the platform undo shortcut (`Cmd/Ctrl+Z`, U8) to the store's
+ * `undo()`. Guarded by `isTypingTarget` the same way the frame/text
+ * shortcuts are — but for undo specifically, that guard matters more than
+ * usual: inside a text field (the sidebar's content textarea, the project
+ * name field, anywhere), `Ctrl+Z` should fall through to the browser's own
+ * native text-undo, not this app-level command stack. Returning early here
+ * (rather than calling `preventDefault`) is what lets that fall-through
+ * happen.
+ */
+export function useUndoShortcut({ enabled, undo }: UndoShortcutOptions): void {
+  useEffect(() => {
+    if (!enabled) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "z") return
+      if (!event.ctrlKey && !event.metaKey) return
+      if (event.shiftKey) return // Redo (Cmd/Ctrl+Shift+Z) isn't implemented — leave it alone.
+      if (isTypingTarget(event.target)) return
+
+      event.preventDefault()
+      undo()
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [enabled, undo])
+}

@@ -8,7 +8,8 @@
  */
 
 import { moveItem } from './collections'
-import type { BookSetup, Bounds, Frame, PageElement, PageSize } from './types'
+import { vandeGraafMargins } from './typography'
+import type { BookSetup, Bounds, Frame, Margins, PageElement, PageSize } from './types'
 
 /**
  * Move an element into a frame — a photograph dragged off the pasteboard and
@@ -51,14 +52,55 @@ export function removeFromFrame(frames: readonly Frame[], frameId: string, eleme
   )
 }
 
-/** Build one frame. Starts with no elements unless seeded. */
+/**
+ * Apply `updater` to one frame by id — the whole-frame counterpart to
+ * `assignToFrame`/`removeFromFrame`, added in U7 for the inspector's margin
+ * fields. A no-op (new array, same contents) if the frame isn't found, for
+ * the same racing-UI-update reason as those two.
+ */
+export function updateFrame(frames: readonly Frame[], frameId: string, updater: (frame: Frame) => Frame): Frame[] {
+  return frames.map((frame) => (frame.id === frameId ? updater(frame) : frame))
+}
+
+/**
+ * Apply `updater` to one element inside one frame — added in U7 so the
+ * inspector's per-element fields (a text element's role/align/width, an
+ * image element's fit/position) all go through one function rather than each
+ * growing its own bespoke map-and-splice. A no-op (new array, same contents)
+ * if the frame or the element isn't found, for the same reason
+ * `assignToFrame`/`removeFromFrame` are.
+ */
+export function updateElement(
+  frames: readonly Frame[],
+  frameId: string,
+  elementId: string,
+  updater: (element: PageElement) => PageElement,
+): Frame[] {
+  return frames.map((frame) =>
+    frame.id === frameId
+      ? { ...frame, elements: frame.elements.map((element) => (element.id === elementId ? updater(element) : element)) }
+      : frame,
+  )
+}
+
+/**
+ * Build one frame. Starts with no elements unless seeded.
+ *
+ * `margins` defaults to the Van de Graaf canon for `pageSize` (U7) — every
+ * frame needs *some* margins for the inspector's margin fields to bind to,
+ * and the canon is the same default `vandeGraafMargins` already supplies
+ * elsewhere (the old per-page print-properties panel), so a frame's margins
+ * start out consistent with what the rest of the app already assumed before
+ * `Frame.margins` existed.
+ */
 export function createFrame(
   id: string,
   pageSize: Frame['pageSize'],
   position: number,
   elements: readonly PageElement[] = [],
+  margins: Margins = vandeGraafMargins(pageSize),
 ): Frame {
-  return { id, pageSize, position, elements: [...elements] }
+  return { id, pageSize, position, elements: [...elements], margins }
 }
 
 /**

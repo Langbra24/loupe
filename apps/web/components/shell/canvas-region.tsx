@@ -229,9 +229,6 @@ function DesignView() {
 }
 
 function DesignPage({ page, project }: { page: Page | null; project: Project }) {
-  const selection = useEditorStore((state) => state.selection)
-  const selectPage = useEditorStore((state) => state.selectPage)
-
   const aspect = project.pageSize.width / project.pageSize.height
 
   if (!page) {
@@ -240,17 +237,14 @@ function DesignPage({ page, project }: { page: Page | null; project: Project }) 
     )
   }
 
-  const isSelected = selection?.kind === "page" && selection.pageId === page.id
-
+  // This whole view is unreachable dead code (see the comment on
+  // `openPageInDesign` in editor-store.ts) — the old `page` `Selection` kind
+  // it used for a click-to-select outline is gone under the frame model
+  // (U7), and there is no page-level replacement to select here, since a
+  // committed `Page` isn't a `Frame`. Left inert rather than removed; U12
+  // deletes this view wholesale.
   return (
-    <div
-      className={cn("relative flex-1 bg-card outline-offset-2", isSelected && "outline-2 outline-ring")}
-      style={{ aspectRatio: aspect }}
-      onClick={(event) => {
-        event.stopPropagation()
-        selectPage(page.id)
-      }}
-    >
+    <div className="relative flex-1 bg-card outline-offset-2" style={{ aspectRatio: aspect }}>
       <PageContents page={page} project={project} scale="full" />
     </div>
   )
@@ -337,28 +331,32 @@ function PageContents({
       {page.elements
         .filter((element) => !element.hidden)
         .map((element) => (
-          <ElementBox key={element.id} element={element} page={page} project={project} scale={scale} />
+          <ElementBox key={element.id} element={element} project={project} scale={scale} />
         ))}
     </div>
   )
 }
 
+// `page` used to be a prop here too (for the `selectElement(page.id, ...)`
+// calls this dead code path — see the comment above — used to make). Dropped
+// along with those calls rather than kept unused: a `Page` isn't the frame
+// model's identifier for anything anymore, so there was no honest value to
+// still pass through.
 function ElementBox({
   element,
-  page,
   project,
   scale,
 }: {
   element: PageElement
-  page: Page
   project: Project
   scale: "thumb" | "full"
 }) {
-  const selection = useEditorStore((state) => state.selection)
-  const selectElement = useEditorStore((state) => state.selectElement)
-
-  const isSelected =
-    selection?.kind === "element" && selection.elementId === element.id
+  // Dead code (see the comment on `DesignPage` above): the old `element`
+  // `Selection` kind this used is gone under the frame model (U7), and this
+  // element lives on a committed `Page`, not a `Frame`, so there is no
+  // current `Selection` value that could ever describe it. Hardcoded false
+  // rather than removed; U12 deletes this view wholesale.
+  const isSelected = false
   const isInteractive = scale === "full"
 
   const style: React.CSSProperties = {
@@ -374,14 +372,7 @@ function ElementBox({
         element={element}
         style={style}
         isSelected={isSelected}
-        onSelect={
-          isInteractive
-            ? (event) => {
-                event.stopPropagation()
-                selectElement(page.id, element.id)
-              }
-            : undefined
-        }
+        onSelect={undefined}
       />
     )
   }
@@ -394,14 +385,6 @@ function ElementBox({
   return (
     <div
       style={{ ...style, fontSize, textAlign: element.align }}
-      onClick={
-        isInteractive
-          ? (event) => {
-              event.stopPropagation()
-              selectElement(page.id, element.id)
-            }
-          : undefined
-      }
       className={cn(
         "absolute overflow-hidden leading-snug",
         element.role === "title" || element.role === "subtitle"
