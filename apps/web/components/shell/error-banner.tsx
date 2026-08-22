@@ -13,8 +13,11 @@ import { useEditorStore } from "@/state/editor-store"
  * and the user saw nothing at all. For a tool whose only copy of the work is
  * local, a silent storage failure is the worst possible silence.
  *
- * Bottom-left because the canvas controls own the bottom-right and the mode
- * switcher owns the top-right.
+ * Bottom-left because the canvas controls own the bottom-right. Sits at
+ * `bottom-16` rather than the corner itself — the feedback control and the
+ * introduction's reopen control (see feedback-control.tsx, introduction.tsx)
+ * now own the literal bottom-left corner as a persistent pair, so this floats
+ * just above them instead of overlapping.
  */
 export function ErrorBanner() {
   const lastError = useEditorStore((state) => state.lastError)
@@ -25,7 +28,7 @@ export function ErrorBanner() {
   return (
     <div
       role="alert"
-      className="absolute bottom-3 left-3 z-30 flex max-w-sm items-start gap-2 rounded-lg border border-destructive/40 bg-background/95 px-3 py-2 shadow-lg backdrop-blur"
+      className="absolute bottom-16 left-3 z-30 flex max-w-sm items-start gap-2 rounded-lg border border-destructive/40 bg-background/95 px-3 py-2 shadow-lg backdrop-blur"
     >
       <WarningIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
       <p className="flex-1 text-xs leading-relaxed">{lastError}</p>

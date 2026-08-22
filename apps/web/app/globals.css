@@ -2,45 +2,23 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
-
+/**
+ * One committed palette (KTD from docs/plans/2026-08-22-001-feat-unified-canvas-plan.md
+ * — "Dark only"). There is no light variant and no `.dark` toggle class
+ * anymore: these are the values the old `.dark` block held, promoted to be
+ * the only `:root` definition.
+ *
+ * The canvas surface is a level darker than the rest of the shell — see
+ * `--canvas` / `--canvas-dot` below and their use in canvas-region.tsx — while
+ * the shell chrome (top nav, side panels) keeps this `--background`, which is
+ * the gray the canvas itself used to render before this unit (previously
+ * `bg-muted/40` over the old dark `--background`).
+ */
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.141 0.005 285.823);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.141 0.005 285.823);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.141 0.005 285.823);
-    --primary: oklch(0.21 0.006 285.885);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.967 0.001 286.375);
-    --secondary-foreground: oklch(0.21 0.006 285.885);
-    --muted: oklch(0.967 0.001 286.375);
-    --muted-foreground: oklch(0.552 0.016 285.938);
-    --accent: oklch(0.967 0.001 286.375);
-    --accent-foreground: oklch(0.21 0.006 285.885);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.92 0.004 286.32);
-    --input: oklch(0.92 0.004 286.32);
-    --ring: oklch(0.705 0.015 286.067);
-    --chart-1: oklch(0.871 0.006 286.286);
-    --chart-2: oklch(0.552 0.016 285.938);
-    --chart-3: oklch(0.442 0.017 285.786);
-    --chart-4: oklch(0.37 0.013 285.805);
-    --chart-5: oklch(0.274 0.006 286.033);
-    --radius: 0.45rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.141 0.005 285.823);
-    --sidebar-primary: oklch(0.21 0.006 285.885);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.967 0.001 286.375);
-    --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-    --sidebar-border: oklch(0.92 0.004 286.32);
-    --sidebar-ring: oklch(0.705 0.015 286.067);
-}
-
-.dark {
-    --background: oklch(0.141 0.005 285.823);
+    /* Promoted from the old dark `--muted` — that was the gray
+     * `bg-muted/40` painted the canvas with before this unit. The shell chrome
+     * (top nav, side panels) now uses it directly as `--background`. */
+    --background: oklch(0.274 0.006 286.033);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.21 0.006 285.885);
     --card-foreground: oklch(0.985 0 0);
@@ -63,6 +41,7 @@
     --chart-3: oklch(0.442 0.017 285.786);
     --chart-4: oklch(0.37 0.013 285.805);
     --chart-5: oklch(0.274 0.006 286.033);
+    --radius: 0.45rem;
     --sidebar: oklch(0.21 0.006 285.885);
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -71,6 +50,17 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.552 0.016 285.938);
+
+    /* The canvas surface — black with a subtle dot grid (R22). Kept as its own
+     * tokens rather than repurposing `--background`/`--muted`, since those are
+     * still used across ordinary shell chrome (buttons, hover states) that
+     * must not turn pure black. `--canvas-dot` is deliberately low-contrast
+     * against `--canvas` — visible on inspection, not a distraction — while
+     * selection/frame-edge/insertion-indicator colors (drawn on the canvas by
+     * later units) are expected to use `--ring`/`--primary`, which stay
+     * light and are already tuned for contrast against a dark surface (R31). */
+    --canvas: oklch(0 0 0);
+    --canvas-dot: oklch(1 0 0 / 8%);
 }
 
 @theme inline {
@@ -107,6 +97,8 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
+    --color-canvas: var(--canvas);
+    --color-canvas-dot: var(--canvas-dot);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -129,4 +121,17 @@
   html {
     @apply font-sans;
     }
+}
+
+/**
+ * The canvas's dot grid (R22). A flat radial-gradient tile rather than an SVG
+ * background so it scales cheaply — KTD6 has this tied to the canvas's own
+ * zoom transform once that lands (a later unit sets `background-size` and
+ * `background-position` from the same viewport transform Fabric applies to
+ * placed objects); the fixed 24px tile here is the un-zoomed resting state.
+ */
+.canvas-dot-grid {
+  background-color: var(--canvas);
+  background-image: radial-gradient(circle, var(--canvas-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
 }

@@ -37,7 +37,10 @@ export function CanvasRegion() {
   return (
     <div
       className={cn(
-        "relative min-w-0 bg-muted/40",
+        // The canvas surface is black with a dot grid (R22) — see
+        // `.canvas-dot-grid` in globals.css and the `--canvas`/`--canvas-dot`
+        // tokens it reads from.
+        "relative min-w-0 canvas-dot-grid",
         isLightTable ? "overflow-hidden" : "overflow-auto",
       )}
       onClick={isLightTable ? undefined : clearSelection}
