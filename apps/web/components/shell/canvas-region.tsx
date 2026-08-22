@@ -14,7 +14,6 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { LightTable } from "@/components/sequence/light-table"
-import { EditStage } from "@/components/sequence/edit-stage"
 import { useThumbnail } from "@/components/sequence/use-thumbnail"
 import { cn } from "@/lib/utils"
 import { useEditorStore } from "@/state/editor-store"
@@ -28,13 +27,12 @@ import { useEditorStore } from "@/state/editor-store"
  */
 export function CanvasRegion() {
   const mode = useEditorStore((state) => state.mode)
-  const sequenceStage = useEditorStore((state) => state.sequenceStage)
   const clearSelection = useEditorStore((state) => state.clearSelection)
 
   // The light table manages its own overflow and must not sit inside a
   // scrollable ancestor — a growing canvas would summon a scrollbar and feed
-  // its own ResizeObserver. Every other stage scrolls normally.
-  const isLightTable = mode === "sequence" && sequenceStage === "canvas"
+  // its own ResizeObserver. Every other mode scrolls normally.
+  const isLightTable = mode === "sequence"
 
   return (
     <div
@@ -44,9 +42,7 @@ export function CanvasRegion() {
       )}
       onClick={isLightTable ? undefined : clearSelection}
     >
-      {mode === "sequence" && sequenceStage === "canvas" && <LightTable />}
-      {mode === "sequence" && sequenceStage === "edit" && <EditStage />}
-      {mode === "sequence" && sequenceStage === "book" && <SequenceView />}
+      {mode === "sequence" && <LightTable />}
       {mode === "design" && <DesignView />}
       {mode === "print" && <PrintView />}
     </div>

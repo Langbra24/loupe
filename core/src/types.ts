@@ -62,25 +62,6 @@ export interface CanvasPlacement {
   rotation: number
 }
 
-/**
- * A candidate sequence — the Edits stage.
- *
- * Members are asset ids rather than placement ids on purpose: an Edit is a
- * statement about which photographs are in a sequence, and it should survive
- * the photo being moved, rescaled, or removed from the canvas.
- *
- * Promoting a photo into an Edit does not take it off the canvas, so one asset
- * can belong to several Edits at once. That is what makes competing edits
- * comparable side by side.
- */
-export interface Edit {
-  id: string
-  name: string
-  /** Ordered asset ids. Order is set explicitly, never inferred from geometry. */
-  memberIds: string[]
-  createdAt: number
-}
-
 /** The free-flowing light table: stage one of the funnel. */
 export interface CanvasState {
   placements: CanvasPlacement[]
@@ -124,6 +105,35 @@ export interface Page {
 }
 
 /**
+ * A page-in-progress on the canvas — a frame the user drags photographs and
+ * text into before it becomes a committed `Page`.
+ *
+ * `position` is the frame's place in the book's reading-order flow, not its
+ * geometric location on the pasteboard. The two are independent: a frame can
+ * sit anywhere on the canvas and still be, say, page 3 in the flow. Reordering
+ * the flow (`reorderFrame` in frames.ts) never touches where the frame sits on
+ * the canvas.
+ */
+export interface Frame {
+  id: PageId
+  pageSize: PageSize
+  /** 0-based position in the book's reading order. */
+  position: number
+  elements: PageElement[]
+}
+
+/**
+ * The book's shape before any frames exist: how big the pages are and how many
+ * of them to start with. `pageSize` doubles as the preset/custom choice — a
+ * preset is just a named `PageSize`, and a custom one is an unnamed one with
+ * the user's own dimensions.
+ */
+export interface BookSetup {
+  pageSize: PageSize
+  pageCount: number
+}
+
+/**
  * A pair of facing pages as the reader sees them with the book open.
  *
  * The first and last pages of a book have no facing partner (they are the
@@ -144,22 +154,22 @@ export interface PageSize {
 }
 
 /**
- * The whole project, across all three stages of the funnel.
+ * The whole project.
  *
- * `assets` is every photograph imported. `canvas` is where they sit while the
- * sequence is still loose. `edits` are candidate orderings. `pages` is the
- * committed book — the output, not the working material.
+ * `assets` is every photograph imported. `canvas` is where they sit on the
+ * light table. `frames` are pages in progress. `pages` is the committed book —
+ * the output, not the working material.
  */
 export interface Project {
   name: string
   pageSize: PageSize
-  /** Stage one: every imported photograph. */
+  /** Every imported photograph. */
   assets: Asset[]
-  /** Stage one: where those photographs sit on the light table. */
+  /** Where those photographs sit on the light table. */
   canvas: CanvasState
-  /** Stage two: candidate sequences. */
-  edits: Edit[]
-  /** Stage three: the committed book, in reading order, cover first. */
+  /** Pages in progress, not yet committed to the book. */
+  frames: Frame[]
+  /** The committed book, in reading order, cover first. */
   pages: Page[]
   /** Base font size in points; every type step derives from this. */
   typeBaseSize: number

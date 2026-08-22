@@ -18,7 +18,7 @@ export function createEmptyProject(name = 'Untitled book'): Project {
     pageSize: A5_PORTRAIT,
     assets: [],
     canvas: { placements: [] },
-    edits: [],
+    frames: [],
     pages: [],
     typeBaseSize: 10,
     typeRatio: 1.5,
