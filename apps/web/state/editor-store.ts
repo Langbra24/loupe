@@ -129,8 +129,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
     hydrate: async () => {
       if (get().hydrated) return
       try {
-        const project = await loadProject()
-        set({ project, hydrated: true })
+        const { project, migrationError } = await loadProject()
+        set({ project, hydrated: true, lastError: migrationError })
       } catch {
         // An unavailable IndexedDB (private mode, blocked storage) should not
         // brick the app — the session just will not survive a reload.
