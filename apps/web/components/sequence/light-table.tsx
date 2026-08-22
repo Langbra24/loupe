@@ -25,6 +25,8 @@ export function LightTable() {
   const reorderFrameById = useEditorStore((state) => state.reorderFrameById)
   const moveToFrame = useEditorStore((state) => state.moveToFrame)
   const createTextElement = useEditorStore((state) => state.createTextElement)
+  const selectFrame = useEditorStore((state) => state.selectFrame)
+  const clearSelection = useEditorStore((state) => state.clearSelection)
 
   // Right-click promotion into an Edit lived here; Edit is gone from the data
   // model (see core/src/frames.ts), and its replacement — dropping a photo
@@ -40,6 +42,7 @@ export function LightTable() {
     onReorderFrame: reorderFrameById,
     onDropOnFrame: moveToFrame,
     onCreateText: createTextElement,
+    onSelectFrame: (frameId) => (frameId ? selectFrame(frameId) : clearSelection()),
   })
 
   // `T` creates and inline-edits a pasteboard text box (U6).

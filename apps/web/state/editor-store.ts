@@ -10,8 +10,12 @@ import {
   movePage,
   pageNumber,
   reorderFrame,
+  updateElement,
+  updateFrame,
   type BookSetup,
+  type Box,
   type ImageElement,
+  type Margins,
   type PageId,
   type PageSize,
   type Project,
@@ -72,9 +76,33 @@ interface EditorState {
    *  frames already exist — the dialog only ever fires once per project. */
   setupBook: (setup: BookSetup) => void
 
-  selectPage: (pageId: PageId) => void
-  selectElement: (pageId: PageId, elementId: string) => void
+  /**
+   * Selection, redesigned for the frame model (U7) — see `Selection` in
+   * types.ts for why `page`/`element` (keyed by `pageId`) doesn't fit
+   * anymore. `selectElement` takes just the ids and looks up the element's
+   * `kind` itself, so callers (canvas click handlers, list rows) don't have
+   * to know the `text-element`/`image-element` split to select something.
+   *
+   * There is no separate `commitPendingEdit` step (R29): the sidebar's form
+   * fields are plain controlled inputs that write straight to the store on
+   * every keystroke (see `updateTextElement` etc. below), so there is no
+   * draft state sitting outside the store that a selection change could
+   * discard. Changing `selection` mid-edit simply stops one set of fields
+   * from rendering; the value already landed.
+   */
+  selectFrame: (frameId: string) => void
+  selectElement: (frameId: string, elementId: string) => void
   clearSelection: () => void
+  updateFrameMargins: (frameId: string, margins: Margins) => void
+  updateTextElement: (
+    frameId: string,
+    elementId: string,
+    patch: Partial<Pick<TextElement, "content" | "role" | "align">>,
+  ) => void
+  updateImageFit: (frameId: string, elementId: string, fit: ImageElement["fit"]) => void
+  /** Bound to an element's normalized `Box` — the text sidebar's width field
+   *  and the image sidebar's position/size fields both go through this. */
+  updateElementBox: (frameId: string, elementId: string, patch: Partial<Box>) => void
   setActiveSpread: (index: number) => void
   openPageInDesign: (pageId: PageId) => void
   reorderPage: (from: number, to: number) => void
@@ -338,12 +366,53 @@ export const useEditorStore = create<EditorState>((set, get) => {
       }))
     },
 
-    selectPage: (pageId) => set({ selection: { kind: "page", pageId } }),
+    selectFrame: (frameId) => set({ selection: { kind: "frame", frameId } }),
 
-    selectElement: (pageId, elementId) =>
-      set({ selection: { kind: "element", pageId, elementId } }),
+    selectElement: (frameId, elementId) => {
+      const frame = get().project.frames.find((f) => f.id === frameId)
+      const element = frame?.elements.find((e) => e.id === elementId)
+      if (!element) return
+      set({
+        selection: {
+          kind: element.kind === "text" ? "text-element" : "image-element",
+          frameId,
+          elementId,
+        },
+      })
+    },
 
     clearSelection: () => set({ selection: null }),
+
+    updateFrameMargins: (frameId, margins) =>
+      updateProject((project) => ({
+        ...project,
+        frames: updateFrame(project.frames, frameId, (frame) => ({ ...frame, margins })),
+      })),
+
+    updateTextElement: (frameId, elementId, patch) =>
+      updateProject((project) => ({
+        ...project,
+        frames: updateElement(project.frames, frameId, elementId, (element) =>
+          element.kind === "text" ? { ...element, ...patch } : element,
+        ),
+      })),
+
+    updateImageFit: (frameId, elementId, fit) =>
+      updateProject((project) => ({
+        ...project,
+        frames: updateElement(project.frames, frameId, elementId, (element) =>
+          element.kind === "image" ? { ...element, fit } : element,
+        ),
+      })),
+
+    updateElementBox: (frameId, elementId, patch) =>
+      updateProject((project) => ({
+        ...project,
+        frames: updateElement(project.frames, frameId, elementId, (element) => ({
+          ...element,
+          frame: { ...element.frame, ...patch },
+        })),
+      })),
 
     setActiveSpread: (index) => set({ activeSpreadIndex: index }),
 
@@ -353,7 +422,13 @@ export const useEditorStore = create<EditorState>((set, get) => {
       set({
         mode: "design",
         activeSpreadIndex: spreadIndexForPage(index),
-        selection: { kind: "page", pageId },
+        // The old `page` selection kind is gone (U7) and this whole action is
+        // unreachable dead code — its only caller, `SequenceView` in
+        // canvas-region.tsx, was itself replaced by `LightTable` before this
+        // unit. Left in place because U12 removes the Design/Print views
+        // wholesale rather than piecemeal; clearing selection here rather
+        // than guessing at a `Selection` value is the honest minimal fix.
+        selection: null,
         ...panelDefaults("design"),
       })
     },

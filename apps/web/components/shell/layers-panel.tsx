@@ -30,10 +30,15 @@ type PanelView = "canvas" | "book"
  */
 export function LayersPanel() {
   const project = useEditorStore((state) => state.project)
-  const selection = useEditorStore((state) => state.selection)
   const [view, setView] = useState<PanelView>("canvas")
+  // Which committed page the Book view is drilled into. Deliberately local,
+  // not the store's `selection` (U7): `selection` now discriminates
+  // frame/text-element/image-element for the contextual sidebar, and a
+  // committed `Page` is none of those — this drill-down predates frames and
+  // is unrelated bookkeeping U12 replaces wholesale with real book-overview
+  // rows, not something worth threading through the redesigned type.
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null)
 
-  const selectedPageId = selection?.kind ? selection.pageId : null
   const selectedPage = selectedPageId
     ? (project.pages.find((page) => page.id === selectedPageId) ?? null)
     : null
@@ -51,9 +56,9 @@ export function LayersPanel() {
           {view === "canvas" ? (
             <CanvasOverview />
           ) : selectedPage ? (
-            <ElementList page={selectedPage} />
+            <ElementList page={selectedPage} onBack={() => setSelectedPageId(null)} />
           ) : (
-            <SpreadList />
+            <SpreadList onSelectPage={setSelectedPageId} />
           )}
         </div>
       </ScrollArea>
@@ -120,9 +125,8 @@ function CanvasOverview() {
   )
 }
 
-function SpreadList() {
+function SpreadList({ onSelectPage }: { onSelectPage: (pageId: string) => void }) {
   const project = useEditorStore((state) => state.project)
-  const selectPage = useEditorStore((state) => state.selectPage)
   const spreads = toSpreads(project.pages)
 
   return (
@@ -139,7 +143,7 @@ function SpreadList() {
             .map((page) => (
               <button
                 key={page.id}
-                onClick={() => selectPage(page.id)}
+                onClick={() => onSelectPage(page.id)}
                 className="flex items-center gap-2 rounded-md py-1 pr-2 pl-6 text-left text-sm text-foreground/90 hover:bg-muted"
               >
                 <span className="truncate">{pageLabel(page)}</span>
@@ -151,15 +155,15 @@ function SpreadList() {
   )
 }
 
-function ElementList({ page }: { page: Page }) {
-  const selection = useEditorStore((state) => state.selection)
-  const selectElement = useEditorStore((state) => state.selectElement)
-  const clearSelection = useEditorStore((state) => state.clearSelection)
+/** `onBack`/local `isSelected` are decoupled from the store's `selection`
+ *  (U7) — see the comment on `LayersPanel`'s `selectedPageId` state above. */
+function ElementList({ page, onBack }: { page: Page; onBack: () => void }) {
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
 
   return (
     <div className="flex flex-col gap-1">
       <button
-        onClick={clearSelection}
+        onClick={onBack}
         className="flex items-center gap-1 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
       >
         <CaretLeftIcon className="size-3" />
@@ -171,12 +175,11 @@ function ElementList({ page }: { page: Page }) {
         <p className="px-2 py-1 text-xs text-muted-foreground">Empty page.</p>
       ) : (
         page.elements.map((element) => {
-          const isSelected =
-            selection?.kind === "element" && selection.elementId === element.id
+          const isSelected = selectedElementId === element.id
           return (
             <button
               key={element.id}
-              onClick={() => selectElement(page.id, element.id)}
+              onClick={() => setSelectedElementId(element.id)}
               className={cn(
                 "flex items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-muted",
                 isSelected && "bg-muted font-medium",

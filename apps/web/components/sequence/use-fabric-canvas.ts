@@ -59,6 +59,13 @@ interface Options {
    * `text:editing:exited` handler below for what happens when it doesn't.
    */
   onCreateText: (frameId: string, content: string) => void
+  /**
+   * The active Fabric object changed to (or away from) a frame — drives the
+   * contextual sidebar (U7). `null` when nothing selected is a frame: a
+   * pasteboard photograph, or nothing at all, both clear the frame selection
+   * the same way, since neither has a sidebar variant of its own yet.
+   */
+  onSelectFrame: (frameId: string | null) => void
 }
 
 /** A Fabric `Textbox` created via the `T` shortcut, mid- or post-edit. There
@@ -78,8 +85,18 @@ type PlacedTextbox = FabricObject & { isEditing?: boolean; text?: string }
  * user mid-drag, since every pointer move would round-trip through React.
  */
 export function useFabricCanvas(options: Options) {
-  const { placements, assets, frames, onMove, onScale, onContextMenu, onReorderFrame, onDropOnFrame, onCreateText } =
-    options
+  const {
+    placements,
+    assets,
+    frames,
+    onMove,
+    onScale,
+    onContextMenu,
+    onReorderFrame,
+    onDropOnFrame,
+    onCreateText,
+    onSelectFrame,
+  } = options
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
@@ -100,7 +117,15 @@ export function useFabricCanvas(options: Options) {
   // be bound once — rebinding them on every render would tear down the canvas
   // mid-gesture. Written in an effect rather than during render, which React
   // Compiler correctly rejects.
-  const handlers = useRef({ onMove, onScale, onContextMenu, onReorderFrame, onDropOnFrame, onCreateText })
+  const handlers = useRef({
+    onMove,
+    onScale,
+    onContextMenu,
+    onReorderFrame,
+    onDropOnFrame,
+    onCreateText,
+    onSelectFrame,
+  })
   const latest = useRef({ placements, assets, frames })
 
   /** Set by the create-canvas effect once the Fabric module has loaded, so
@@ -117,7 +142,15 @@ export function useFabricCanvas(options: Options) {
   /* ---------------------------------------------------------------- */
 
   useEffect(() => {
-    handlers.current = { onMove, onScale, onContextMenu, onReorderFrame, onDropOnFrame, onCreateText }
+    handlers.current = {
+      onMove,
+      onScale,
+      onContextMenu,
+      onReorderFrame,
+      onDropOnFrame,
+      onCreateText,
+      onSelectFrame,
+    }
     latest.current = { placements, assets, frames }
   })
 
@@ -248,6 +281,26 @@ export function useFabricCanvas(options: Options) {
           panFrom = { x: event.clientX, y: event.clientY }
         }
       })
+
+      /**
+       * Drive the contextual sidebar (U7) off Fabric's own selection state
+       * rather than tracking it separately — `getActiveObject` after any
+       * selection change is the single source of truth for "what's active
+       * right now", the same way `isTextEditing` reads `isEditing` directly
+       * instead of mirroring it into React state.
+       *
+       * Only frames carry a sidebar variant today: pasteboard photographs
+       * (`PlacedObject`) and pasteboard-only text boxes (`PlacedTextbox`,
+       * U6) have no `frameId`, so selecting one clears the frame selection
+       * the same way clicking empty canvas does.
+       */
+      const notifyFrameSelection = () => {
+        const active = canvasRef.current?.getActiveObject() as PlacedFrame | undefined
+        handlers.current.onSelectFrame(active?.frameId ?? null)
+      }
+      canvas.on("selection:created", notifyFrameSelection)
+      canvas.on("selection:updated", notifyFrameSelection)
+      canvas.on("selection:cleared", () => handlers.current.onSelectFrame(null))
 
       canvas.on("mouse:move", (opt) => {
         if (!panning) return
