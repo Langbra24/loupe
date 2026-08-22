@@ -21,6 +21,7 @@ export function LightTable() {
   const movePlacement = useEditorStore((state) => state.movePlacement)
   const scalePlacement = useEditorStore((state) => state.scalePlacement)
   const reorderFrameById = useEditorStore((state) => state.reorderFrameById)
+  const moveToFrame = useEditorStore((state) => state.moveToFrame)
 
   // Right-click promotion into an Edit lived here; Edit is gone from the data
   // model (see core/src/frames.ts), and its replacement — dropping a photo
@@ -34,6 +35,7 @@ export function LightTable() {
     onScale: scalePlacement,
     onContextMenu: () => {},
     onReorderFrame: reorderFrameById,
+    onDropOnFrame: moveToFrame,
   })
 
   return (

@@ -2,12 +2,14 @@
 
 import { create } from "zustand"
 import {
+  assignToFrame,
   createEmptyProject,
   createFrame,
   layoutNewPlacements,
   movePage,
   pageNumber,
   reorderFrame,
+  type ImageElement,
   type PageId,
   type PageSize,
   type Project,
@@ -51,6 +53,7 @@ interface EditorState {
   importPhotos: (files: readonly File[]) => Promise<void>
   movePlacement: (placementId: string, x: number, y: number) => void
   scalePlacement: (placementId: string, scale: number) => void
+  moveToFrame: (placementId: string, frameId: string) => void
 
   addFrame: (pageSize: PageSize) => string
   removeFrame: (frameId: string) => void
@@ -201,6 +204,56 @@ export const useEditorStore = create<EditorState>((set, get) => {
           ),
         },
       })),
+
+    /**
+     * A photograph dragged off the pasteboard and dropped onto a frame joins
+     * that frame's elements and leaves the pasteboard — see `assignToFrame`
+     * in core/src/frames.ts for the append semantics.
+     *
+     * Converting `CanvasPlacement` to `ImageElement` here is a lossy,
+     * deliberate boundary crossing: `ImageElement` has no rotation field and
+     * no scale field (only a normalized `Box` and a `fit` mode), so a
+     * rotated or zoomed-in photograph resets to upright and full-bleed the
+     * moment it becomes a frame element. This is the simplest, least
+     * surprising option — carrying rotation/scale across would need either
+     * adding fields to `ImageElement` (a bigger data-model change than this
+     * unit) or inventing a transform to approximate it in the Box, which
+     * `cover` fit already does implicitly. A prior plan review flagged that
+     * silently dropping this without documentation reads as a data-loss
+     * bug, hence this comment.
+     */
+    moveToFrame: (placementId, frameId) => {
+      updateProject((project) => {
+        const placement = project.canvas.placements.find((p) => p.id === placementId)
+        if (!placement) return project
+
+        const asset = project.assets.find((a) => a.id === placement.assetId)
+        if (!asset) return project
+
+        const element: ImageElement = {
+          id: newId("element"),
+          name: asset.name,
+          // Fills the frame edge-to-edge by default. There is no UI yet for
+          // repositioning a photo within its frame once it lands — that is
+          // later units' concern (design mode / the sidebar) — so a
+          // full-bleed box with `cover` fit is the least surprising start.
+          frame: { x: 0, y: 0, width: 1, height: 1 },
+          locked: false,
+          hidden: false,
+          kind: "image",
+          assetId: placement.assetId,
+          fit: "cover",
+        }
+
+        return {
+          ...project,
+          canvas: {
+            placements: project.canvas.placements.filter((p) => p.id !== placementId),
+          },
+          frames: assignToFrame(project.frames, frameId, element),
+        }
+      })
+    },
 
     addFrame: (pageSize) => {
       const id = newId("frame")

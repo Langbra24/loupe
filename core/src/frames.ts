@@ -10,6 +10,47 @@
 import { moveItem } from './collections'
 import type { BookSetup, Bounds, Frame, PageElement } from './types'
 
+/**
+ * Move an element into a frame — a photograph dragged off the pasteboard and
+ * dropped onto a frame's bounds becomes a member of that frame's page.
+ *
+ * Always appends: there is no z-order/stacking model for frame contents yet,
+ * so "last dropped lands last in the list" is the only ordering there is.
+ * `elements` is `PageElement`, not specifically `ImageElement`, so this stays
+ * usable once text elements exist too — the type of thing being assigned is
+ * the caller's concern, not this function's.
+ *
+ * The caller (apps/web) is responsible for converting a `CanvasPlacement`
+ * into a `PageElement` before calling this — that conversion is where the
+ * rotation/scale decision documented on `CanvasPlacement` in types.ts and in
+ * editor-store.ts's `moveToFrame` action applies, not here. This function
+ * only ever appends whatever `PageElement` it is given.
+ *
+ * A frame id that doesn't match any frame leaves the array unchanged (a new
+ * array, same contents) rather than throwing — the caller may be racing a
+ * frame's removal, and silently doing nothing is the safer failure mode for a
+ * drag-and-drop gesture.
+ */
+export function assignToFrame(frames: readonly Frame[], frameId: string, element: PageElement): Frame[] {
+  return frames.map((frame) =>
+    frame.id === frameId ? { ...frame, elements: [...frame.elements, element] } : frame,
+  )
+}
+
+/**
+ * Remove an element from a frame by id. The inverse of `assignToFrame`.
+ *
+ * A no-op (new array, same contents) if the frame or the element isn't
+ * found, for the same racing-drag-and-drop reason as `assignToFrame`.
+ */
+export function removeFromFrame(frames: readonly Frame[], frameId: string, elementId: string): Frame[] {
+  return frames.map((frame) =>
+    frame.id === frameId
+      ? { ...frame, elements: frame.elements.filter((element) => element.id !== elementId) }
+      : frame,
+  )
+}
+
 /** Build one frame. Starts with no elements unless seeded. */
 export function createFrame(
   id: string,

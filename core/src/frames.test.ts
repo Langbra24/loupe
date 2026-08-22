@@ -1,7 +1,15 @@
 import { describe, it, expect } from "vitest"
 
-import { createFrame, frameAt, framesForBookSetup, reorderFrame, type FrameBounds } from "./frames"
-import type { BookSetup, Frame, PageSize } from "./types"
+import {
+  assignToFrame,
+  createFrame,
+  frameAt,
+  framesForBookSetup,
+  removeFromFrame,
+  reorderFrame,
+  type FrameBounds,
+} from "./frames"
+import type { BookSetup, Frame, ImageElement, PageSize } from "./types"
 
 const A5: PageSize = { name: "A5 portrait", width: 148, height: 210 }
 
@@ -91,5 +99,61 @@ describe("frameAt", () => {
   it("stays on the pasteboard when no frame is under the point", () => {
     expect(frameAt(grid, { x: 500, y: 500 })).toBeNull()
     expect(frameAt([], { x: 0, y: 0 })).toBeNull()
+  })
+})
+
+function image(id: string): ImageElement {
+  return {
+    id,
+    name: "photo.jpg",
+    frame: { x: 0, y: 0, width: 1, height: 1 },
+    locked: false,
+    hidden: false,
+    kind: "image",
+    assetId: `asset-${id}`,
+    fit: "cover",
+  }
+}
+
+describe("assignToFrame", () => {
+  it("appends the element to the target frame's list", () => {
+    const frames = [frame("f0", 0), frame("f1", 1)]
+    const result = assignToFrame(frames, "f0", image("e1"))
+
+    expect(result.find((f) => f.id === "f0")?.elements).toEqual([image("e1")])
+    // The other frame is untouched.
+    expect(result.find((f) => f.id === "f1")?.elements).toEqual([])
+  })
+
+  it("leaves the frame array unchanged (new array, same length) when the frame id is not found", () => {
+    const frames = [frame("f0", 0)]
+    const result = assignToFrame(frames, "missing", image("e1"))
+
+    expect(result).toEqual(frames)
+    expect(result).not.toBe(frames)
+  })
+
+  it("appends without issue when the frame already holds many elements", () => {
+    const withTen: Frame = { ...frame("f0", 0), elements: Array.from({ length: 10 }, (_, i) => image(`e${i}`)) }
+    const result = assignToFrame([withTen], "f0", image("e10"))
+
+    expect(result[0]?.elements).toHaveLength(11)
+    expect(result[0]?.elements.at(-1)).toEqual(image("e10"))
+  })
+})
+
+describe("removeFromFrame", () => {
+  it("removes the named element from the frame's list", () => {
+    const withTwo: Frame = { ...frame("f0", 0), elements: [image("e1"), image("e2")] }
+    const result = removeFromFrame([withTwo], "f0", "e1")
+
+    expect(result[0]?.elements).toEqual([image("e2")])
+  })
+
+  it("is a no-op if the element id is not present", () => {
+    const withOne: Frame = { ...frame("f0", 0), elements: [image("e1")] }
+    const result = removeFromFrame([withOne], "f0", "missing")
+
+    expect(result[0]?.elements).toEqual([image("e1")])
   })
 })

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { Canvas, FabricImage, FabricObject, TPointerEventInfo } from "fabric"
-import { boundingBoxOf, type Asset, type CanvasPlacement, type Frame } from "@loupe/core"
+import { boundingBoxOf, frameAt, type Asset, type CanvasPlacement, type Frame } from "@loupe/core"
 
 import { frameGridOriginY, layoutFrames, nearestFrameIndex, type FrameLayout } from "@/components/sequence/frame-grid"
 import { thumbnailUrl } from "@/lib/storage/assets"
@@ -50,6 +50,9 @@ interface Options {
   /** A frame was dragged and dropped near a different slot in the grid.
    *  `from`/`to` are array indices, matching `reorderFrame`'s signature. */
   onReorderFrame: (from: number, to: number) => void
+  /** A pasteboard photograph was dragged and dropped onto a frame's bounds —
+   *  it joins that frame's elements and leaves the pasteboard. */
+  onDropOnFrame: (placementId: string, frameId: string) => void
 }
 
 /**
@@ -63,7 +66,7 @@ interface Options {
  * user mid-drag, since every pointer move would round-trip through React.
  */
 export function useFabricCanvas(options: Options) {
-  const { placements, assets, frames, onMove, onScale, onContextMenu, onReorderFrame } = options
+  const { placements, assets, frames, onMove, onScale, onContextMenu, onReorderFrame, onDropOnFrame } = options
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
@@ -84,7 +87,7 @@ export function useFabricCanvas(options: Options) {
   // be bound once — rebinding them on every render would tear down the canvas
   // mid-gesture. Written in an effect rather than during render, which React
   // Compiler correctly rejects.
-  const handlers = useRef({ onMove, onScale, onContextMenu, onReorderFrame })
+  const handlers = useRef({ onMove, onScale, onContextMenu, onReorderFrame, onDropOnFrame })
   const latest = useRef({ placements, assets, frames })
 
   /** Set once `fitToView` is defined below; read by the first-frame effect so
@@ -96,7 +99,7 @@ export function useFabricCanvas(options: Options) {
   /* ---------------------------------------------------------------- */
 
   useEffect(() => {
-    handlers.current = { onMove, onScale, onContextMenu, onReorderFrame }
+    handlers.current = { onMove, onScale, onContextMenu, onReorderFrame, onDropOnFrame }
     latest.current = { placements, assets, frames }
   })
 
@@ -270,7 +273,24 @@ export function useFabricCanvas(options: Options) {
         if (!placed) return
 
         if (placed.placementId) {
-          handlers.current.onMove(placed.placementId, placed.left ?? 0, placed.top ?? 0)
+          const dropX = placed.left ?? 0
+          const dropY = placed.top ?? 0
+
+          // Did the photo land on a frame? If so it joins that frame's
+          // elements and leaves the pasteboard — the position/scale writes
+          // below are skipped because the placement is about to be deleted
+          // (syncObjects removes this object once the store reflects that).
+          const { frames: currentFrames, placements: currentPlacements, assets: pool } = latest.current
+          const originY = frameGridOriginY(currentPlacements, pool)
+          const layouts = layoutFrames(currentFrames, originY)
+          const hitFrameId = frameAt(layouts, { x: dropX, y: dropY })
+
+          if (hitFrameId) {
+            handlers.current.onDropOnFrame(placed.placementId, hitFrameId)
+            return
+          }
+
+          handlers.current.onMove(placed.placementId, dropX, dropY)
           handlers.current.onScale(
             placed.placementId,
             (placed.scaleX ?? 1) / (placed.naturalScale || 1),
