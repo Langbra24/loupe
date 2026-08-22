@@ -2,20 +2,14 @@
 
 import { create } from "zustand"
 import {
-  addToEdit,
-  checkPageCount,
-  commitEditToPages,
-  createEdit,
   createEmptyProject,
-  duplicateEdit,
+  createFrame,
   layoutNewPlacements,
   movePage,
   pageNumber,
-  removeFromEdit,
-  renameEdit,
-  reorderEditMember,
-  type Edit,
+  reorderFrame,
   type PageId,
+  type PageSize,
   type Project,
   type Selection,
 } from "@loupe/core"
@@ -39,26 +33,9 @@ export const MODES: { id: Mode; label: string }[] = [
   { id: "print", label: "Print" },
 ]
 
-/**
- * Stages inside Sequence mode — a funnel, not a toggle. Structure increases at
- * each step: loose on the canvas, ordered in an edit, paginated in the book.
- * These are sub-views of one cognitive task, which is why they are not a fourth
- * top-level mode.
- */
-export type SequenceStage = "canvas" | "edit" | "book"
-
-export interface CommitOutcome {
-  ok: boolean
-  /** Set when the commit was refused because it would replace an existing book. */
-  wouldOverwrite?: number
-  message?: string
-}
-
 interface EditorState {
   project: Project
   mode: Mode
-  sequenceStage: SequenceStage
-  activeEditId: string | null
   selection: Selection
   /** Which spread Design view is scoped to. */
   activeSpreadIndex: number
@@ -70,21 +47,14 @@ interface EditorState {
 
   hydrate: () => Promise<void>
   setMode: (mode: Mode) => void
-  setSequenceStage: (stage: SequenceStage, editId?: string) => void
 
   importPhotos: (files: readonly File[]) => Promise<void>
   movePlacement: (placementId: string, x: number, y: number) => void
   scalePlacement: (placementId: string, scale: number) => void
 
-  newEdit: (name?: string) => string
-  addAssetToEdit: (editId: string, assetId: string) => void
-  newEditFromAsset: (assetId: string) => string
-  removeAssetFromEdit: (editId: string, assetId: string) => void
-  moveEditMember: (editId: string, from: number, to: number) => void
-  renameEditById: (editId: string, name: string) => void
-  duplicateEditById: (editId: string) => void
-  deleteEdit: (editId: string) => void
-  commitEditToBook: (editId: string, confirmOverwrite?: boolean) => CommitOutcome
+  addFrame: (pageSize: PageSize) => string
+  removeFrame: (frameId: string) => void
+  reorderFrameById: (from: number, to: number) => void
 
   selectPage: (pageId: PageId) => void
   selectElement: (pageId: PageId, elementId: string) => void
@@ -98,9 +68,9 @@ interface EditorState {
 }
 
 /**
- * Panel state follows the mode. Sequence keeps the left panel open because the
- * workflow tree lives there — that is navigation, not editing chrome, so the
- * brief's "no editing chrome while sequencing" principle still holds.
+ * Panel state follows the mode. Sequence keeps the left panel open for
+ * navigation — that is not editing chrome, so the brief's "no editing chrome
+ * while sequencing" principle still holds.
  */
 function panelDefaults(mode: Mode): { leftPanelOpen: boolean; rightPanelOpen: boolean } {
   if (mode === "sequence") return { leftPanelOpen: true, rightPanelOpen: false }
@@ -143,20 +113,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
     return next
   }
 
-  const updateEdit = (editId: string, mutate: (edit: Edit) => Edit) =>
-    updateProject((project) => ({
-      ...project,
-      edits: project.edits.map((edit) => (edit.id === editId ? mutate(edit) : edit)),
-    }))
-
   return {
     // Must be a valid empty project, not undefined: the server render and the
     // first client render have to agree, and hydration replaces this after
     // mount. Getting this wrong surfaces as a hydration mismatch, not an error.
     project: createEmptyProject(),
     mode: "sequence",
-    sequenceStage: "canvas",
-    activeEditId: null,
     selection: null,
     activeSpreadIndex: 0,
     ...panelDefaults("sequence"),
@@ -167,8 +129,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
     hydrate: async () => {
       if (get().hydrated) return
       try {
-        const project = await loadProject()
-        set({ project, hydrated: true, activeEditId: project.edits[0]?.id ?? null })
+        const { project, migrationError } = await loadProject()
+        set({ project, hydrated: true, lastError: migrationError })
       } catch {
         // An unavailable IndexedDB (private mode, blocked storage) should not
         // brick the app — the session just will not survive a reload.
@@ -177,20 +139,6 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     setMode: (mode) => set({ mode, ...panelDefaults(mode) }),
-
-    setSequenceStage: (stage, editId) => {
-      const state = get()
-      if (stage === "edit") {
-        const target = editId ?? state.activeEditId ?? state.project.edits[0]?.id ?? null
-        if (!target) {
-          set({ sequenceStage: "canvas" })
-          return
-        }
-        set({ sequenceStage: "edit", activeEditId: target })
-        return
-      }
-      set({ sequenceStage: stage })
-    },
 
     importPhotos: async (files) => {
       if (files.length === 0) return
@@ -254,78 +202,34 @@ export const useEditorStore = create<EditorState>((set, get) => {
         },
       })),
 
-    newEdit: (name) => {
-      const id = newId("edit")
-      const index = get().project.edits.length + 1
+    addFrame: (pageSize) => {
+      const id = newId("frame")
       updateProject((project) => ({
         ...project,
-        edits: [...project.edits, createEdit(id, name ?? `Edit ${index}`, Date.now())],
+        frames: [...project.frames, createFrame(id, pageSize, project.frames.length)],
       }))
-      set({ activeEditId: id })
       return id
     },
 
-    addAssetToEdit: (editId, assetId) => {
-      updateEdit(editId, (edit) => addToEdit(edit, assetId))
-    },
-
-    newEditFromAsset: (assetId) => {
-      const id = get().newEdit()
-      get().addAssetToEdit(id, assetId)
-      return id
-    },
-
-    removeAssetFromEdit: (editId, assetId) => {
-      updateEdit(editId, (edit) => removeFromEdit(edit, assetId))
-    },
-
-    moveEditMember: (editId, from, to) => {
-      updateEdit(editId, (edit) => reorderEditMember(edit, from, to))
-    },
-
-    renameEditById: (editId, name) => {
-      updateEdit(editId, (edit) => renameEdit(edit, name))
-    },
-
-    duplicateEditById: (editId) => {
-      const source = get().project.edits.find((edit) => edit.id === editId)
-      if (!source) return
-      const copy = duplicateEdit(source, newId("edit"), Date.now())
-      updateProject((project) => ({ ...project, edits: [...project.edits, copy] }))
-      set({ activeEditId: copy.id })
-    },
-
-    deleteEdit: (editId) => {
+    removeFrame: (frameId) => {
       updateProject((project) => ({
         ...project,
-        edits: project.edits.filter((edit) => edit.id !== editId),
+        frames: project.frames
+          .filter((frame) => frame.id !== frameId)
+          // Re-derive position from the resulting order — reorderFrame leaves
+          // the array as the source of truth and expects callers to do this.
+          .map((frame, index) => ({ ...frame, position: index })),
       }))
-
-      // Never leave a dangling active id pointing at a deleted edit.
-      if (get().activeEditId === editId) {
-        const fallback = get().project.edits[0]?.id ?? null
-        set({
-          activeEditId: fallback,
-          sequenceStage: fallback ? get().sequenceStage : "canvas",
-        })
-      }
     },
 
-    commitEditToBook: (editId, confirmOverwrite = false) => {
-      const state = get()
-      const edit = state.project.edits.find((candidate) => candidate.id === editId)
-      if (!edit) return { ok: false, message: "That edit no longer exists" }
-
-      const existing = state.project.pages.length
-      if (existing > 0 && !confirmOverwrite) {
-        return { ok: false, wouldOverwrite: existing }
-      }
-
-      const pages = commitEditToPages(edit, state.project.assets, newId("commit"))
-      updateProject((project) => ({ ...project, pages }), { immediate: true })
-      set({ sequenceStage: "book", selection: null, activeSpreadIndex: 0 })
-
-      return { ok: true, message: checkPageCount(pages.length).message }
+    reorderFrameById: (from, to) => {
+      updateProject((project) => ({
+        ...project,
+        frames: reorderFrame(project.frames, from, to).map((frame, index) => ({
+          ...frame,
+          position: index,
+        })),
+      }))
     },
 
     selectPage: (pageId) => set({ selection: { kind: "page", pageId } }),

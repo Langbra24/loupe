@@ -1,4 +1,10 @@
-import { createEmptyProject, type Project } from "@loupe/core"
+import {
+  createEmptyProject,
+  migrateProject,
+  type LegacyProject,
+  type MigrationFailureReason,
+  type Project,
+} from "@loupe/core"
 
 import { getDb, isQuotaError, PROJECT_KEY } from "@/lib/storage/db"
 
@@ -67,21 +73,83 @@ function cancelPending(): void {
   pending = null
 }
 
+export interface LoadProjectResult {
+  project: Project
+  /** Set when a stored pre-frame project failed to migrate. The returned
+   *  `project` is the raw stored record in that case — unmigrated and never
+   *  written back — so the caller can surface the failure instead of
+   *  silently working from (or persisting) a guess. */
+  migrationError: string | null
+}
+
+/** True once a stored record has the current frame-based shape. There is no
+ *  version field in storage, so shape-sniffing on `frames` is the only way
+ *  to tell a current record from a pre-frame ("legacy") one. */
+function hasFrames(value: unknown): value is Project {
+  return typeof value === "object" && value !== null && Array.isArray((value as { frames?: unknown }).frames)
+}
+
+function describeMigrationFailure(reason: MigrationFailureReason): string {
+  switch (reason.kind) {
+    case "invalid-input":
+      return reason.message
+    case "frame-count-mismatch":
+      return `expected ${reason.expected} pages, found ${reason.actual}`
+    case "missing-asset":
+      return `a page references a photo that no longer exists`
+    case "invalid-box":
+      return `a page layout has invalid geometry`
+    case "invalid-positions":
+      return `page order is corrupt`
+  }
+}
+
 /**
- * Load the project, then reconcile storage against it.
+ * Load the project, migrating a pre-frame stored record on the way in.
  *
  * A crash or a tab closed mid-import can leave blobs no asset record
  * references. They are invisible to the user and would consume quota forever,
  * so loading is where they get collected.
+ *
+ * Migration failure degrades to read-only rather than corrupting the stored
+ * record: the raw legacy record is returned as-is (cast to `Project` so the
+ * rest of the app can still render something) and `saveProject` is never
+ * called, so nothing about the failed attempt is persisted.
  */
-export async function loadProject(): Promise<Project> {
+export async function loadProject(): Promise<LoadProjectResult> {
   const db = await getDb()
   const stored = await db.get("project", PROJECT_KEY)
-  const project = stored ?? createEmptyProject()
 
+  if (!stored) {
+    const project = createEmptyProject()
+    await deleteOrphanedBlobs(project)
+    return { project, migrationError: null }
+  }
+
+  if (hasFrames(stored)) {
+    await deleteOrphanedBlobs(stored)
+    return { project: stored, migrationError: null }
+  }
+
+  // Pre-frame shape: no `frames` field at all. Run it through the one-time
+  // migration rather than handing the old shape to code that expects
+  // `Project.frames` to exist.
+  const result = migrateProject(stored as unknown as LegacyProject)
+
+  if (result.ok) {
+    await saveProject(result.project)
+    await deleteOrphanedBlobs(result.project)
+    return { project: result.project, migrationError: null }
+  }
+
+  // Do NOT call saveProject here — the stored record must be left exactly as
+  // it was found so a future fix to the migration can still recover it.
+  const project = stored as unknown as Project
   await deleteOrphanedBlobs(project)
-
-  return project
+  return {
+    project,
+    migrationError: `This project was saved by an older version of Loupe and could not be upgraded (${describeMigrationFailure(result.reason)}). Changes will not be saved until this is resolved.`,
+  }
 }
 
 async function deleteOrphanedBlobs(project: Project): Promise<void> {
