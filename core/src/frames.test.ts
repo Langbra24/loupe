@@ -5,6 +5,7 @@ import {
   createFrame,
   frameAt,
   framesForBookSetup,
+  refitElementsForPageSize,
   removeFromFrame,
   reorderFrame,
   type FrameBounds,
@@ -155,5 +156,29 @@ describe("removeFromFrame", () => {
     const result = removeFromFrame([withOne], "f0", "missing")
 
     expect(result[0]?.elements).toEqual([image("e1")])
+  })
+})
+
+describe("refitElementsForPageSize", () => {
+  const OLD_SIZE: PageSize = { name: "A5 portrait", width: 148, height: 210 }
+  const NEW_SIZE: PageSize = { name: "A4 portrait", width: 210, height: 297 }
+
+  it("preserves each element's normalized Box position and size across a page-size change", () => {
+    const elements = [image("e1"), { ...image("e2"), frame: { x: 0.25, y: 0.1, width: 0.5, height: 0.6 } }]
+
+    const result = refitElementsForPageSize(OLD_SIZE, NEW_SIZE, elements)
+
+    expect(result.map((e) => e.frame)).toEqual(elements.map((e) => e.frame))
+  })
+
+  it("returns the same number of elements, untouched, when old and new page sizes match", () => {
+    const elements = [image("e1")]
+    const result = refitElementsForPageSize(OLD_SIZE, OLD_SIZE, elements)
+
+    expect(result).toEqual(elements)
+  })
+
+  it("handles an empty element list without crashing", () => {
+    expect(refitElementsForPageSize(OLD_SIZE, NEW_SIZE, [])).toEqual([])
   })
 })

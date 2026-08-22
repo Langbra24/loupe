@@ -8,7 +8,7 @@
  */
 
 import { moveItem } from './collections'
-import type { BookSetup, Bounds, Frame, PageElement } from './types'
+import type { BookSetup, Bounds, Frame, PageElement, PageSize } from './types'
 
 /**
  * Move an element into a frame — a photograph dragged off the pasteboard and
@@ -119,4 +119,34 @@ export function frameAt(frames: readonly FrameBounds[], point: { x: number; y: n
   }
 
   return null
+}
+
+/**
+ * Carry a frame's elements across a page-size change (R26).
+ *
+ * `Box` is already normalized 0..1 relative to the page, so an element's
+ * position and size need no conversion at all when the page changes size —
+ * a caption at `{x: 0.25, y: 0.1}` sits at the same relative spot on an A4
+ * page as it did on an A5 one. That is what makes this function an identity
+ * on `frame`: there is nothing to recompute.
+ *
+ * What actually changes on a page-size change is aspect ratio, and that is
+ * handled entirely by `ImageElement.fit` at render time — a `'contain'` fit
+ * re-letterboxes to the new aspect automatically because it is drawn fresh
+ * against the new page dimensions, not because anything here mutates the
+ * element. This function exists as the named, tested place that documents
+ * the decision ("position/size survive unchanged; distortion is handled by
+ * fit, not by this function") rather than to perform real computation —
+ * `oldSize`/`newSize` are accepted so a future revision that needs to react
+ * to a specific size transition has an obvious place to do it, and so the
+ * decision doesn't quietly live only in a code comment with no call site.
+ */
+export function refitElementsForPageSize(
+  oldSize: PageSize,
+  newSize: PageSize,
+  elements: readonly PageElement[],
+): PageElement[] {
+  void oldSize
+  void newSize
+  return [...elements]
 }

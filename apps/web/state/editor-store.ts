@@ -5,10 +5,12 @@ import {
   assignToFrame,
   createEmptyProject,
   createFrame,
+  framesForBookSetup,
   layoutNewPlacements,
   movePage,
   pageNumber,
   reorderFrame,
+  type BookSetup,
   type ImageElement,
   type PageId,
   type PageSize,
@@ -58,6 +60,9 @@ interface EditorState {
   addFrame: (pageSize: PageSize) => string
   removeFrame: (frameId: string) => void
   reorderFrameById: (from: number, to: number) => void
+  /** Create the book's starting frame set from the setup dialog. A no-op if
+   *  frames already exist — the dialog only ever fires once per project. */
+  setupBook: (setup: BookSetup) => void
 
   selectPage: (pageId: PageId) => void
   selectElement: (pageId: PageId, elementId: string) => void
@@ -262,6 +267,16 @@ export const useEditorStore = create<EditorState>((set, get) => {
         frames: [...project.frames, createFrame(id, pageSize, project.frames.length)],
       }))
       return id
+    },
+
+    setupBook: (setup) => {
+      if (get().project.frames.length > 0) return
+      const ids = Array.from({ length: setup.pageCount }, () => newId("frame"))
+      updateProject((project) => ({
+        ...project,
+        pageSize: setup.pageSize,
+        frames: framesForBookSetup(setup, ids),
+      }))
     },
 
     removeFrame: (frameId) => {

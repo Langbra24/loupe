@@ -2,6 +2,7 @@
 
 import { ImagesIcon } from "@phosphor-icons/react"
 
+import { BookSetupDialog } from "@/components/sequence/book-setup-dialog"
 import { ImportPhotosButton } from "@/components/sequence/import-photos"
 import { CanvasControls } from "@/components/sequence/canvas-controls"
 import { useFabricCanvas } from "@/components/sequence/use-fabric-canvas"
@@ -48,6 +49,8 @@ export function LightTable() {
       </div>
 
       {assets.length === 0 ? <EmptyTable /> : <ImportAffordance />}
+
+      {assets.length > 0 && frames.length === 0 && <BookSetupDialog />}
 
       <CanvasControls controls={controls} />
     </div>
