@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import {
   CaretLeftIcon,
   ImageSquareIcon,
@@ -12,17 +13,25 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { useEditorStore } from "@/state/editor-store"
 
+/** The left panel's only two views (R20) — not a "mode" in the removed
+ *  Sequence/Design/Print sense: this is content the panel shows, chosen
+ *  locally, with no effect on what the canvas itself renders. */
+type PanelView = "canvas" | "book"
+
 /**
  * Simplified layers panel.
  *
- * Standard drill-down behaviour, stripped to the two element types this tool
- * actually has:
- *   - nothing selected  → the book's page order (spreads are the parent layer)
- *   - a page selected   → that page's contents
+ * "Canvas" is where the pasteboard's imported photographs live before they
+ * become book content; "Book" is the committed page order. Both are
+ * placeholder-ish for now — the canvas has nothing to enumerate yet (that
+ * lands with the frame grid), and the book list here is the same drill-down
+ * this panel already had before the switcher existed. U12 builds the real
+ * book-overview rows with print properties.
  */
 export function LayersPanel() {
   const project = useEditorStore((state) => state.project)
   const selection = useEditorStore((state) => state.selection)
+  const [view, setView] = useState<PanelView>("canvas")
 
   const selectedPageId = selection?.kind ? selection.pageId : null
   const selectedPage = selectedPageId
@@ -35,12 +44,79 @@ export function LayersPanel() {
         <span className="truncate text-sm font-medium">{project.name}</span>
       </div>
 
+      <PanelViewSwitcher view={view} onChange={setView} />
+
       <ScrollArea className="min-h-0 flex-1">
         <div className="px-2 pb-3">
-          {selectedPage ? <ElementList page={selectedPage} /> : <SpreadList />}
+          {view === "canvas" ? (
+            <CanvasOverview />
+          ) : selectedPage ? (
+            <ElementList page={selectedPage} />
+          ) : (
+            <SpreadList />
+          )}
         </div>
       </ScrollArea>
     </aside>
+  )
+}
+
+function PanelViewSwitcher({
+  view,
+  onChange,
+}: {
+  view: PanelView
+  onChange: (view: PanelView) => void
+}) {
+  const views: { id: PanelView; label: string }[] = [
+    { id: "canvas", label: "Canvas" },
+    { id: "book", label: "Book" },
+  ]
+
+  return (
+    <div
+      role="tablist"
+      aria-label="Left panel view"
+      className="flex shrink-0 gap-1 border-b px-2 py-1.5"
+    >
+      {views.map((item) => {
+        const isActive = view === item.id
+        return (
+          <button
+            key={item.id}
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(item.id)}
+            className={cn(
+              "flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+              "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+              isActive
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            {item.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Placeholder — the pasteboard has nothing structural to enumerate until the
+ *  frame grid lands; this just orients the user to what "Canvas" means here. */
+function CanvasOverview() {
+  const assetCount = useEditorStore((state) => state.project.assets.length)
+
+  return (
+    <div className="flex flex-col gap-1">
+      <PanelLabel>Canvas</PanelLabel>
+      <p className="px-2 py-1 text-xs leading-relaxed text-muted-foreground">
+        {assetCount === 0
+          ? "Import photographs to see them staged here."
+          : `${assetCount} photograph${assetCount === 1 ? "" : "s"} on the canvas.`}
+      </p>
+    </div>
   )
 }
 

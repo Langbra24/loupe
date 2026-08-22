@@ -44,6 +44,10 @@ interface EditorState {
   hydrated: boolean
   importProgress: { done: number; total: number } | null
   lastError: string | null
+  /** UI-only — resets on reload, which is fine: the reopen control (R32)
+   *  means dismissal is never the only way back, so nothing is lost by not
+   *  persisting this to IndexedDB. */
+  introductionDismissed: boolean
 
   hydrate: () => Promise<void>
   setMode: (mode: Mode) => void
@@ -65,6 +69,8 @@ interface EditorState {
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
   dismissError: () => void
+  dismissIntroduction: () => void
+  showIntroduction: () => void
 }
 
 /**
@@ -125,6 +131,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     hydrated: false,
     importProgress: null,
     lastError: null,
+    introductionDismissed: false,
 
     hydrate: async () => {
       if (get().hydrated) return
@@ -258,5 +265,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
     toggleLeftPanel: () => set((state) => ({ leftPanelOpen: !state.leftPanelOpen })),
     toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
     dismissError: () => set({ lastError: null }),
+    dismissIntroduction: () => set({ introductionDismissed: true }),
+    // Reopening (R32/AE9) is not tied to project state — a returning user with
+    // content can still bring it back on demand.
+    showIntroduction: () => set({ introductionDismissed: false }),
   }
 })

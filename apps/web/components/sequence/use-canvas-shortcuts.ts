@@ -55,3 +55,102 @@ export function useCanvasShortcuts({ enabled, zoomIn, zoomOut, resetZoom }: Opti
 
   return canIntercept
 }
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  )
+}
+
+export interface FrameKeyboardOptions {
+  enabled: boolean
+  /** Total number of frames — reorder and Tab-cycling both need the bound. */
+  frameCount: number
+  /** Which frame Tab-cycling currently has landed on. `null` means none. */
+  focusedFrameIndex: number | null
+  setFocusedFrameIndex: (index: number | null) => void
+  reorderFrameById: (from: number, to: number) => void
+}
+
+/** The DOM-facing half of {@link handleFrameKeyDown} — everything below the
+ *  event-listener wiring is deliberately separated out so it can be called
+ *  directly in a test without simulating a real keydown. */
+type FrameKeyEvent = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey"> & {
+  preventDefault: () => void
+}
+
+/**
+ * Keyboard reach for the two drag-only frame actions (R30): reordering a
+ * frame, and selecting/cycling which frame is focused.
+ *
+ * - `Tab` / `Shift+Tab` cycles the focused frame, wrapping at both ends —
+ *   this is the keyboard equivalent of clicking a frame to select it.
+ * - `Cmd/Ctrl+ArrowLeft` / `Cmd/Ctrl+ArrowRight` moves the focused frame one
+ *   position earlier/later — the modifier is required so a bare arrow key
+ *   stays free for whatever normal focus movement ends up wanting it, and so
+ *   this never fires while someone is just navigating with the arrow keys.
+ *
+ * Exported as a pure function (`handleFrameKeyDown`) plus a thin hook
+ * (`useFrameKeyboardShortcuts`) that wires it to `window`'s keydown stream —
+ * the split exists so the actual decision logic is testable without
+ * dispatching a real DOM event.
+ */
+export function handleFrameKeyDown(event: FrameKeyEvent, options: Omit<FrameKeyboardOptions, "enabled">): void {
+  const { frameCount, focusedFrameIndex, setFocusedFrameIndex, reorderFrameById } = options
+  if (frameCount === 0) return
+
+  if (event.key === "Tab") {
+    event.preventDefault()
+    const step = event.shiftKey ? -1 : 1
+    const base = focusedFrameIndex ?? (event.shiftKey ? 0 : -1)
+    const next = ((base + step) % frameCount + frameCount) % frameCount
+    setFocusedFrameIndex(next)
+    return
+  }
+
+  const hasReorderModifier = event.ctrlKey || event.metaKey
+  if (!hasReorderModifier || focusedFrameIndex === null) return
+
+  if (event.key === "ArrowLeft") {
+    event.preventDefault()
+    const to = Math.max(0, focusedFrameIndex - 1)
+    if (to === focusedFrameIndex) return
+    reorderFrameById(focusedFrameIndex, to)
+    setFocusedFrameIndex(to)
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault()
+    const to = Math.min(frameCount - 1, focusedFrameIndex + 1)
+    if (to === focusedFrameIndex) return
+    reorderFrameById(focusedFrameIndex, to)
+    setFocusedFrameIndex(to)
+  }
+}
+
+export function useFrameKeyboardShortcuts({
+  enabled,
+  frameCount,
+  focusedFrameIndex,
+  setFocusedFrameIndex,
+  reorderFrameById,
+}: FrameKeyboardOptions): void {
+  useEffect(() => {
+    if (!enabled) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      // Tab and Ctrl/Cmd+Arrow are both keys the rest of the app relies on for
+      // normal focus movement and text editing, so this only claims them when
+      // focus isn't already inside an input, textarea, select, or editable
+      // region — mirroring the guard the (now-removed) theme hotkey used.
+      if (isTypingTarget(event.target)) return
+
+      handleFrameKeyDown(event, { frameCount, focusedFrameIndex, setFocusedFrameIndex, reorderFrameById })
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [enabled, frameCount, focusedFrameIndex, setFocusedFrameIndex, reorderFrameById])
+}
