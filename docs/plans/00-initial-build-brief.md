@@ -58,7 +58,10 @@ Key implementation note: the $15 zip should NOT contain license-key validation l
                           designed collaboratively in Paper.design)
 ```
 
-## Three-mode UI (the core UX insight)
+## Three-mode UI (superseded)
+
+**This section is superseded.** The three-mode structure below — and the Sequence funnel it implied — was replaced by a single canvas plus a book overview; see `docs/plans/2026-08-22-001-feat-unified-canvas-plan.md` for the Product Contract and rationale, and `CLAUDE.md`'s "The canvas and the book" for the current model. Left in place, unedited, as the historical record of the original UX thesis and the workshop observation that motivated it — the rest of this brief (audience, pricing/tier model, typography, branding) is unaffected and still current.
+
 Distinct modes for distinct cognitive tasks, Figma-style mode switching rather than one overloaded canvas:
 
 1. **Sequence view** — fast, low-friction filmstrip/lightbox. Reorder pages, pair images into spreads, shuffle-and-compare. No typography or fine layout controls here — speed is the entire point (this was the explicitly broken workflow observed in the photobook workshop).

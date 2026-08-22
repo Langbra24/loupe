@@ -32,39 +32,31 @@ todos/                  triage and review findings
 
 - **The product app is desktop-only for v1.** A canvas tool with left/right panels has no sensible mobile layout, and no breakpoint strategy has been designed. The app renders a plain notice below 1024px. The *marketing site* must still be responsive.
 - **Canvas reflows, it does not float.** Panels are grid columns that collapse to zero width; the canvas region genuinely resizes. Never implement panels as overlays on a fixed-size canvas.
-- **The shell frame is stable across modes.** The top nav never moves or hides. Only panel open/closed state changes between Sequence / Design / Print.
+- **The shell frame is stable.** The top nav never moves or hides.
 - Right-click / context-menu canvas interactions are deferred, deliberately.
 - Type-scale ratio (1.618 vs 1.5 vs 1.333) is **not** locked in — `core/src/typography.ts` keeps it configurable pending a visual test at real caption/title sizes.
 
-## Three modes, three cognitive tasks
+## The canvas and the book
 
-1. **Sequence** — whole-book ordering, in three stages (below).
-2. **Design** — per-spread composition against the facing-page pair.
-3. **Print** — imposition, fold preview, bleed/margins, page-count validation. Read-only against assembled state.
+Superseded the three-mode structure (Sequence / Design / Print) and the Sequence funnel (Canvas → Edits → Book) documented here through mid-2026 — see `docs/plans/2026-08-22-001-feat-unified-canvas-plan.md` for the full rationale and the Product Contract that replaced them. What follows is the model that plan produced.
 
-Keep these boundaries in the code, not just the UI — they are why the engine stays simple.
+There are two places now, not three modes and not a three-stage funnel inside one of them:
 
-## The Sequence funnel
+1. **The canvas** — one infinite Fabric.js surface. Imported photographs sit on a pasteboard, positioned freely, exactly as before. `Frame`s — pages-in-progress — sit in a snap-to-flow grid on the same surface: a frame's position in that grid *is* its position in the book's reading order, set by dragging the frame, never by anything else. Dragging a photograph off the pasteboard onto a frame's bounds moves it into that frame's elements; dragging it back out returns it to the pasteboard. Text is created directly on a frame with the `T` key.
+2. **The book overview** — a left-panel list of every frame in reading order, each row carrying a thumbnail and its print-margin summary. Selecting a row (or a frame/element on the canvas itself) drives the one persistent contextual sidebar: nothing selected shows book-level settings (page size, count, saddle-stitch validation); a frame shows its margins; an element shows its own properties.
 
-Sequence mode is three stages, not one view. Structure increases and freedom decreases at each step, and the two transitions have deliberately different semantics.
+**Position is order, for frames — never inferred, for anything else.** A frame's grid position determines its page number, full stop; this is the one and only place geometry decides sequence. A photograph's position on the pasteboard means nothing beyond where it happens to be — moving it around never changes reading order, and it only affects the book at all once it crosses into a frame.
 
-1. **Canvas** — the light table. Every imported photograph on an infinite Fabric.js surface, positioned and scaled freely. No structure. This is where photographs permanently live.
-2. **Edits** — candidate sequences. Ordered lists of photographs, promoted by right-click. Multiple edits can exist side by side as competing versions.
-3. **Book** — `pages[]`, the committed result. Design and Print work against this.
-
-**Canvas → Edit is by reference.** Promoting a photograph does not remove it from the canvas, and the same asset may belong to several edits at once. That is what makes competing edits comparable.
-
-**Edit → Book is a one-way snapshot.** Committing copies the edit's order into pages; afterward the two are independent. There is no live binding, so there is exactly one editable representation of an ordering at a time.
-
-**Order inside an edit is explicit.** It is set by dragging, never inferred from where a photograph happens to sit on the canvas.
+The old `Edit` type — ordered lists of asset ids, promoted by right-click, comparable side by side — is gone. There is one canvas and one ordering; competing candidate sequences are not currently representable, a known and accepted loss, not an oversight (see the plan's Scope Boundaries and `todos/2026-08-22-unified-canvas-doc-review.md`).
 
 ## Data model notes
 
 - `Asset` is metadata only. Pixels live in IndexedDB (`originals` and `thumbnails` stores) addressed by asset id.
 - `CanvasPlacement.x/y` is the placement's **center**, matching Fabric v7's `originX`/`originY` default of `'center'`.
 - One scene unit is one pixel of the original image. The canvas scales thumbnails up to that size on draw, and divides the factor back out when reading a placement's scale — otherwise every drag would persist the rendering factor as user intent.
-- `Edit.memberIds` holds asset ids, not placement ids, so an edit survives a photograph being moved or removed from the canvas.
-- Spreads stay derived from page order; they are never stored.
+- `Frame.position` is the one place geometry is allowed to mean order: a frame's slot in the snap-to-flow grid is its page number. This does not extend to anything else on the canvas — a pasteboard photograph's `CanvasPlacement.x/y` never means order, only where it happens to sit, until it moves into a frame.
+- Converting a pasteboard photograph into a frame's `ImageElement` is lossy on purpose: `ImageElement` has no rotation or scale field, only a normalized `Box` and a `fit` mode, so a rotated or zoomed placement resets to upright and full-bleed the moment it joins a frame. See the comment on `moveToFrame` in `editor-store.ts`.
+- Spreads stay derived from page order; they are never stored. (`Page`/`Spread`/`toSpreads` still exist in `core/` for the committed-book concept and for migrating old projects, but nothing currently commits a `Frame` into a `Page` — see the plan's Scope Boundaries.)
 
 ## Storage rules
 
