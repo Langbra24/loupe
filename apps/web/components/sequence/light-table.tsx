@@ -6,6 +6,7 @@ import { BookSetupDialog } from "@/components/sequence/book-setup-dialog"
 import { ImportPhotosButton } from "@/components/sequence/import-photos"
 import { CanvasControls } from "@/components/sequence/canvas-controls"
 import { useFabricCanvas } from "@/components/sequence/use-fabric-canvas"
+import { useTextToolShortcut } from "@/components/sequence/use-canvas-shortcuts"
 import { useEditorStore } from "@/state/editor-store"
 
 /**
@@ -23,12 +24,13 @@ export function LightTable() {
   const scalePlacement = useEditorStore((state) => state.scalePlacement)
   const reorderFrameById = useEditorStore((state) => state.reorderFrameById)
   const moveToFrame = useEditorStore((state) => state.moveToFrame)
+  const createTextElement = useEditorStore((state) => state.createTextElement)
 
   // Right-click promotion into an Edit lived here; Edit is gone from the data
   // model (see core/src/frames.ts), and its replacement — dropping a photo
   // onto a frame — is a later unit's concern. Context-menu interactions on the
   // canvas stay deferred per CLAUDE.md until then, so this is a no-op for now.
-  const { containerRef, canvasElementRef, controls } = useFabricCanvas({
+  const { containerRef, canvasElementRef, controls, createTextbox, isTextEditing } = useFabricCanvas({
     placements,
     assets,
     frames,
@@ -37,7 +39,11 @@ export function LightTable() {
     onContextMenu: () => {},
     onReorderFrame: reorderFrameById,
     onDropOnFrame: moveToFrame,
+    onCreateText: createTextElement,
   })
+
+  // `T` creates and inline-edits a pasteboard text box (U6).
+  useTextToolShortcut({ enabled: true, isTextboxEditing: isTextEditing, createTextbox })
 
   return (
     <div className="relative h-full w-full overflow-hidden">

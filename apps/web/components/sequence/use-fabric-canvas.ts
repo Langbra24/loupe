@@ -53,7 +53,19 @@ interface Options {
   /** A pasteboard photograph was dragged and dropped onto a frame's bounds —
    *  it joins that frame's elements and leaves the pasteboard. */
   onDropOnFrame: (placementId: string, frameId: string) => void
+  /**
+   * A text box created via `T` finished editing while its center sat over a
+   * frame's bounds — it becomes that frame's text element. See the
+   * `text:editing:exited` handler below for what happens when it doesn't.
+   */
+  onCreateText: (frameId: string, content: string) => void
 }
+
+/** A Fabric `Textbox` created via the `T` shortcut, mid- or post-edit. There
+ *  is no store-backed pasteboard-text state to diff against — unlike
+ *  `PlacedObject`/`PlacedFrame` — so this is a structural marker only, not a
+ *  map key. */
+type PlacedTextbox = FabricObject & { isEditing?: boolean; text?: string }
 
 /**
  * Owns the Fabric.js lifecycle for the light table.
@@ -66,7 +78,8 @@ interface Options {
  * user mid-drag, since every pointer move would round-trip through React.
  */
 export function useFabricCanvas(options: Options) {
-  const { placements, assets, frames, onMove, onScale, onContextMenu, onReorderFrame, onDropOnFrame } = options
+  const { placements, assets, frames, onMove, onScale, onContextMenu, onReorderFrame, onDropOnFrame, onCreateText } =
+    options
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
@@ -87,8 +100,13 @@ export function useFabricCanvas(options: Options) {
   // be bound once — rebinding them on every render would tear down the canvas
   // mid-gesture. Written in an effect rather than during render, which React
   // Compiler correctly rejects.
-  const handlers = useRef({ onMove, onScale, onContextMenu, onReorderFrame, onDropOnFrame })
+  const handlers = useRef({ onMove, onScale, onContextMenu, onReorderFrame, onDropOnFrame, onCreateText })
   const latest = useRef({ placements, assets, frames })
+
+  /** Set by the create-canvas effect once the Fabric module has loaded, so
+   *  `createTextbox` (called from outside that effect, by the keyboard
+   *  shortcut) can construct a `fabric.Textbox` without importing it again. */
+  const fabricRef = useRef<typeof import("fabric") | null>(null)
 
   /** Set once `fitToView` is defined below; read by the first-frame effect so
    *  that effect does not depend on the callback's identity. */
@@ -99,7 +117,7 @@ export function useFabricCanvas(options: Options) {
   /* ---------------------------------------------------------------- */
 
   useEffect(() => {
-    handlers.current = { onMove, onScale, onContextMenu, onReorderFrame, onDropOnFrame }
+    handlers.current = { onMove, onScale, onContextMenu, onReorderFrame, onDropOnFrame, onCreateText }
     latest.current = { placements, assets, frames }
   })
 
@@ -110,6 +128,7 @@ export function useFabricCanvas(options: Options) {
     void (async () => {
       const fabric = await import("fabric")
       if (disposed || !canvasElementRef.current) return
+      fabricRef.current = fabric
 
       canvas = new fabric.Canvas(canvasElementRef.current, {
         backgroundColor: "transparent",
@@ -328,6 +347,61 @@ export function useFabricCanvas(options: Options) {
             }
           }
         }
+      })
+
+      /**
+       * A pasteboard `Textbox` finished editing (blurred, or Escape/click
+       * elsewhere — Fabric's own exit triggers, not this hook's). This is
+       * where typed text actually becomes data.
+       *
+       * Empty text is discarded outright — nobody wants an empty caption box
+       * left behind after clicking away.
+       *
+       * Non-empty text is hit-tested the same way a dropped photograph is
+       * (`frameAt` over `layoutFrames`, against the box's center — `left`/
+       * `top`, since `originX`/`originY` are `'center'`). A hit commits it as
+       * that frame's `TextElement` via `onCreateText`, and the Fabric object
+       * is removed — same "leaves the pasteboard" rule `onDropOnFrame`
+       * follows for photographs, since a frame's contents render in Design
+       * mode, not as a live object on this canvas.
+       *
+       * A miss is the documented judgment call for "text created off any
+       * frame" (U6): `CanvasState` only models photograph placements, so
+       * there is no pasteboard-text slot to persist this into without a
+       * data-model addition out of scope for this unit. The simpler option —
+       * taken here — is to leave the Fabric object sitting on the canvas,
+       * live but unsaved: it survives further edits and drags within the
+       * session (nothing in `syncObjects`/`syncFrames` touches it, since it's
+       * in neither tracked map), but is lost on reload, and dragging it near
+       * a frame alone does not commit it — only exiting edit mode re-runs
+       * this hit test. Re-entering editing (Fabric's built-in double-click
+       * behavior) and exiting again re-evaluates the hit test at the box's
+       * current position, so moving it onto a frame and re-editing is how a
+       * miss gets a second chance.
+       */
+      canvas.on("text:editing:exited", (opt) => {
+        const target_canvas = canvasRef.current
+        if (!target_canvas) return
+
+        const textbox = opt.target as PlacedTextbox
+        const content = (textbox.text ?? "").trim()
+
+        if (content.length === 0) {
+          target_canvas.remove(textbox)
+          target_canvas.requestRenderAll()
+          return
+        }
+
+        const { frames: currentFrames, placements, assets } = latest.current
+        const originY = frameGridOriginY(placements, assets)
+        const layouts = layoutFrames(currentFrames, originY)
+        const hitFrameId = frameAt(layouts, { x: textbox.left ?? 0, y: textbox.top ?? 0 })
+
+        if (!hitFrameId) return
+
+        handlers.current.onCreateText(hitFrameId, content)
+        target_canvas.remove(textbox)
+        target_canvas.requestRenderAll()
       })
 
       // The sync effect below runs off `ready`, so it performs the first draw.
@@ -672,9 +746,54 @@ export function useFabricCanvas(options: Options) {
     fitToViewRef.current = fitToView
   }, [fitToView])
 
+  /* ---------------------------------------------------------------- */
+  /* Text                                                               */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Whether a `Textbox` currently has editing focus. Read by the `T`
+   * shortcut (see `use-canvas-shortcuts.ts`) so typing "The" into an
+   * existing text box never creates a second one — Fabric's own `isEditing`
+   * flag on the active object is the source of truth, not any state this
+   * hook keeps separately.
+   */
+  const isTextEditing = useCallback((): boolean => {
+    const active = canvasRef.current?.getActiveObject() as PlacedTextbox | undefined
+    return Boolean(active?.isEditing)
+  }, [])
+
+  /**
+   * `T` (no modifier): create a `Textbox` centered in the current viewport
+   * and immediately enter editing (KTD5) — never at the pointer position,
+   * per the plan's committed decision.
+   */
+  const createTextbox = useCallback(() => {
+    const canvas = canvasRef.current
+    const fabric = fabricRef.current
+    if (!canvas || !fabric) return
+    if (isTextEditing()) return
+
+    const centre = canvas.getVpCenter()
+    const textbox = new fabric.Textbox("", {
+      left: centre.x,
+      top: centre.y,
+      originX: "center",
+      originY: "center",
+      width: 320,
+      fontSize: 32,
+      fill: "#f4f4f5",
+      textAlign: "left",
+    })
+
+    canvas.add(textbox)
+    canvas.setActiveObject(textbox)
+    textbox.enterEditing()
+    canvas.requestRenderAll()
+  }, [isTextEditing])
+
   const controls: CanvasControls = { zoom, ready, zoomIn, zoomOut, resetZoom, fitToView }
 
-  return { containerRef, canvasElementRef, controls }
+  return { containerRef, canvasElementRef, controls, createTextbox, isTextEditing }
 }
 
 function clampZoom(value: number): number {

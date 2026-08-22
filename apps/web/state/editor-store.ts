@@ -16,6 +16,7 @@ import {
   type PageSize,
   type Project,
   type Selection,
+  type TextElement,
 } from "@loupe/core"
 
 import { importFiles } from "@/lib/storage/assets"
@@ -60,6 +61,9 @@ interface EditorState {
   movePlacement: (placementId: string, x: number, y: number) => void
   scalePlacement: (placementId: string, scale: number) => void
   moveToFrame: (placementId: string, frameId: string) => void
+  /** A pasteboard text box (U6) finished editing over a frame's bounds —
+   *  see `use-fabric-canvas.ts`'s `text:editing:exited` handler. */
+  createTextElement: (frameId: string, content: string) => void
 
   addFrame: (pageSize: PageSize) => string
   removeFrame: (frameId: string) => void
@@ -264,6 +268,33 @@ export const useEditorStore = create<EditorState>((set, get) => {
           },
           frames: assignToFrame(project.frames, frameId, element),
         }
+      })
+    },
+
+    /**
+     * A pasteboard `Textbox` (U6) finished editing with its center over a
+     * frame — see `use-fabric-canvas.ts`. `role`/`align` default to `'body'`/
+     * `'left'` and `frame` to the same full-bleed `{0,0,1,1}` box
+     * `moveToFrame` gives a dropped photograph: there is no UI yet for
+     * positioning or restyling text within its frame (that lands with U7's
+     * sidebar), so the least-surprising start is "fills the page, plain
+     * body text" rather than guessing at a caption-sized box.
+     */
+    createTextElement: (frameId, content) => {
+      updateProject((project) => {
+        const element: TextElement = {
+          id: newId("element"),
+          name: content.trim().slice(0, 40) || "Text",
+          frame: { x: 0, y: 0, width: 1, height: 1 },
+          locked: false,
+          hidden: false,
+          kind: "text",
+          content,
+          role: "body",
+          align: "left",
+        }
+
+        return { ...project, frames: assignToFrame(project.frames, frameId, element) }
       })
     },
 
