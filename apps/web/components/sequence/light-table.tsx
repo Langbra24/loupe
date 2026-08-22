@@ -6,7 +6,7 @@ import { BookSetupDialog } from "@/components/sequence/book-setup-dialog"
 import { ImportPhotosButton } from "@/components/sequence/import-photos"
 import { CanvasControls } from "@/components/sequence/canvas-controls"
 import { useFabricCanvas } from "@/components/sequence/use-fabric-canvas"
-import { useTextToolShortcut } from "@/components/sequence/use-canvas-shortcuts"
+import { useTextToolShortcut, useUndoShortcut } from "@/components/sequence/use-canvas-shortcuts"
 import { useEditorStore } from "@/state/editor-store"
 
 /**
@@ -27,6 +27,7 @@ export function LightTable() {
   const createTextElement = useEditorStore((state) => state.createTextElement)
   const selectFrame = useEditorStore((state) => state.selectFrame)
   const clearSelection = useEditorStore((state) => state.clearSelection)
+  const undo = useEditorStore((state) => state.undo)
 
   // Right-click promotion into an Edit lived here; Edit is gone from the data
   // model (see core/src/frames.ts), and its replacement — dropping a photo
@@ -47,6 +48,8 @@ export function LightTable() {
 
   // `T` creates and inline-edits a pasteboard text box (U6).
   useTextToolShortcut({ enabled: true, isTextboxEditing: isTextEditing, createTextbox })
+  // Cmd/Ctrl+Z undoes the last reorder/move/create/delete/text-edit (U8).
+  useUndoShortcut({ enabled: true, undo })
 
   return (
     <div className="relative h-full w-full overflow-hidden">

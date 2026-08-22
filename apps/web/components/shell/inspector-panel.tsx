@@ -223,10 +223,15 @@ function TextElementSettings({ frameId, elementId }: { frameId: string; elementI
   return (
     <>
       <Section title="Text">
-        <Row label="Name" value={element.name} />
         <Row
           label="Size"
           value={`${sizeForRole(element.role, project.typeBaseSize, project.typeRatio)} pt`}
+        />
+        <textarea
+          value={element.content}
+          onChange={(event) => updateTextElement(frameId, elementId, { content: event.target.value })}
+          rows={3}
+          className="mt-1 w-full resize-none rounded-md border bg-transparent px-2 py-1 text-sm leading-snug focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
         />
       </Section>
       <Separator />
