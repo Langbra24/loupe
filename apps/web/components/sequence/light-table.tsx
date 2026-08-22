@@ -17,8 +17,10 @@ import { useEditorStore } from "@/state/editor-store"
 export function LightTable() {
   const placements = useEditorStore((state) => state.project.canvas.placements)
   const assets = useEditorStore((state) => state.project.assets)
+  const frames = useEditorStore((state) => state.project.frames)
   const movePlacement = useEditorStore((state) => state.movePlacement)
   const scalePlacement = useEditorStore((state) => state.scalePlacement)
+  const reorderFrameById = useEditorStore((state) => state.reorderFrameById)
 
   // Right-click promotion into an Edit lived here; Edit is gone from the data
   // model (see core/src/frames.ts), and its replacement — dropping a photo
@@ -27,9 +29,11 @@ export function LightTable() {
   const { containerRef, canvasElementRef, controls } = useFabricCanvas({
     placements,
     assets,
+    frames,
     onMove: movePlacement,
     onScale: scalePlacement,
     onContextMenu: () => {},
+    onReorderFrame: reorderFrameById,
   })
 
   return (
