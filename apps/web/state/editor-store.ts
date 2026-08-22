@@ -7,8 +7,6 @@ import {
   createFrame,
   framesForBookSetup,
   layoutNewPlacements,
-  movePage,
-  pageNumber,
   removeFromFrame,
   reorderFrame,
   updateElement,
@@ -18,7 +16,6 @@ import {
   type Frame,
   type ImageElement,
   type Margins,
-  type PageId,
   type PageSize,
   type Project,
   type Selection,
@@ -31,18 +28,6 @@ import {
   saveProject,
   saveProjectDebounced,
 } from "@/lib/storage/project"
-
-/**
- * The three modes exist because they are three different cognitive tasks.
- * See docs/plans/00-initial-build-brief.md.
- */
-export type Mode = "sequence" | "design" | "print"
-
-export const MODES: { id: Mode; label: string }[] = [
-  { id: "sequence", label: "Sequence" },
-  { id: "design", label: "Design" },
-  { id: "print", label: "Print" },
-]
 
 /**
  * One undoable step (U8). `do` replays the mutation forward; `undo` reverses
@@ -62,14 +47,11 @@ interface UndoCommand {
 
 interface EditorState {
   project: Project
-  mode: Mode
   selection: Selection
   /** See `UndoCommand`. Cleared on project load (`hydrate`) — undoing right
    *  after opening a project must never reach into a previous project's
    *  history. */
   undoStack: UndoCommand[]
-  /** Which spread Design view is scoped to. */
-  activeSpreadIndex: number
   leftPanelOpen: boolean
   rightPanelOpen: boolean
   hydrated: boolean
@@ -81,7 +63,6 @@ interface EditorState {
   introductionDismissed: boolean
 
   hydrate: () => Promise<void>
-  setMode: (mode: Mode) => void
   /** Pops the most recent `UndoCommand` and runs its `undo` side. A no-op,
    *  not an error, when the stack is empty. */
   undo: () => void
@@ -128,9 +109,6 @@ interface EditorState {
   /** Bound to an element's normalized `Box` — the text sidebar's width field
    *  and the image sidebar's position/size fields both go through this. */
   updateElementBox: (frameId: string, elementId: string, patch: Partial<Box>) => void
-  setActiveSpread: (index: number) => void
-  openPageInDesign: (pageId: PageId) => void
-  reorderPage: (from: number, to: number) => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
   dismissError: () => void
@@ -139,21 +117,13 @@ interface EditorState {
 }
 
 /**
- * Panel state follows the mode. Sequence keeps the left panel open for
- * navigation — that is not editing chrome, so the brief's "no editing chrome
- * while sequencing" principle still holds.
+ * Both panels open by default: the left panel is the Canvas/Book switcher
+ * (U10), always navigation; the right panel is the contextual sidebar (U7),
+ * which is relevant the moment anything exists to select or configure — book
+ * settings render there even with nothing selected. There is only one screen
+ * now (U12), so there is no longer a mode-dependent default to branch on.
  */
-function panelDefaults(mode: Mode): { leftPanelOpen: boolean; rightPanelOpen: boolean } {
-  if (mode === "sequence") return { leftPanelOpen: true, rightPanelOpen: false }
-  return { leftPanelOpen: true, rightPanelOpen: true }
-}
-
-/** Reading order → spread index. Page 1 sits alone in spread 0. Mirrors
- *  `toSpreads` in @loupe/core. */
-function spreadIndexForPage(index: number): number {
-  if (index <= 0) return 0
-  return Math.floor((index - 1) / 2) + 1
-}
+const PANEL_DEFAULTS = { leftPanelOpen: true, rightPanelOpen: true } as const
 
 function newId(prefix: string): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -193,11 +163,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
     // first client render have to agree, and hydration replaces this after
     // mount. Getting this wrong surfaces as a hydration mismatch, not an error.
     project: createEmptyProject(),
-    mode: "sequence",
     selection: null,
     undoStack: [],
-    activeSpreadIndex: 0,
-    ...panelDefaults("sequence"),
+    ...PANEL_DEFAULTS,
     hydrated: false,
     importProgress: null,
     lastError: null,
@@ -219,8 +187,6 @@ export const useEditorStore = create<EditorState>((set, get) => {
         set({ hydrated: true, lastError: "Local storage is unavailable — work will not be saved" })
       }
     },
-
-    setMode: (mode) => set({ mode, ...panelDefaults(mode) }),
 
     undo: () => {
       const stack = get().undoStack
@@ -593,28 +559,6 @@ export const useEditorStore = create<EditorState>((set, get) => {
           frame: { ...element.frame, ...patch },
         })),
       })),
-
-    setActiveSpread: (index) => set({ activeSpreadIndex: index }),
-
-    openPageInDesign: (pageId) => {
-      const index = pageNumber(get().project.pages, pageId)
-      if (index < 0) return
-      set({
-        mode: "design",
-        activeSpreadIndex: spreadIndexForPage(index),
-        // The old `page` selection kind is gone (U7) and this whole action is
-        // unreachable dead code — its only caller, `SequenceView` in
-        // canvas-region.tsx, was itself replaced by `LightTable` before this
-        // unit. Left in place because U12 removes the Design/Print views
-        // wholesale rather than piecemeal; clearing selection here rather
-        // than guessing at a `Selection` value is the honest minimal fix.
-        selection: null,
-        ...panelDefaults("design"),
-      })
-    },
-
-    reorderPage: (from, to) =>
-      updateProject((project) => ({ ...project, pages: movePage(project.pages, from, to) })),
 
     toggleLeftPanel: () => set((state) => ({ leftPanelOpen: !state.leftPanelOpen })),
     toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),

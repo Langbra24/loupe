@@ -1,15 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import {
-  CaretLeftIcon,
-  ImageSquareIcon,
-  TextAaIcon,
-  BookOpenIcon,
-} from "@phosphor-icons/react"
-import { toSpreads, type Page, type PageElement } from "@loupe/core"
+import { BookOpenIcon } from "@phosphor-icons/react"
+import { vandeGraafMargins, type Frame, type Margins } from "@loupe/core"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useThumbnail } from "@/components/sequence/use-thumbnail"
 import { cn } from "@/lib/utils"
 import { useEditorStore } from "@/state/editor-store"
 
@@ -21,27 +17,15 @@ type PanelView = "canvas" | "book"
 /**
  * Simplified layers panel.
  *
- * "Canvas" is where the pasteboard's imported photographs live before they
- * become book content; "Book" is the committed page order. Both are
- * placeholder-ish for now — the canvas has nothing to enumerate yet (that
- * lands with the frame grid), and the book list here is the same drill-down
- * this panel already had before the switcher existed. U12 builds the real
- * book-overview rows with print properties.
+ * "Canvas" orients the user to the pasteboard's staged photographs; "Book"
+ * lists every frame in reading order with a thumbnail and its margins (R20,
+ * R13) — clicking a row selects that frame, which is what makes the
+ * contextual sidebar (U7) show its print properties without going back to
+ * the canvas to click it there.
  */
 export function LayersPanel() {
   const project = useEditorStore((state) => state.project)
   const [view, setView] = useState<PanelView>("canvas")
-  // Which committed page the Book view is drilled into. Deliberately local,
-  // not the store's `selection` (U7): `selection` now discriminates
-  // frame/text-element/image-element for the contextual sidebar, and a
-  // committed `Page` is none of those — this drill-down predates frames and
-  // is unrelated bookkeeping U12 replaces wholesale with real book-overview
-  // rows, not something worth threading through the redesigned type.
-  const [selectedPageId, setSelectedPageId] = useState<string | null>(null)
-
-  const selectedPage = selectedPageId
-    ? (project.pages.find((page) => page.id === selectedPageId) ?? null)
-    : null
 
   return (
     <aside className="flex h-full w-60 flex-col border-r bg-background">
@@ -52,15 +36,7 @@ export function LayersPanel() {
       <PanelViewSwitcher view={view} onChange={setView} />
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="px-2 pb-3">
-          {view === "canvas" ? (
-            <CanvasOverview />
-          ) : selectedPage ? (
-            <ElementList page={selectedPage} onBack={() => setSelectedPageId(null)} />
-          ) : (
-            <SpreadList onSelectPage={setSelectedPageId} />
-          )}
-        </div>
+        <div className="px-2 pb-3">{view === "canvas" ? <CanvasOverview /> : <FrameOverviewList />}</div>
       </ScrollArea>
     </aside>
   )
@@ -108,8 +84,9 @@ function PanelViewSwitcher({
   )
 }
 
-/** Placeholder — the pasteboard has nothing structural to enumerate until the
- *  frame grid lands; this just orients the user to what "Canvas" means here. */
+/** Orients the user to what "Canvas" means here — the pasteboard has no
+ *  further structure to enumerate; the frame grid is what the "Book" view
+ *  below actually lists. */
 function CanvasOverview() {
   const assetCount = useEditorStore((state) => state.project.assets.length)
 
@@ -125,79 +102,81 @@ function CanvasOverview() {
   )
 }
 
-function SpreadList({ onSelectPage }: { onSelectPage: (pageId: string) => void }) {
-  const project = useEditorStore((state) => state.project)
-  const spreads = toSpreads(project.pages)
+/**
+ * The real book overview (U12): every frame in reading order, each row
+ * carrying a thumbnail and a compact margin summary. Reads `project.frames`,
+ * not the old `project.pages` — under the frame model `pages` is never
+ * populated, since nothing commits a frame into one anymore.
+ */
+function FrameOverviewList() {
+  const frames = useEditorStore((state) => state.project.frames)
+  const selection = useEditorStore((state) => state.selection)
+  const selectFrame = useEditorStore((state) => state.selectFrame)
+
+  const ordered = [...frames].sort((a, b) => a.position - b.position)
 
   return (
     <div className="flex flex-col gap-1">
       <PanelLabel>Pages</PanelLabel>
-      {spreads.map((spread) => (
-        <div key={spread.index} className="flex flex-col">
-          <div className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
-            <BookOpenIcon className="size-3.5" />
-            Spread {spread.index + 1}
-          </div>
-          {[spread.left, spread.right]
-            .filter((page): page is Page => page !== null)
-            .map((page) => (
-              <button
-                key={page.id}
-                onClick={() => onSelectPage(page.id)}
-                className="flex items-center gap-2 rounded-md py-1 pr-2 pl-6 text-left text-sm text-foreground/90 hover:bg-muted"
-              >
-                <span className="truncate">{pageLabel(page)}</span>
-              </button>
-            ))}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-/** `onBack`/local `isSelected` are decoupled from the store's `selection`
- *  (U7) — see the comment on `LayersPanel`'s `selectedPageId` state above. */
-function ElementList({ page, onBack }: { page: Page; onBack: () => void }) {
-  const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
-
-  return (
-    <div className="flex flex-col gap-1">
-      <button
-        onClick={onBack}
-        className="flex items-center gap-1 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-      >
-        <CaretLeftIcon className="size-3" />
-        All pages
-      </button>
-      <PanelLabel>{pageLabel(page)}</PanelLabel>
-
-      {page.elements.length === 0 ? (
-        <p className="px-2 py-1 text-xs text-muted-foreground">Empty page.</p>
+      {ordered.length === 0 ? (
+        <p className="px-2 py-1 text-xs leading-relaxed text-muted-foreground">
+          Set up the book to see its pages here.
+        </p>
       ) : (
-        page.elements.map((element) => {
-          const isSelected = selectedElementId === element.id
-          return (
-            <button
-              key={element.id}
-              onClick={() => setSelectedElementId(element.id)}
-              className={cn(
-                "flex items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-muted",
-                isSelected && "bg-muted font-medium",
-              )}
-            >
-              <ElementIcon element={element} />
-              <span className="truncate">{element.name}</span>
-            </button>
-          )
-        })
+        ordered.map((frame) => (
+          <FrameRow
+            key={frame.id}
+            frame={frame}
+            isSelected={selection?.kind === "frame" && selection.frameId === frame.id}
+            onSelect={() => selectFrame(frame.id)}
+          />
+        ))
       )}
     </div>
   )
 }
 
-function ElementIcon({ element }: { element: PageElement }) {
-  const Icon = element.kind === "image" ? ImageSquareIcon : TextAaIcon
-  return <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+function FrameRow({
+  frame,
+  isSelected,
+  onSelect,
+}: {
+  frame: Frame
+  isSelected: boolean
+  onSelect: () => void
+}) {
+  const firstImage = frame.elements.find((element) => element.kind === "image")
+  const thumbnailUrl = useThumbnail(firstImage?.assetId)
+  const margins = frame.margins ?? vandeGraafMargins(frame.pageSize)
+
+  return (
+    <button
+      onClick={onSelect}
+      className={cn(
+        "flex items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted",
+        isSelected && "bg-muted",
+      )}
+    >
+      <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
+        {thumbnailUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={thumbnailUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <BookOpenIcon className="size-3.5 text-muted-foreground" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm text-foreground/90">Page {frame.position + 1}</div>
+        <div className="truncate text-[0.7rem] text-muted-foreground">{formatMargins(margins)}</div>
+      </div>
+    </button>
+  )
+}
+
+/** Compact margin summary for a row — full labeled fields belong in the
+ *  sidebar (U7); this is a glance-length hint of what's set. */
+function formatMargins(margins: Margins): string {
+  return `${Math.round(margins.top)}/${Math.round(margins.inner)}/${Math.round(margins.outer)}/${Math.round(margins.bottom)}mm margins`
 }
 
 function PanelLabel({ children }: { children: React.ReactNode }) {
@@ -206,10 +185,4 @@ function PanelLabel({ children }: { children: React.ReactNode }) {
       {children}
     </div>
   )
-}
-
-/** Prefer the page's own first element name — "Breakwater, low tide" is a more
- *  useful label in a photobook than "Page 4". */
-function pageLabel(page: Page): string {
-  return page.elements[0]?.name ?? page.id
 }
