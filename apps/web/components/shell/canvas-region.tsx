@@ -1,7 +1,16 @@
 "use client"
 
-import { sizeForRole, vandeGraafMargins, type Frame, type ImageElement, type PageElement, type Project } from "@loupe/core"
+import {
+  sizeForRole,
+  vandeGraafMargins,
+  type Frame,
+  type ImageElement,
+  type Margins,
+  type PageElement,
+  type Project,
+} from "@loupe/core"
 
+import { BLEED_MM } from "@/components/shell/inspector-panel"
 import { LightTable } from "@/components/sequence/light-table"
 import { useThumbnail } from "@/components/sequence/use-thumbnail"
 import { cn } from "@/lib/utils"
@@ -81,6 +90,7 @@ function FramePreview({ frame, project }: { frame: Frame; project: Project }) {
         style={{ aspectRatio: aspect }}
       >
         <FrameContents frame={frame} project={project} />
+        <PrintOverlay frame={frame} margins={margins} />
       </button>
       <div className="flex items-center justify-between text-[0.7rem] text-muted-foreground">
         <span>Page {frame.position + 1}</span>
@@ -138,6 +148,45 @@ function FrameElementBox({ element, project }: { element: PageElement; project: 
       )}
     >
       {element.content}
+    </div>
+  )
+}
+
+/**
+ * The two print-technical overlays the pre-frame `PrintView` drew on its
+ * press-sheet preview before U12 deleted it: a bleed edge and the content
+ * margins, both restored here on each page preview instead of a single
+ * folded-sheet mockup, since there is no imposition/fold view to draw them on
+ * yet. Colors match the original exactly — `destructive`, at low opacity, is
+ * what reads as the "pink" bleed line, kept distinct from the `ring`-colored
+ * margin guide so the two never get confused on a real page.
+ */
+function PrintOverlay({ frame, margins }: { frame: Frame; margins: Margins }) {
+  const bleedXPercent = (BLEED_MM / frame.pageSize.width) * 100
+  const bleedYPercent = (BLEED_MM / frame.pageSize.height) * 100
+
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {/* Bleed edge. */}
+      <div
+        className="absolute border border-dashed border-destructive/60"
+        style={{
+          top: `${bleedYPercent}%`,
+          bottom: `${bleedYPercent}%`,
+          left: `${bleedXPercent}%`,
+          right: `${bleedXPercent}%`,
+        }}
+      />
+      {/* Van de Graaf content margins. */}
+      <div
+        className="absolute border border-dashed border-ring/50"
+        style={{
+          top: `${(margins.top / frame.pageSize.height) * 100}%`,
+          bottom: `${(margins.bottom / frame.pageSize.height) * 100}%`,
+          left: `${(margins.inner / frame.pageSize.width) * 100}%`,
+          right: `${(margins.outer / frame.pageSize.width) * 100}%`,
+        }}
+      />
     </div>
   )
 }

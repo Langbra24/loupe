@@ -32,6 +32,19 @@ const TYPE_ROLES: TypeRole[] = ["title", "subtitle", "body", "caption", "credit"
 const ALIGNMENTS: TextElement["align"][] = ["left", "center", "right"]
 
 /**
+ * Standard trim bleed, in millimetres — the same fixed value the pre-frame
+ * `PrintControls`/`PrintView` showed before U12 deleted them along with the
+ * rest of the dead mode-scoped views. Not stored on `Project`: like the
+ * original, this is a display constant rather than a per-project setting,
+ * since nothing in the app varies it yet. Restored because the visual bleed
+ * indicator on a printed page (`BookOverview`'s `FramePreview` in
+ * canvas-region.tsx) is exactly the kind of "technical detail that matters
+ * for printing" a book-review surface should carry, and dropping it when the
+ * old Print mode was removed was a real loss, not an intentional cut.
+ */
+export const BLEED_MM = 3
+
+/**
  * The right panel: one sidebar that reflects whatever is currently selected
  * (U7), replacing the old per-mode Design/Print property panels — there is
  * only one canvas now (the light table), not three mode-scoped surfaces.
@@ -135,6 +148,13 @@ function BookSettings() {
         </p>
       </Section>
       <Separator />
+      <Section title="Imposition">
+        <Row label="Binding" value="Saddle stitch" />
+        <Row label="Bleed" value={`${BLEED_MM} mm`} />
+        <Row label="Fold preview" value="—" />
+        <Hint>Imposition, fold preview and soft-proof are placeholders.</Hint>
+      </Section>
+      <Separator />
       <Section title="Type scale">
         <Row label="Base" value={`${project.typeBaseSize} pt`} />
         <Row label="Ratio" value={String(project.typeRatio)} />
@@ -178,6 +198,10 @@ function FrameSettings({ frameId }: { frameId: string }) {
         <MarginField label="Outer" value={margins.outer} onChange={(v) => setMargin("outer", v)} />
         <MarginField label="Bottom" value={margins.bottom} onChange={(v) => setMargin("bottom", v)} />
         <Hint>Millimetres. Defaults to the Van de Graaf canon.</Hint>
+      </Section>
+      <Separator />
+      <Section title="Print">
+        <Row label="Bleed" value={`${BLEED_MM} mm`} />
       </Section>
     </>
   )
