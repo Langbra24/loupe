@@ -1,31 +1,31 @@
 "use client"
 
-import { useState } from "react"
 import { BookOpenIcon } from "@phosphor-icons/react"
 import { vandeGraafMargins, type Frame, type Margins } from "@loupe/core"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useThumbnail } from "@/components/sequence/use-thumbnail"
 import { cn } from "@/lib/utils"
-import { useEditorStore } from "@/state/editor-store"
-
-/** The left panel's only two views (R20) — not a "mode" in the removed
- *  Sequence/Design/Print sense: this is content the panel shows, chosen
- *  locally, with no effect on what the canvas itself renders. */
-type PanelView = "canvas" | "book"
+import { useEditorStore, type PanelView } from "@/state/editor-store"
 
 /**
  * Simplified layers panel.
  *
  * "Canvas" orients the user to the pasteboard's staged photographs; "Book"
  * lists every frame in reading order with a thumbnail and its margins (R20,
- * R13) — clicking a row selects that frame, which is what makes the
- * contextual sidebar (U7) show its print properties without going back to
- * the canvas to click it there.
+ * R13). `panelView` lives in the store, not local state — switching to
+ * "Book" also switches the main canvas region to the full-book review grid
+ * (`canvas-region.tsx`'s `BookOverview`), the same way it did before this
+ * plan's restructure. A row's own click selects that frame *and* jumps back
+ * to "Canvas" (`reviewFrame` in the store) so clicking a page to review it
+ * lands you on the canvas ready to edit it, matching the pre-restructure
+ * click-a-page-to-review flow this panel used to have against `Page`
+ * instead of `Frame`.
  */
 export function LayersPanel() {
   const project = useEditorStore((state) => state.project)
-  const [view, setView] = useState<PanelView>("canvas")
+  const view = useEditorStore((state) => state.panelView)
+  const setView = useEditorStore((state) => state.setPanelView)
 
   return (
     <aside className="flex h-full w-60 flex-col border-r bg-background">
@@ -103,10 +103,17 @@ function CanvasOverview() {
 }
 
 /**
- * The real book overview (U12): every frame in reading order, each row
- * carrying a thumbnail and a compact margin summary. Reads `project.frames`,
- * not the old `project.pages` — under the frame model `pages` is never
- * populated, since nothing commits a frame into one anymore.
+ * Every frame in reading order, each row carrying a thumbnail and a compact
+ * margin summary. Sits above the same book review grid the main canvas
+ * region shows while the "Book" view is active (`BookOverview` in
+ * `canvas-region.tsx`) — this list is a compact index into that grid, not a
+ * separate destination, so a row click only selects the frame (sidebar shows
+ * its properties) without leaving the book review. Jumping to editing a page
+ * is the grid's job (its own click calls `reviewFrame`), the same split
+ * InDesign's Pages panel makes between selecting a page thumbnail and
+ * actually navigating to it. Reads `project.frames`, not the old
+ * `project.pages` — under the frame model `pages` is never populated, since
+ * nothing commits a frame into one anymore.
  */
 function FrameOverviewList() {
   const frames = useEditorStore((state) => state.project.frames)

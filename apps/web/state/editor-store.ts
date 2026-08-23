@@ -45,9 +45,17 @@ interface UndoCommand {
   undo: () => void
 }
 
+/** What the left panel shows, and — since a book review should replace the
+ *  editable canvas rather than sit beside it, the way it did before this
+ *  plan's restructure — what the main canvas region shows too. Lives in the
+ *  store rather than as local state in one component because both
+ *  `LayersPanel` and `CanvasRegion` need to read it. */
+export type PanelView = "canvas" | "book"
+
 interface EditorState {
   project: Project
   selection: Selection
+  panelView: PanelView
   /** See `UndoCommand`. Cleared on project load (`hydrate`) — undoing right
    *  after opening a project must never reach into a previous project's
    *  history. */
@@ -99,6 +107,12 @@ interface EditorState {
   selectFrame: (frameId: string) => void
   selectElement: (frameId: string, elementId: string) => void
   clearSelection: () => void
+  setPanelView: (view: PanelView) => void
+  /** Jump from the book overview back to the canvas with a specific frame
+   *  selected — the click target of a book-overview page (KTD: restoring the
+   *  pre-plan "click a page to review it" behavior against frames instead of
+   *  the old committed-Page model). */
+  reviewFrame: (frameId: string) => void
   updateFrameMargins: (frameId: string, margins: Margins) => void
   updateTextElement: (
     frameId: string,
@@ -164,6 +178,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     // mount. Getting this wrong surfaces as a hydration mismatch, not an error.
     project: createEmptyProject(),
     selection: null,
+    panelView: "canvas",
     undoStack: [],
     ...PANEL_DEFAULTS,
     hydrated: false,
@@ -493,6 +508,10 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     clearSelection: () => set({ selection: null }),
+
+    setPanelView: (view) => set({ panelView: view }),
+
+    reviewFrame: (frameId) => set({ panelView: "canvas", selection: { kind: "frame", frameId } }),
 
     updateFrameMargins: (frameId, margins) =>
       updateProject((project) => ({
