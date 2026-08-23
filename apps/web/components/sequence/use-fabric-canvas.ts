@@ -715,20 +715,39 @@ export function useFabricCanvas(options: Options) {
   }, [ready, frames, placements, assets, syncFrames])
 
   /**
-   * Frame the arrangement the first time photographs appear.
+   * Frame the arrangement the first time photographs appear, and again the
+   * first time a frame appears.
    *
    * Scene units are original image pixels, so a 4000px photograph at 100% zoom
    * fills the viewport several times over. Without this, the first thing a user
    * sees after importing is the inside of one photo.
+   *
+   * These are two separate one-shots, not one: import happens before the
+   * book-setup dialog runs, so placements go from 0 to positive well before
+   * frames do. Gating on a single `framed` flag meant the fit that ran for
+   * the imported photos never re-ran once `setupBook` created the first
+   * frame — the frame (laid out below the photos, per `frameGridOriginY`)
+   * was then simply outside whatever viewport the photo-only fit had already
+   * settled on, with nothing to bring it into view. A book's first frame
+   * showing up off-screen by default was reported directly against this
+   * build.
    */
-  const framed = useRef(false)
+  const framedPlacements = useRef(false)
   useEffect(() => {
-    if (!ready || framed.current || placements.length === 0) return
-    framed.current = true
+    if (!ready || framedPlacements.current || placements.length === 0) return
+    framedPlacements.current = true
     // After the sync effect has had a turn to add the objects.
     const id = setTimeout(() => fitToViewRef.current(), 60)
     return () => clearTimeout(id)
   }, [ready, placements.length])
+
+  const framedFrames = useRef(false)
+  useEffect(() => {
+    if (!ready || framedFrames.current || frames.length === 0) return
+    framedFrames.current = true
+    const id = setTimeout(() => fitToViewRef.current(), 60)
+    return () => clearTimeout(id)
+  }, [ready, frames.length])
 
   /* ---------------------------------------------------------------- */
   /* Controls                                                          */
@@ -761,8 +780,24 @@ export function useFabricCanvas(options: Options) {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const { placements: current, assets: pool } = latest.current
-    const box = boundingBoxOf(current, pool)
+    const { placements: current, assets: pool, frames: currentFrames } = latest.current
+    const placementBox = boundingBoxOf(current, pool)
+
+    // Frames sit below the loose photos (frameGridOriginY), so fitting to
+    // placements alone leaves them out of view entirely the moment a book
+    // has been set up — exactly the "where did my page go" bug this closes.
+    // Union the two boxes rather than picking one: a book with both loose
+    // photos and frames should show both without the user having to pan.
+    const layouts = layoutFrames(currentFrames, frameGridOriginY(current, pool))
+    const box = layouts.reduce((acc, layout) => {
+      const { bounds } = layout
+      if (acc.width === 0 && acc.height === 0) return bounds
+      const minX = Math.min(acc.x, bounds.x)
+      const minY = Math.min(acc.y, bounds.y)
+      const maxX = Math.max(acc.x + acc.width, bounds.x + bounds.width)
+      const maxY = Math.max(acc.y + acc.height, bounds.y + bounds.height)
+      return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+    }, placementBox)
 
     if (box.width === 0 || box.height === 0) {
       canvas.setViewportTransform([1, 0, 0, 1, 0, 0])
