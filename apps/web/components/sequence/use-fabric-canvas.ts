@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { Canvas, FabricImage, FabricObject, TPointerEventInfo } from "fabric"
-import { boundingBoxOf, frameAt, type Asset, type CanvasPlacement, type Frame } from "@loupe/core"
+import { boundingBoxOf, frameAt, type Asset, type Box, type CanvasPlacement, type Frame } from "@loupe/core"
 
 import { frameGridOriginY, layoutFrames, nearestFrameIndex, type FrameLayout } from "@/components/sequence/frame-grid"
 import { thumbnailUrl } from "@/lib/storage/assets"
@@ -30,6 +30,15 @@ type PlacedObject = FabricObject & { placementId?: string; naturalScale?: number
  * handling has to tell the two apart at the event-handler level.
  */
 type PlacedFrame = FabricObject & { frameId: string }
+
+/**
+ * A Fabric object standing in for one of a frame's own elements (an image or
+ * text already inside a frame — distinct from a pasteboard photograph or a
+ * fresh `T`-created textbox, which have no `frameId`/`elementId` at all).
+ * Both `frameId` and `elementId` are needed: the element alone can't say
+ * which frame's normalized `Box` it's positioned against.
+ */
+type PlacedElement = FabricObject & { frameId: string; elementId: string; elementKind: "image" | "text" }
 
 export interface CanvasControls {
   zoom: number
@@ -66,6 +75,18 @@ interface Options {
    * the same way, since neither has a sidebar variant of its own yet.
    */
   onSelectFrame: (frameId: string | null) => void
+  /** An image or text element already inside a frame was selected on canvas —
+   *  the frame-content counterpart to `onSelectFrame`. */
+  onSelectElement: (frameId: string, elementId: string) => void
+  /** A frame element was dragged and/or resized; `patch` is its new
+   *  normalized `Box`, computed from the object's on-canvas position/size
+   *  against the frame's current bounds. */
+  onUpdateElementBox: (frameId: string, elementId: string, patch: Partial<Box>) => void
+  /** An already-placed text element finished an in-place edit (double-click
+   *  to re-enter, then blur/Escape/click-away to exit — Fabric's own
+   *  triggers). Distinct from `onCreateText`, which is for a brand-new
+   *  pasteboard textbox landing on a frame for the first time. */
+  onUpdateTextContent: (frameId: string, elementId: string, content: string) => void
 }
 
 /** A Fabric `Textbox` created via the `T` shortcut, mid- or post-edit. There
@@ -96,6 +117,9 @@ export function useFabricCanvas(options: Options) {
     onDropOnFrame,
     onCreateText,
     onSelectFrame,
+    onSelectElement,
+    onUpdateElementBox,
+    onUpdateTextContent,
   } = options
 
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -103,6 +127,10 @@ export function useFabricCanvas(options: Options) {
   const canvasRef = useRef<Canvas | null>(null)
   const objectsRef = useRef(new Map<string, PlacedObject>())
   const framesRef = useRef(new Map<string, PlacedFrame>())
+  const elementsRef = useRef(new Map<string, PlacedElement>())
+  /** Element ids currently loading (image elements await a thumbnail URL) —
+   *  same overlapping-sync guard `pendingRef` gives placements. */
+  const elementsPendingRef = useRef(new Set<string>())
   /** The dashed highlight shown over the slot a dragged frame would land in.
    *  At most one exists at a time; `null` when no frame drag is in progress. */
   const indicatorRef = useRef<FabricObject | null>(null)
@@ -125,6 +153,9 @@ export function useFabricCanvas(options: Options) {
     onDropOnFrame,
     onCreateText,
     onSelectFrame,
+    onSelectElement,
+    onUpdateElementBox,
+    onUpdateTextContent,
   })
   const latest = useRef({ placements, assets, frames })
 
@@ -150,6 +181,9 @@ export function useFabricCanvas(options: Options) {
       onDropOnFrame,
       onCreateText,
       onSelectFrame,
+      onSelectElement,
+      onUpdateElementBox,
+      onUpdateTextContent,
     }
     latest.current = { placements, assets, frames }
   })
@@ -295,7 +329,15 @@ export function useFabricCanvas(options: Options) {
        * the same way clicking empty canvas does.
        */
       const notifyFrameSelection = () => {
-        const active = canvasRef.current?.getActiveObject() as PlacedFrame | undefined
+        const active = canvasRef.current?.getActiveObject() as
+          | (PlacedFrame & Partial<PlacedElement>)
+          | undefined
+
+        if (active?.elementId && active.frameId) {
+          handlers.current.onSelectElement(active.frameId, active.elementId)
+          return
+        }
+
         handlers.current.onSelectFrame(active?.frameId ?? null)
       }
       canvas.on("selection:created", notifyFrameSelection)
@@ -341,8 +383,34 @@ export function useFabricCanvas(options: Options) {
       /* Write position and scale back to the store when a gesture ends —
          not per frame, which would commit a store write per pointer move. */
       canvas.on("object:modified", (opt) => {
-        const placed = opt.target as (PlacedObject & Partial<PlacedFrame>) | undefined
+        const placed = opt.target as (PlacedObject & Partial<PlacedFrame> & Partial<PlacedElement>) | undefined
         if (!placed) return
+
+        // Checked first: an element also has no `placementId`, but unlike a
+        // frame's own background Rect it carries both `frameId` and
+        // `elementId` together, which is what actually disambiguates it from
+        // the other two branches below.
+        if (placed.elementId && placed.frameId) {
+          const { frames: currentFrames, placements, assets } = latest.current
+          const originY = frameGridOriginY(placements, assets)
+          const layout = layoutFrames(currentFrames, originY).find((l) => l.frameId === placed.frameId)
+          if (!layout || layout.bounds.width === 0 || layout.bounds.height === 0) return
+
+          // Fabric reports position/size pre-scale; the object's actual
+          // on-canvas footprint is width/height times scaleX/scaleY. Reading
+          // through scale here is what makes a corner-drag resize (not just
+          // a move) persist correctly as a new normalized Box.
+          const absWidth = (placed.width ?? 0) * (placed.scaleX ?? 1)
+          const absHeight = (placed.height ?? 0) * (placed.scaleY ?? 1)
+
+          handlers.current.onUpdateElementBox(placed.frameId, placed.elementId, {
+            x: ((placed.left ?? 0) - layout.bounds.x) / layout.bounds.width,
+            y: ((placed.top ?? 0) - layout.bounds.y) / layout.bounds.height,
+            width: absWidth / layout.bounds.width,
+            height: absHeight / layout.bounds.height,
+          })
+          return
+        }
 
         if (placed.placementId) {
           const dropX = placed.left ?? 0
@@ -436,8 +504,17 @@ export function useFabricCanvas(options: Options) {
         const target_canvas = canvasRef.current
         if (!target_canvas) return
 
-        const textbox = opt.target as PlacedTextbox
+        const textbox = opt.target as unknown as PlacedTextbox & Partial<PlacedElement>
         const content = (textbox.text ?? "").trim()
+
+        // Re-editing an already-placed frame text element (double-click,
+        // Fabric's own built-in trigger) commits its content in place —
+        // distinct from a fresh pasteboard textbox landing on a frame for
+        // the first time, which is everything below this branch.
+        if (textbox.elementId && textbox.frameId) {
+          handlers.current.onUpdateTextContent(textbox.frameId, textbox.elementId, content)
+          return
+        }
 
         if (content.length === 0) {
           target_canvas.remove(textbox)
@@ -465,6 +542,8 @@ export function useFabricCanvas(options: Options) {
     const inFlight = pendingRef.current
 
     const drawnFrames = framesRef.current
+    const drawnElements = elementsRef.current
+    const elementsInFlight = elementsPendingRef.current
 
     return () => {
       disposed = true
@@ -472,6 +551,8 @@ export function useFabricCanvas(options: Options) {
       objects.clear()
       inFlight.clear()
       drawnFrames.clear()
+      drawnElements.clear()
+      elementsInFlight.clear()
       indicatorRef.current = null
       const target = canvasRef.current
       canvasRef.current = null
@@ -713,6 +794,185 @@ export function useFabricCanvas(options: Options) {
     if (!ready) return
     void syncFrames()
   }, [ready, frames, placements, assets, syncFrames])
+
+  /* ---------------------------------------------------------------- */
+  /* Sync frame contents onto the canvas                                */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Draw every frame's own elements (images and text already inside a
+   * frame — not pasteboard photographs or a fresh `T` textbox) at their
+   * absolute on-canvas position, derived from the frame's current laid-out
+   * bounds plus the element's normalized `Box`. This is the piece that was
+   * missing entirely before: a photograph or text dropped onto a frame
+   * updated the store correctly, but nothing ever drew it back onto the
+   * canvas — the frame stayed a blank rectangle until you switched to the
+   * Book overview to see it had actually landed.
+   *
+   * Known limitation, left for a follow-up rather than solved here: while a
+   * frame is mid-drag (reorder), its elements do not visually follow in
+   * real time — only the frame's own background Rect moves under the
+   * pointer. They snap to the correct position once the drag ends and the
+   * store update this effect depends on re-runs. Grouping each frame with
+   * its elements as one Fabric `Group` would fix this properly, but changes
+   * how frame-drag/reorder hit-testing works throughout this file — a
+   * larger change than tonight's scope.
+   *
+   * Second known limitation: an image element's `fit` (`'cover'`/`'contain'`)
+   * is not honored here — every image stretches to exactly fill its `Box`,
+   * the same way scaleX/scaleY are computed for any other resize. True
+   * cover/contain needs a clip region independent of the object's own scale
+   * (Fabric's `clipPath`, or separate `cropX`/`cropY` bookkeeping), which is
+   * real scope, not a one-line fix. Full-bleed elements (the only shape
+   * `moveToFrame`/`createTextElement` produce today) look correct regardless,
+   * since a box that exactly matches the image's own aspect ratio stretches
+   * and crops identically.
+   */
+  const syncFrameElements = useCallback(async () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const fabric = await import("fabric")
+    const { frames: currentFrames, placements: currentPlacements, assets: pool } = latest.current
+    const originY = frameGridOriginY(currentPlacements, pool)
+    const layoutByFrameId = new Map(layoutFrames(currentFrames, originY).map((l) => [l.frameId, l]))
+    const live = elementsRef.current
+    const pending = elementsPendingRef.current
+
+    const validIds = new Set<string>()
+    for (const frame of currentFrames) {
+      for (const element of frame.elements) validIds.add(element.id)
+    }
+
+    // Remove objects for elements that no longer exist (deleted, or moved
+    // back out to the pasteboard).
+    for (const [elementId, object] of live) {
+      if (!validIds.has(elementId)) {
+        canvas.remove(object)
+        live.delete(elementId)
+      }
+    }
+
+    for (const frame of currentFrames) {
+      const layout = layoutByFrameId.get(frame.id)
+      if (!layout) continue
+
+      for (const element of frame.elements) {
+        const absLeft = layout.bounds.x + element.frame.x * layout.bounds.width
+        const absTop = layout.bounds.y + element.frame.y * layout.bounds.height
+        const absWidth = element.frame.width * layout.bounds.width
+        const absHeight = element.frame.height * layout.bounds.height
+
+        const existing = live.get(element.id)
+
+        if (existing) {
+          // Don't fight the object currently under the user's pointer.
+          if (existing === canvas.getActiveObject()) continue
+
+          const dx = Math.abs((existing.left ?? 0) - absLeft)
+          const dy = Math.abs((existing.top ?? 0) - absTop)
+          const dw = Math.abs((existing.width ?? 0) * (existing.scaleX ?? 1) - absWidth)
+          const dh = Math.abs((existing.height ?? 0) * (existing.scaleY ?? 1) - absHeight)
+          if (dx < 0.5 && dy < 0.5 && dw < 0.5 && dh < 0.5) continue
+
+          existing.set({
+            left: absLeft,
+            top: absTop,
+            scaleX: existing.width ? absWidth / existing.width : 1,
+            scaleY: existing.height ? absHeight / existing.height : 1,
+          })
+          existing.setCoords()
+          continue
+        }
+
+        if (pending.has(element.id)) continue
+
+        if (element.kind === "text") {
+          const textbox = new fabric.Textbox(element.content, {
+            left: absLeft,
+            top: absTop,
+            originX: "left",
+            originY: "top",
+            width: Math.max(absWidth, 20),
+            // No typographic scale is threaded into this hook — a role-aware
+            // size (title/subtitle/body/caption) is a follow-up; this reads
+            // as a sensible default sized off the box itself, not a promise
+            // that it matches the sidebar's type scale yet.
+            fontSize: Math.max(absHeight * 0.5, 14),
+            fill: "#f4f4f5",
+            textAlign: element.align,
+            lockRotation: true,
+            lockSkewingX: true,
+            lockSkewingY: true,
+          }) as unknown as PlacedElement
+          textbox.frameId = frame.id
+          textbox.elementId = element.id
+          textbox.elementKind = "text"
+          textbox.setControlsVisibility({ mtr: false })
+
+          canvas.add(textbox)
+          live.set(element.id, textbox)
+          continue
+        }
+
+        // Image element: same async thumbnail-load shape as a pasteboard
+        // photograph (`syncObjects`), reserved in `pending` for the same
+        // overlapping-sync reason.
+        pending.add(element.id)
+        void (async () => {
+          try {
+            const url = await thumbnailUrl(element.assetId)
+            if (!url || !canvasRef.current) return
+            // The element can be removed (deleted, dragged back to the
+            // pasteboard) while its thumbnail loads.
+            const stillExists = latest.current.frames.some((f) =>
+              f.elements.some((e) => e.id === element.id),
+            )
+            if (!stillExists) return
+
+            const fabricModule = await import("fabric")
+            const image: FabricImage = await fabricModule.FabricImage.fromURL(url)
+            if (!canvasRef.current) return
+
+            image.set({
+              left: absLeft,
+              top: absTop,
+              originX: "left",
+              originY: "top",
+              scaleX: image.width ? absWidth / image.width : 1,
+              scaleY: image.height ? absHeight / image.height : 1,
+              borderColor: "#6366f1",
+              cornerColor: "#6366f1",
+              cornerSize: 8,
+              transparentCorners: false,
+              lockRotation: true,
+              lockSkewingX: true,
+              lockSkewingY: true,
+            })
+            image.setControlsVisibility({ mtr: false })
+
+            const placed = image as unknown as PlacedElement
+            placed.frameId = frame.id
+            placed.elementId = element.id
+            placed.elementKind = "image"
+
+            canvasRef.current.add(image)
+            live.set(element.id, placed)
+            canvasRef.current.requestRenderAll()
+          } finally {
+            pending.delete(element.id)
+          }
+        })()
+      }
+    }
+
+    canvas.requestRenderAll()
+  }, [])
+
+  useEffect(() => {
+    if (!ready) return
+    void syncFrameElements()
+  }, [ready, frames, placements, assets, syncFrameElements])
 
   /**
    * Frame the arrangement the first time photographs appear, and again the

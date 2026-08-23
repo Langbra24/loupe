@@ -26,7 +26,10 @@ export function LightTable() {
   const moveToFrame = useEditorStore((state) => state.moveToFrame)
   const createTextElement = useEditorStore((state) => state.createTextElement)
   const selectFrame = useEditorStore((state) => state.selectFrame)
+  const selectElement = useEditorStore((state) => state.selectElement)
   const clearSelection = useEditorStore((state) => state.clearSelection)
+  const updateElementBox = useEditorStore((state) => state.updateElementBox)
+  const updateTextElement = useEditorStore((state) => state.updateTextElement)
   const undo = useEditorStore((state) => state.undo)
 
   // Right-click promotion into an Edit lived here; Edit is gone from the data
@@ -44,6 +47,10 @@ export function LightTable() {
     onDropOnFrame: moveToFrame,
     onCreateText: createTextElement,
     onSelectFrame: (frameId) => (frameId ? selectFrame(frameId) : clearSelection()),
+    onSelectElement: selectElement,
+    onUpdateElementBox: updateElementBox,
+    onUpdateTextContent: (frameId, elementId, content) =>
+      updateTextElement(frameId, elementId, { content }),
   })
 
   // `T` creates and inline-edits a pasteboard text box (U6).
