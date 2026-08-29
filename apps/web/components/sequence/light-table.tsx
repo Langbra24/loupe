@@ -11,9 +11,10 @@ import { CanvasControls } from "@/components/sequence/canvas-controls"
 import { useFabricCanvas } from "@/components/sequence/use-fabric-canvas"
 import {
   useCopyPasteShortcut,
-  useDeleteFrameShortcut,
+  useDeleteSelectionShortcut,
   useTextToolShortcut,
   useUndoShortcut,
+  type DeletableSelection,
 } from "@/components/sequence/use-canvas-shortcuts"
 import { modifierLabel, usePlatform } from "@/components/sequence/use-platform"
 import { Button } from "@/components/ui/button"
@@ -82,6 +83,7 @@ export function LightTable() {
   const addFrame = useEditorStore((state) => state.addFrame)
   const setFrameCover = useEditorStore((state) => state.setFrameCover)
   const removeFrame = useEditorStore((state) => state.removeFrame)
+  const removeElement = useEditorStore((state) => state.removeElement)
   const selection = useEditorStore((state) => state.selection)
   const undo = useEditorStore((state) => state.undo)
   const redo = useEditorStore((state) => state.redo)
@@ -126,13 +128,22 @@ export function LightTable() {
   // Cmd/Ctrl+C copies the selected page, Cmd/Ctrl+V pastes it as a new one
   // right after it (user-directed).
   useCopyPasteShortcut({ enabled: true, copySelectedFrame, pasteFrame })
-  // Backspace/Delete removes the selected page (user-directed) — same action
-  // as the right-click menu's "Delete page".
-  useDeleteFrameShortcut({
+  // Backspace/Delete removes whatever is currently selected — a page (same
+  // action as the right-click menu's "Delete page") or an image/text element
+  // — but never while `isTextEditing` says a text element is actively being
+  // typed into (see that hook's doc comment).
+  const deletableSelection: DeletableSelection =
+    selection?.kind === "frame"
+      ? { kind: "frame", frameId: selection.frameId }
+      : selection?.kind === "text-element" || selection?.kind === "image-element"
+        ? { kind: "element", frameId: selection.frameId, elementId: selection.elementId }
+        : null
+  useDeleteSelectionShortcut({
     enabled: true,
-    isFrameSelected: selection?.kind === "frame",
-    selectedFrameId: selection?.kind === "frame" ? selection.frameId : null,
+    selection: deletableSelection,
+    isTextEditing,
     removeFrame,
+    removeElement,
   })
 
   return (

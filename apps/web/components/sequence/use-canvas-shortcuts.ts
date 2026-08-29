@@ -294,47 +294,68 @@ export function useUndoShortcut({ enabled, undo, redo }: UndoShortcutOptions): v
   }, [enabled, undo, redo])
 }
 
-export interface DeleteFrameShortcutOptions {
+/** What's currently selected, reduced to exactly what this hook needs to
+ *  decide what Backspace/Delete should remove — the caller passes this
+ *  derived shape rather than the raw `Selection` union from `@loupe/core`,
+ *  the same pattern `isFrameSelected`/`selectedFrameId` used before this
+ *  hook covered elements too. */
+export type DeletableSelection =
+  | { kind: "frame"; frameId: string }
+  | { kind: "element"; frameId: string; elementId: string }
+  | null
+
+export interface DeleteSelectionShortcutOptions {
   enabled: boolean
-  /** Whether a frame (a page itself, not one of its elements) is currently
-   *  selected — the caller passes `selection?.kind === "frame"` rather than
-   *  the raw `Selection`, so this hook only needs a boolean plus the id. */
-  isFrameSelected: boolean
-  selectedFrameId: string | null
+  selection: DeletableSelection
+  /** Fabric-level fact, not React state — see `shouldCreateTextbox`'s doc
+   *  comment on why this can't be folded into a DOM-focus check. Checked
+   *  first, before even reading `selection`: `selection.kind` stays
+   *  `"element"` continuously for the whole time a text element is being
+   *  typed into, so without this guard every backspace keystroke fixing a
+   *  typo would delete the element instead of one character. */
+  isTextEditing: () => boolean
   removeFrame: (frameId: string) => void
+  removeElement: (frameId: string, elementId: string) => void
 }
 
 /**
- * Backspace/Delete removes the selected page (user-directed) — same
- * `removeFrame` action the right-click menu's "Delete page" item calls, so
- * both paths land one undoable step, restorable via the existing undo stack.
+ * Backspace/Delete removes whatever is currently selected (user-directed):
+ * the page itself when a frame is selected — same `removeFrame` action the
+ * right-click menu's "Delete page" item calls — or the element when an image
+ * or text element is selected, via `removeElement`. Either path lands one
+ * undoable step, restorable via the existing undo stack.
  *
  * Guarded by `isTypingTarget` for the obvious reason: Backspace is the most
- * common key there is in a text field, and must never delete a page just
- * because the sidebar's content textarea happens to have focus. Also guarded
- * on `isFrameSelected` specifically — selecting an image or text element
- * *inside* a frame does not arm this shortcut, only selecting the frame
- * itself (the white page background) does.
+ * common key there is in a text field, and must never delete anything just
+ * because the sidebar's content textarea happens to have focus. Guarded by
+ * `isTextEditing` for the same reason but at the canvas level — see that
+ * option's doc comment.
  */
-export function useDeleteFrameShortcut({
+export function useDeleteSelectionShortcut({
   enabled,
-  isFrameSelected,
-  selectedFrameId,
+  selection,
+  isTextEditing,
   removeFrame,
-}: DeleteFrameShortcutOptions): void {
+  removeElement,
+}: DeleteSelectionShortcutOptions): void {
   useEffect(() => {
     if (!enabled) return
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Backspace" && event.key !== "Delete") return
       if (isTypingTarget(event.target)) return
-      if (!isFrameSelected || !selectedFrameId) return
+      if (isTextEditing()) return
+      if (!selection) return
 
       event.preventDefault()
-      removeFrame(selectedFrameId)
+      if (selection.kind === "frame") {
+        removeFrame(selection.frameId)
+      } else {
+        removeElement(selection.frameId, selection.elementId)
+      }
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [enabled, isFrameSelected, selectedFrameId, removeFrame])
+  }, [enabled, selection, isTextEditing, removeFrame, removeElement])
 }

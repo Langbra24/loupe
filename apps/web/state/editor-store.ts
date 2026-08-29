@@ -100,6 +100,12 @@ interface EditorState {
   /** A pasteboard text box (U6) finished editing over a frame's bounds —
    *  see `use-fabric-canvas.ts`'s `text:editing:exited` handler. */
   createTextElement: (frameId: string, content: string) => void
+  /** Remove an image or text element from its frame — the Backspace/Delete
+   *  shortcut when one is selected (but not actively being edited; see
+   *  `useDeleteSelectionShortcut`). Restores it at its original index within
+   *  `frame.elements` on undo, the same convention `removeFrame` uses for
+   *  restoring a whole frame's position. */
+  removeElement: (frameId: string, elementId: string) => void
 
   addFrame: (pageSize: PageSize) => string
   removeFrame: (frameId: string) => void
@@ -461,6 +467,43 @@ export const useEditorStore = create<EditorState>((set, get) => {
           updateProject((project) => ({
             ...project,
             frames: removeFromFrame(project.frames, frameId, elementId),
+          })),
+      })
+    },
+
+    removeElement: (frameId, elementId) => {
+      const frame = get().project.frames.find((f) => f.id === frameId)
+      const index = frame?.elements.findIndex((element) => element.id === elementId) ?? -1
+      const removed = index >= 0 ? frame?.elements[index] : undefined
+      if (!frame || !removed) return
+
+      // The removed element was necessarily the selection (it's a right-click
+      // menu / keyboard-shortcut target on the currently selected element) —
+      // clear it rather than leave a stale reference to an id that no longer
+      // exists in `frame.elements`.
+      const selection = get().selection
+      const wasSelected = selection !== null && selection.kind !== "frame" && selection.elementId === elementId
+
+      const doRemove = () => {
+        updateProject((project) => ({ ...project, frames: removeFromFrame(project.frames, frameId, elementId) }))
+        if (wasSelected) set({ selection: null })
+      }
+
+      doRemove()
+
+      pushUndo({
+        do: doRemove,
+        // Restores the element at its original index within `frame.elements`
+        // — mirrors `removeFrame`'s undo restoring a whole frame's position —
+        // not just appended at the end.
+        undo: () =>
+          updateProject((project) => ({
+            ...project,
+            frames: updateFrame(project.frames, frameId, (f) => {
+              const elements = [...f.elements]
+              elements.splice(index, 0, removed)
+              return { ...f, elements }
+            }),
           })),
       })
     },
