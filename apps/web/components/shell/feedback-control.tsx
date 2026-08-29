@@ -5,6 +5,7 @@ import { ChatCircleIcon } from "@phosphor-icons/react"
 import { Popover } from "@base-ui/react/popover"
 
 import { Button } from "@/components/ui/button"
+import { useToastManager } from "@/components/ui/toast"
 import { cn } from "@/lib/utils"
 import { composeGitHubIssueUrl, FEEDBACK_MAX_LENGTH } from "@/lib/feedback-url"
 
@@ -16,10 +17,16 @@ import { composeGitHubIssueUrl, FEEDBACK_MAX_LENGTH } from "@/lib/feedback-url"
  * The 2,000-character cap is enforced in the textarea itself (`maxLength`)
  * with a live counter, not just at submit time, so typing past the limit is
  * simply impossible rather than silently truncated later.
+ *
+ * The GitHub tab opening is still the real mechanism — that's what AE6's "no
+ * backend, nothing sent from Loupe itself" actually rests on — the toast
+ * (user-directed) is a same-app acknowledgment on top of it, not a claim that
+ * an issue was filed without the bookmaker doing anything in the new tab.
  */
 export function FeedbackControl() {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState("")
+  const toastManager = useToastManager()
 
   const canSubmit = text.trim().length > 0 && text.length <= FEEDBACK_MAX_LENGTH
 
@@ -29,14 +36,19 @@ export function FeedbackControl() {
     window.open(url, "_blank", "noopener,noreferrer")
     setText("")
     setOpen(false)
+    toastManager.add({
+      title: "Feedback submitted",
+      description: "Will be reviewed in 2–3 business days. Thank you.",
+    })
   }
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger
         render={
-          <Button variant="secondary" size="icon-sm" aria-label="Send feedback">
+          <Button variant="secondary" size="sm">
             <ChatCircleIcon />
+            Provide feedback
           </Button>
         }
       />
@@ -68,7 +80,7 @@ export function FeedbackControl() {
                 {text.length} / {FEEDBACK_MAX_LENGTH}
               </span>
               <Button size="sm" disabled={!canSubmit} onClick={handleSubmit}>
-                Open issue on GitHub
+                Submit feedback
               </Button>
             </div>
           </Popover.Popup>
