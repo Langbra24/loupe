@@ -28,9 +28,17 @@
     --primary-foreground: oklch(0.21 0.006 285.885);
     --secondary: oklch(0.274 0.006 286.033);
     --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.274 0.006 286.033);
+    /* `--muted`/`--accent` used to share `--background`'s exact value (a
+     * leftover from promoting the old `--muted` value into `--background`
+     * above, without giving `--muted` a new one afterward) — every
+     * `hover:bg-muted`/`hover:bg-accent` state (ghost buttons, menu items,
+     * the tab switcher) was consequently invisible against a `bg-background`
+     * surface, not broken CSS, just literally the same color as its own
+     * background. Bumped a step lighter so hover/active states actually
+     * read. */
+    --muted: oklch(0.32 0.006 286.033);
     --muted-foreground: oklch(0.705 0.015 286.067);
-    --accent: oklch(0.274 0.006 286.033);
+    --accent: oklch(0.32 0.006 286.033);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);

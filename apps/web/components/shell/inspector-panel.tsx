@@ -1,8 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 import {
   checkPageCount,
+  presetImageBox,
   sizeForRole,
   defaultFrameMargins,
   type ImageElement,
@@ -236,14 +238,8 @@ function MarginField({
 }) {
   return (
     <label className="flex items-center justify-between gap-3 py-0.5 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <input
-        type="number"
-        step="0.1"
-        value={value}
-        onChange={(event) => onChange(event.target.valueAsNumber)}
-        className="w-20 rounded-md border bg-input/30 px-2 py-0.5 text-right text-xs text-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-      />
+      <span className="text-foreground">{label}</span>
+      <NumberField value={value} step={0.1} onChange={onChange} />
     </label>
   )
 }
@@ -308,14 +304,34 @@ function TextElementSettings({ frameId, elementId }: { frameId: string; elementI
 /* ------------------------------------------------------------------ */
 
 function ImageElementSettings({ frameId, elementId }: { frameId: string; elementId: string }) {
-  const element = useEditorStore((state) =>
-    state.project.frames.find((f) => f.id === frameId)?.elements.find((e): e is ImageElement => e.id === elementId),
-  )
+  const frame = useEditorStore((state) => state.project.frames.find((f) => f.id === frameId))
+  const element = frame?.elements.find((e): e is ImageElement => e.id === elementId && e.kind === "image")
   const updateImageFit = useEditorStore((state) => state.updateImageFit)
   const updateElementBox = useEditorStore((state) => state.updateElementBox)
   const applyImagePreset = useEditorStore((state) => state.applyImagePreset)
 
-  if (!element || element.kind !== "image") return <Hint>This element no longer exists.</Hint>
+  if (!frame || !element) return <Hint>This element no longer exists.</Hint>
+
+  // Which preset (if any) the element's current Box/fit already matches —
+  // drives the "active" state on the preset buttons below. Recomputed from
+  // the element's actual geometry rather than remembered as its own field,
+  // so it naturally goes inactive again the moment the image is dragged or
+  // resized by hand, which is the correct behavior: this button reflects
+  // "does the image currently look like this preset," not "which one was
+  // clicked last."
+  const margins = frame.margins ?? defaultFrameMargins(frame.pageSize)
+  const activePreset = (Object.keys(IMAGE_PRESET_LABELS) as ImagePreset[]).find((preset) => {
+    const box = presetImageBox(preset, frame.pageSize, margins, BLEED_MM)
+    const expectedFit = preset === "full-bleed" ? "cover" : "contain"
+    const EPSILON = 0.001
+    return (
+      element.fit === expectedFit &&
+      Math.abs(element.frame.x - box.x) < EPSILON &&
+      Math.abs(element.frame.y - box.y) < EPSILON &&
+      Math.abs(element.frame.width - box.width) < EPSILON &&
+      Math.abs(element.frame.height - box.height) < EPSILON
+    )
+  })
 
   return (
     <>
@@ -338,7 +354,12 @@ function ImageElementSettings({ frameId, elementId }: { frameId: string; element
               key={preset}
               type="button"
               onClick={() => applyImagePreset(frameId, elementId, preset)}
-              className="rounded-md border bg-input/30 px-1.5 py-1.5 text-center text-[0.7rem] leading-tight font-medium text-foreground transition-colors hover:bg-input/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              className={cn(
+                "rounded-md border px-1.5 py-1.5 text-center text-[0.7rem] leading-tight font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                preset === activePreset
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "bg-input/30 text-foreground hover:bg-input/60 focus-visible:border-ring",
+              )}
             >
               {IMAGE_PRESET_LABELS[preset]}
             </button>
@@ -405,22 +426,85 @@ function PercentField({
 }) {
   return (
     <label className="flex items-center justify-between gap-3 py-0.5 text-sm">
-      {label ? <span className="text-muted-foreground">{label}</span> : null}
-      <input
-        type="number"
-        step="1"
+      {label ? <span className="text-foreground">{label}</span> : null}
+      <NumberField
+        value={Math.round(value * 100)}
+        step={1}
         min={0}
         max={100}
-        value={Math.round(value * 100)}
-        onChange={(event) => {
-          const percent = event.target.valueAsNumber
-          if (Number.isNaN(percent)) return
-          onChange(percent / 100)
-        }}
-        className="w-20 rounded-md border bg-input/30 px-2 py-0.5 text-right text-xs text-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+        onChange={(percent) => onChange(percent / 100)}
       />
       <span className="text-xs text-muted-foreground">%</span>
     </label>
+  )
+}
+
+/**
+ * A number input with its own custom up/down chevron steppers, replacing
+ * the browser's native spinner (removed app-wide in globals.css) — the
+ * point of that removal was never "no way to step at all," just "not the
+ * browser's own unstyled one." Each chevron has a real hover state (the
+ * shared `--accent` token, now distinct from `--background` — see the fix
+ * note in globals.css) and is `tabIndex={-1}` so Tab still moves between
+ * fields, not through the steppers.
+ */
+function NumberField({
+  value,
+  onChange,
+  step,
+  min,
+  max,
+}: {
+  value: number
+  onChange: (value: number) => void
+  step: number
+  min?: number
+  max?: number
+}) {
+  const clamp = (next: number) => {
+    let clamped = next
+    if (min !== undefined) clamped = Math.max(min, clamped)
+    if (max !== undefined) clamped = Math.min(max, clamped)
+    // Floating point: 24.6 + 0.1 shouldn't drift to 24.700000000000003.
+    return Math.round(clamped * 100) / 100
+  }
+
+  return (
+    <div className="relative">
+      <input
+        type="number"
+        step={step}
+        min={min}
+        max={max}
+        value={value}
+        onChange={(event) => {
+          const next = event.target.valueAsNumber
+          if (Number.isNaN(next)) return
+          onChange(clamp(next))
+        }}
+        className="w-20 rounded-md border bg-input/30 py-0.5 pr-5 pl-2 text-right text-xs text-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      />
+      <div className="absolute inset-y-0 right-0.5 flex flex-col justify-center">
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Increase"
+          onClick={() => onChange(clamp(value + step))}
+          className="flex items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <ChevronUpIcon className="size-2.5" />
+        </button>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Decrease"
+          onClick={() => onChange(clamp(value - step))}
+          className="flex items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <ChevronDownIcon className="size-2.5" />
+        </button>
+      </div>
+    </div>
   )
 }
 

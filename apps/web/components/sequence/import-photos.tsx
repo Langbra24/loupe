@@ -4,6 +4,7 @@ import { useRef } from "react"
 import { PlusIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useEditorStore } from "@/state/editor-store"
 
 type Variant = "primary" | "icon"
@@ -39,15 +40,22 @@ export function ImportPhotosButton({ variant = "primary" }: { variant?: Variant 
       />
 
       {variant === "icon" ? (
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Import photos"
-          disabled={busy}
-          onClick={() => inputRef.current?.click()}
-        >
-          <PlusIcon />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Import photos"
+                disabled={busy}
+                onClick={() => inputRef.current?.click()}
+              >
+                <PlusIcon />
+              </Button>
+            }
+          />
+          <TooltipContent>Import photos</TooltipContent>
+        </Tooltip>
       ) : (
         <Button size="sm" disabled={busy} onClick={() => inputRef.current?.click()}>
           {busy ? `Importing ${progress.done} of ${progress.total}…` : "Import photos"}
