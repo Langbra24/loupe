@@ -8,7 +8,7 @@
  */
 
 import { moveItem } from './collections'
-import { vandeGraafMargins } from './typography'
+import { defaultFrameMargins } from './typography'
 import type { BookSetup, Bounds, Box, Frame, Margins, PageElement, PageSize } from './types'
 
 /**
@@ -86,19 +86,19 @@ export function updateElement(
 /**
  * Build one frame. Starts with no elements unless seeded.
  *
- * `margins` defaults to the Van de Graaf canon for `pageSize` (U7) — every
- * frame needs *some* margins for the inspector's margin fields to bind to,
- * and the canon is the same default `vandeGraafMargins` already supplies
- * elsewhere (the old per-page print-properties panel), so a frame's margins
- * start out consistent with what the rest of the app already assumed before
- * `Frame.margins` existed.
+ * `margins` defaults to `defaultFrameMargins` for `pageSize` (U7) — every
+ * frame needs *some* margins for the inspector's margin fields to bind to.
+ * That default keeps the Van de Graaf canon's top/bottom split but
+ * symmetrizes inner/outer into equal left/right margins, since `Frame` has
+ * no recto/verso concept to make the canon's asymmetric inner/outer
+ * meaningful (see the comment on `defaultFrameMargins` in typography.ts).
  */
 export function createFrame(
   id: string,
   pageSize: Frame['pageSize'],
   position: number,
   elements: readonly PageElement[] = [],
-  margins: Margins = vandeGraafMargins(pageSize),
+  margins: Margins = defaultFrameMargins(pageSize),
 ): Frame {
   return { id, pageSize, position, elements: [...elements], margins }
 }

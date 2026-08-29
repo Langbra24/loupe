@@ -14,7 +14,7 @@ import {
   updateFrame,
   type FrameBounds,
 } from "./frames"
-import { vandeGraafMargins } from "./typography"
+import { defaultFrameMargins } from "./typography"
 import type { BookSetup, Frame, ImageElement, PageSize } from "./types"
 
 const A5: PageSize = { name: "A5 portrait", width: 148, height: 210 }
@@ -34,12 +34,17 @@ describe("createFrame", () => {
       pageSize: A5,
       position: 0,
       elements: [],
-      margins: vandeGraafMargins(A5),
+      margins: defaultFrameMargins(A5),
     })
   })
 
-  it("defaults margins to the Van de Graaf canon for the frame's page size", () => {
-    expect(createFrame("f1", A5, 0).margins).toEqual(vandeGraafMargins(A5))
+  it("defaults margins to symmetric left/right, Van de Graaf top/bottom, for the frame's page size", () => {
+    expect(createFrame("f1", A5, 0).margins).toEqual(defaultFrameMargins(A5))
+  })
+
+  it("defaults to equal inner/outer margins (no recto/verso model to make them asymmetric)", () => {
+    const margins = createFrame("f1", A5, 0).margins!
+    expect(margins.inner).toBe(margins.outer)
   })
 
   it("accepts an explicit margins override", () => {

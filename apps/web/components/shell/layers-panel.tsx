@@ -1,7 +1,7 @@
 "use client"
 
 import { BookOpenIcon } from "@phosphor-icons/react"
-import { vandeGraafMargins, type Frame, type Margins } from "@loupe/core"
+import { defaultFrameMargins, type Frame, type Margins } from "@loupe/core"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useThumbnail } from "@/components/sequence/use-thumbnail"
@@ -154,7 +154,7 @@ function FrameRow({
 }) {
   const firstImage = frame.elements.find((element) => element.kind === "image")
   const thumbnailUrl = useThumbnail(firstImage?.assetId)
-  const margins = frame.margins ?? vandeGraafMargins(frame.pageSize)
+  const margins = frame.margins ?? defaultFrameMargins(frame.pageSize)
 
   return (
     <button

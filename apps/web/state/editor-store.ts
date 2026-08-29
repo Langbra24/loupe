@@ -13,7 +13,7 @@ import {
   reorderFrame,
   updateElement,
   updateFrame,
-  vandeGraafMargins,
+  defaultFrameMargins,
   type BookSetup,
   type Box,
   type Frame,
@@ -700,7 +700,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       const prevBox = frame?.elements.find((e) => e.id === elementId)?.frame
       if (!frame || !prevBox) return
 
-      const margins = frame.margins ?? vandeGraafMargins(frame.pageSize)
+      const margins = frame.margins ?? defaultFrameMargins(frame.pageSize)
       const nextBox = presetImageBox(preset, frame.pageSize, margins, BLEED_MM)
 
       const doApply = () =>

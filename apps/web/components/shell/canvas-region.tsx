@@ -2,7 +2,7 @@
 
 import {
   sizeForRole,
-  vandeGraafMargins,
+  defaultFrameMargins,
   type Frame,
   type ImageElement,
   type Margins,
@@ -77,7 +77,7 @@ function FramePreview({ frame, project }: { frame: Frame; project: Project }) {
   const isSelected = selection?.kind === "frame" && selection.frameId === frame.id
 
   const aspect = frame.pageSize.width / frame.pageSize.height
-  const margins = frame.margins ?? vandeGraafMargins(frame.pageSize)
+  const margins = frame.margins ?? defaultFrameMargins(frame.pageSize)
 
   return (
     <div className="flex flex-col gap-2">

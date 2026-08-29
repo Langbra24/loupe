@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import {
   checkPageCount,
   sizeForRole,
-  vandeGraafMargins,
+  defaultFrameMargins,
   type ImageElement,
   type Margins,
   type Selection,
@@ -177,8 +177,8 @@ function FrameSettings({ frameId }: { frameId: string }) {
   // `margins` is optional on `Frame` (U7) so old fixtures don't all need
   // updating for a field with one obvious default — every frame the app
   // actually creates gets one via `createFrame`, but fall back to the same
-  // canon here in case this is ever undefined in practice.
-  const margins: Margins = frame.margins ?? vandeGraafMargins(frame.pageSize)
+  // default here in case this is ever undefined in practice.
+  const margins: Margins = frame.margins ?? defaultFrameMargins(frame.pageSize)
 
   const setMargin = (key: keyof Margins, value: number) => {
     if (Number.isNaN(value)) return
@@ -197,7 +197,7 @@ function FrameSettings({ frameId }: { frameId: string }) {
         <MarginField label="Inner" value={margins.inner} onChange={(v) => setMargin("inner", v)} />
         <MarginField label="Outer" value={margins.outer} onChange={(v) => setMargin("outer", v)} />
         <MarginField label="Bottom" value={margins.bottom} onChange={(v) => setMargin("bottom", v)} />
-        <Hint>Millimetres. Defaults to the Van de Graaf canon.</Hint>
+        <Hint>Millimetres. Inner/outer default to equal left/right margins.</Hint>
       </Section>
       <Separator />
       <Section title="Print">
