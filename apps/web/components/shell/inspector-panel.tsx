@@ -215,7 +215,7 @@ function FrameSettings({ frameId }: { frameId: string }) {
         <MarginField label="Inner" value={margins.inner} onChange={(v) => setMargin("inner", v)} />
         <MarginField label="Outer" value={margins.outer} onChange={(v) => setMargin("outer", v)} />
         <MarginField label="Bottom" value={margins.bottom} onChange={(v) => setMargin("bottom", v)} />
-        <Hint>Millimetres. Inner/outer default to equal left/right margins.</Hint>
+        <Hint>Millimetres. Defaults to equal margins on every side.</Hint>
       </Section>
       <Separator />
       <Section title="Print">

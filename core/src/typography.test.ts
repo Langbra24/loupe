@@ -26,11 +26,9 @@ describe("defaultFrameMargins", () => {
     expect(margins.inner).toBe(margins.outer)
   })
 
-  it("keeps the canon's top/bottom asymmetry unchanged", () => {
-    const canon = vandeGraafMargins(A5)
+  it("also symmetrizes top/bottom into equal margins — the guide reads as centered, not just left/right", () => {
     const margins = defaultFrameMargins(A5)
-    expect(margins.top).toBe(canon.top)
-    expect(margins.bottom).toBe(canon.bottom)
+    expect(margins.top).toBe(margins.bottom)
   })
 
   it("preserves the canon's total horizontal margin (same text-block width, just centered)", () => {
@@ -39,9 +37,21 @@ describe("defaultFrameMargins", () => {
     expect(margins.inner + margins.outer).toBeCloseTo(canon.inner + canon.outer, 1)
   })
 
+  it("preserves the canon's total vertical margin (same text-block height, just centered)", () => {
+    const canon = vandeGraafMargins(A5)
+    const margins = defaultFrameMargins(A5)
+    expect(margins.top + margins.bottom).toBeCloseTo(canon.top + canon.bottom, 1)
+  })
+
   it("splits the total horizontal margin evenly", () => {
     const canon = vandeGraafMargins(A5)
     const margins = defaultFrameMargins(A5)
     expect(margins.inner).toBeCloseTo((canon.inner + canon.outer) / 2, 1)
+  })
+
+  it("splits the total vertical margin evenly", () => {
+    const canon = vandeGraafMargins(A5)
+    const margins = defaultFrameMargins(A5)
+    expect(margins.top).toBeCloseTo((canon.top + canon.bottom) / 2, 1)
   })
 })
