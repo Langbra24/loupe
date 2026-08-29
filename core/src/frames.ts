@@ -9,7 +9,7 @@
 
 import { moveItem } from './collections'
 import { vandeGraafMargins } from './typography'
-import type { BookSetup, Bounds, Frame, Margins, PageElement, PageSize } from './types'
+import type { BookSetup, Bounds, Box, Frame, Margins, PageElement, PageSize } from './types'
 
 /**
  * Move an element into a frame — a photograph dragged off the pasteboard and
@@ -191,4 +191,60 @@ export function refitElementsForPageSize(
   void oldSize
   void newSize
   return [...elements]
+}
+
+/**
+ * Fixed layout choices for dropping an image into a frame, offered from a
+ * right-click on the image itself — a small, opinionated set rather than
+ * free-form positioning, since the point is a print-safe starting layout the
+ * user can still drag/resize from afterward.
+ *
+ * - `full-bleed`: fills the page and extends past the trim edge into the
+ *   bleed margin on every side, so trimming the printed sheet never leaves a
+ *   white sliver.
+ * - `centered`: inset from every edge by the frame's own content margins
+ *   (`Frame.margins`, or the Van de Graaf canon default) — "clean padding
+ *   all the way around."
+ * - `left-half`: inset by the same margins, but only occupies the page's
+ *   left half — its right edge sits exactly on the page's horizontal
+ *   midpoint, for a diptych-style layout across a spread.
+ */
+export type ImagePreset = 'full-bleed' | 'centered' | 'left-half'
+
+/**
+ * Compute the normalized `Box` for one of the fixed image presets.
+ *
+ * All three presets are expressed in the same 0..1-relative-to-page space
+ * `ImageElement.frame` already uses — `full-bleed`'s box legitimately extends
+ * outside 0..1 (negative x/y, width/height over 1), since bleed is by
+ * definition outside the trim edge. Nothing about `Box` forbids that; it is
+ * only ever clamped at render/export time by whatever draws it, not by the
+ * type itself.
+ */
+export function presetImageBox(
+  preset: ImagePreset,
+  pageSize: PageSize,
+  margins: Margins,
+  bleedMm: number,
+): Box {
+  const bleedX = bleedMm / pageSize.width
+  const bleedY = bleedMm / pageSize.height
+
+  if (preset === 'full-bleed') {
+    return { x: -bleedX, y: -bleedY, width: 1 + 2 * bleedX, height: 1 + 2 * bleedY }
+  }
+
+  const left = margins.inner / pageSize.width
+  const right = margins.outer / pageSize.width
+  const top = margins.top / pageSize.height
+  const bottom = margins.bottom / pageSize.height
+  const height = 1 - top - bottom
+
+  if (preset === 'centered') {
+    return { x: left, y: top, width: 1 - left - right, height }
+  }
+
+  // left-half: same left inset and content height, right edge pinned to the
+  // page's horizontal midpoint rather than the outer margin.
+  return { x: left, y: top, width: 0.5 - left, height }
 }

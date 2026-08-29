@@ -5,6 +5,7 @@ import {
   createFrame,
   frameAt,
   framesForBookSetup,
+  presetImageBox,
   refitElementsForPageSize,
   removeFromFrame,
   reorderFrame,
@@ -242,5 +243,41 @@ describe("refitElementsForPageSize", () => {
 
   it("handles an empty element list without crashing", () => {
     expect(refitElementsForPageSize(OLD_SIZE, NEW_SIZE, [])).toEqual([])
+  })
+})
+
+describe("presetImageBox", () => {
+  const margins = { top: 20, inner: 15, outer: 10, bottom: 25 }
+  const bleedMm = 3
+
+  it("extends full-bleed past every edge by the bleed amount", () => {
+    const box = presetImageBox("full-bleed", A5, margins, bleedMm)
+    const bleedX = bleedMm / A5.width
+    const bleedY = bleedMm / A5.height
+
+    expect(box).toEqual({
+      x: -bleedX,
+      y: -bleedY,
+      width: 1 + 2 * bleedX,
+      height: 1 + 2 * bleedY,
+    })
+  })
+
+  it("insets centered by the frame's margins on every side", () => {
+    const box = presetImageBox("centered", A5, margins, bleedMm)
+
+    expect(box.x).toBeCloseTo(margins.inner / A5.width)
+    expect(box.y).toBeCloseTo(margins.top / A5.height)
+    expect(box.x + box.width).toBeCloseTo(1 - margins.outer / A5.width)
+    expect(box.y + box.height).toBeCloseTo(1 - margins.bottom / A5.height)
+  })
+
+  it("pins left-half's right edge to the page's horizontal midpoint", () => {
+    const box = presetImageBox("left-half", A5, margins, bleedMm)
+
+    expect(box.x).toBeCloseTo(margins.inner / A5.width)
+    expect(box.x + box.width).toBeCloseTo(0.5)
+    expect(box.y).toBeCloseTo(margins.top / A5.height)
+    expect(box.y + box.height).toBeCloseTo(1 - margins.bottom / A5.height)
   })
 })

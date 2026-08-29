@@ -40,7 +40,7 @@ export function CanvasRegion() {
   }
 
   return (
-    <div className="relative min-w-0 overflow-hidden canvas-dot-grid">
+    <div className="relative min-w-0 overflow-hidden">
       <LightTable />
     </div>
   )

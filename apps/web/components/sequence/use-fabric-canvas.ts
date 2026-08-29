@@ -2,9 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { Canvas, FabricImage, FabricObject, TPointerEventInfo } from "fabric"
-import { boundingBoxOf, frameAt, type Asset, type Box, type CanvasPlacement, type Frame } from "@loupe/core"
+import {
+  boundingBoxOf,
+  frameAt,
+  vandeGraafMargins,
+  type Asset,
+  type Box,
+  type CanvasPlacement,
+  type Frame,
+} from "@loupe/core"
 
 import { frameGridOriginY, layoutFrames, nearestFrameIndex, type FrameLayout } from "@/components/sequence/frame-grid"
+import { BLEED_MM } from "@/components/shell/inspector-panel"
 import { thumbnailUrl } from "@/lib/storage/assets"
 
 export const MIN_ZOOM = 0.05
@@ -12,6 +21,13 @@ export const MAX_ZOOM = 8
 
 /** Padding around the arrangement when fitting it to the viewport. */
 const FIT_PADDING = 80
+
+/** The dot grid's resting tile size in `.canvas-dot-grid` (globals.css),
+ *  un-zoomed. Panning/zooming the canvas scales and offsets this by the same
+ *  viewport transform Fabric applies to placed objects — see `syncDotGrid`
+ *  below — so the background moves with the content instead of sitting fixed
+ *  underneath it. */
+const DOT_GRID_SIZE = 24
 
 /**
  * A Fabric object carrying the placement it represents.
@@ -56,6 +72,9 @@ interface Options {
   onMove: (placementId: string, x: number, y: number) => void
   onScale: (placementId: string, scale: number) => void
   onContextMenu: (placementId: string, viewportX: number, viewportY: number) => void
+  /** Right-click on an image already inside a frame — opens the fixed
+   *  layout-preset menu (full-bleed / centered / left-half). */
+  onImageContextMenu: (frameId: string, elementId: string, viewportX: number, viewportY: number) => void
   /** A frame was dragged and dropped near a different slot in the grid.
    *  `from`/`to` are array indices, matching `reorderFrame`'s signature. */
   onReorderFrame: (from: number, to: number) => void
@@ -113,6 +132,7 @@ export function useFabricCanvas(options: Options) {
     onMove,
     onScale,
     onContextMenu,
+    onImageContextMenu,
     onReorderFrame,
     onDropOnFrame,
     onCreateText,
@@ -128,6 +148,21 @@ export function useFabricCanvas(options: Options) {
   const objectsRef = useRef(new Map<string, PlacedObject>())
   const framesRef = useRef(new Map<string, PlacedFrame>())
   const elementsRef = useRef(new Map<string, PlacedElement>())
+  /** Per-frame bleed/margin print guides — the same reference the Book
+   *  overview draws (`PrintOverlay` in canvas-region.tsx), kept as Fabric
+   *  objects here so they pan/zoom/reflow with the frame instead of a DOM
+   *  overlay that would have to be repositioned by hand. */
+  const overlaysRef = useRef(new Map<string, { bleed: FabricObject; margin: FabricObject }>())
+
+  /** Keep a frame's print guides drawn above its own contents — called after
+   *  `syncFrameElements` adds a new image/text object, since those are added
+   *  after the guides exist and Fabric draws in add order. */
+  const bringOverlayToFront = useCallback((canvas: Canvas, frameId: string) => {
+    const overlay = overlaysRef.current.get(frameId)
+    if (!overlay) return
+    canvas.bringObjectToFront(overlay.bleed)
+    canvas.bringObjectToFront(overlay.margin)
+  }, [])
   /** Element ids currently loading (image elements await a thumbnail URL) —
    *  same overlapping-sync guard `pendingRef` gives placements. */
   const elementsPendingRef = useRef(new Set<string>())
@@ -149,6 +184,7 @@ export function useFabricCanvas(options: Options) {
     onMove,
     onScale,
     onContextMenu,
+    onImageContextMenu,
     onReorderFrame,
     onDropOnFrame,
     onCreateText,
@@ -177,6 +213,7 @@ export function useFabricCanvas(options: Options) {
       onMove,
       onScale,
       onContextMenu,
+      onImageContextMenu,
       onReorderFrame,
       onDropOnFrame,
       onCreateText,
@@ -214,6 +251,27 @@ export function useFabricCanvas(options: Options) {
       })
 
       canvasRef.current = canvas
+
+      /**
+       * Keeps the dot-grid background (`.canvas-dot-grid` on `containerRef`)
+       * locked to the same viewport transform Fabric applies to placed
+       * objects, so the dots pan and zoom with the content instead of
+       * sitting fixed underneath it. `viewportTransform` is `[zoomX, 0, 0,
+       * zoomY, panX, panY]` for the pan/zoom this canvas actually does
+       * (uniform scale, no rotation/skew) — `background-size` takes the
+       * zoom, `background-position` takes the pan.
+       */
+      function syncDotGrid() {
+        const container = containerRef.current
+        const target = canvasRef.current
+        if (!container || !target) return
+
+        const [zoomX, , , zoomY, panX, panY] = target.viewportTransform
+        container.style.backgroundSize = `${DOT_GRID_SIZE * zoomX}px ${DOT_GRID_SIZE * zoomY}px`
+        container.style.backgroundPosition = `${panX}px ${panY}px`
+      }
+      canvas.on("after:render", syncDotGrid)
+      syncDotGrid()
 
       /**
        * The insertion-point indicator shown while a frame is being dragged:
@@ -279,6 +337,7 @@ export function useFabricCanvas(options: Options) {
 
         const next = clampZoom(target.getZoom() * 0.999 ** opt.e.deltaY)
         target.zoomToPoint(opt.viewportPoint, next)
+        target.requestRenderAll()
         setZoom(next)
 
         opt.e.preventDefault()
@@ -298,7 +357,18 @@ export function useFabricCanvas(options: Options) {
         const isRight = event.button === 2
 
         if (isRight) {
-          const placed = opt.target as PlacedObject | undefined
+          const placed = opt.target as (PlacedObject & Partial<PlacedElement>) | undefined
+
+          if (placed?.elementId && placed.frameId && placed.elementKind === "image") {
+            handlers.current.onImageContextMenu(
+              placed.frameId,
+              placed.elementId,
+              opt.viewportPoint.x,
+              opt.viewportPoint.y,
+            )
+            return
+          }
+
           if (placed?.placementId) {
             handlers.current.onContextMenu(
               placed.placementId,
@@ -354,6 +424,7 @@ export function useFabricCanvas(options: Options) {
         vpt[4] += event.clientX - panFrom.x
         vpt[5] += event.clientY - panFrom.y
         target.setViewportTransform(vpt)
+        target.requestRenderAll()
         panFrom = { x: event.clientX, y: event.clientY }
       })
 
@@ -544,6 +615,7 @@ export function useFabricCanvas(options: Options) {
     const drawnFrames = framesRef.current
     const drawnElements = elementsRef.current
     const elementsInFlight = elementsPendingRef.current
+    const drawnOverlays = overlaysRef.current
 
     return () => {
       disposed = true
@@ -553,6 +625,7 @@ export function useFabricCanvas(options: Options) {
       drawnFrames.clear()
       drawnElements.clear()
       elementsInFlight.clear()
+      drawnOverlays.clear()
       indicatorRef.current = null
       const target = canvasRef.current
       canvasRef.current = null
@@ -720,6 +793,8 @@ export function useFabricCanvas(options: Options) {
     const layouts = layoutFrames(currentFrames, originY)
     const layoutById = new Map(layouts.map((layout) => [layout.frameId, layout]))
     const live = framesRef.current
+    const liveOverlays = overlaysRef.current
+    const frameById = new Map(currentFrames.map((frame) => [frame.id, frame]))
 
     // Remove frame objects whose frame no longer exists.
     for (const [frameId, object] of live) {
@@ -727,6 +802,83 @@ export function useFabricCanvas(options: Options) {
         canvas.remove(object)
         live.delete(frameId)
       }
+    }
+    for (const [frameId, overlay] of liveOverlays) {
+      if (!layoutById.has(frameId)) {
+        canvas.remove(overlay.bleed, overlay.margin)
+        liveOverlays.delete(frameId)
+      }
+    }
+
+    /**
+     * Draw or reposition a frame's bleed edge and content-margin guides —
+     * the same two print-technical overlays the Book overview draws
+     * (`PrintOverlay` in canvas-region.tsx), as real Fabric objects here so
+     * they inherit the canvas's own pan/zoom instead of needing a synced DOM
+     * layer. Colors are the `oklch` values behind Tailwind's
+     * `destructive`/`ring` tokens (globals.css) — Fabric draws to a 2D canvas
+     * context and can't read CSS custom properties, so they're spelled out
+     * here and have to be kept in sync by hand if the tokens change.
+     */
+    function syncPrintOverlay(fabric: typeof import("fabric"), layout: FrameLayout, frame: Frame | undefined) {
+      if (!frame || !canvas) return
+
+      const margins = frame.margins ?? vandeGraafMargins(frame.pageSize)
+      const bounds = layout.bounds
+      const bleedX = (BLEED_MM / frame.pageSize.width) * bounds.width
+      const bleedY = (BLEED_MM / frame.pageSize.height) * bounds.height
+      const marginLeft = (margins.inner / frame.pageSize.width) * bounds.width
+      const marginRight = (margins.outer / frame.pageSize.width) * bounds.width
+      const marginTop = (margins.top / frame.pageSize.height) * bounds.height
+      const marginBottom = (margins.bottom / frame.pageSize.height) * bounds.height
+
+      const bleedRectProps = {
+        left: bounds.x + bounds.width / 2,
+        top: bounds.y + bounds.height / 2,
+        width: bounds.width + bleedX * 2,
+        height: bounds.height + bleedY * 2,
+      }
+      const marginWidth = Math.max(bounds.width - marginLeft - marginRight, 0)
+      const marginHeight = Math.max(bounds.height - marginTop - marginBottom, 0)
+      const marginRectProps = {
+        left: bounds.x + marginLeft + marginWidth / 2,
+        top: bounds.y + marginTop + marginHeight / 2,
+        width: marginWidth,
+        height: marginHeight,
+      }
+
+      const existing = liveOverlays.get(frame.id)
+      if (existing) {
+        existing.bleed.set(bleedRectProps)
+        existing.margin.set(marginRectProps)
+        canvas.bringObjectToFront(existing.bleed)
+        canvas.bringObjectToFront(existing.margin)
+        return
+      }
+
+      const shared = {
+        originX: "center" as const,
+        originY: "center" as const,
+        fill: "transparent",
+        strokeDashArray: [6, 5],
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+      }
+      const bleed = new fabric.Rect({
+        ...shared,
+        ...bleedRectProps,
+        stroke: "oklch(0.704 0.191 22.216 / 60%)",
+        strokeWidth: 1.5,
+      })
+      const margin = new fabric.Rect({
+        ...shared,
+        ...marginRectProps,
+        stroke: "oklch(0.552 0.016 285.938 / 50%)",
+        strokeWidth: 1.5,
+      })
+      canvas.add(bleed, margin)
+      liveOverlays.set(frame.id, { bleed, margin })
     }
 
     for (const layout of layouts) {
@@ -785,6 +937,13 @@ export function useFabricCanvas(options: Options) {
           onChange: () => canvasRef.current?.requestRenderAll(),
         },
       )
+    }
+
+    // Run after every frame rect above has been added/updated, so a newly
+    // created overlay's z-order (append = drawn on top) lands above the
+    // frame's own white background instead of racing it.
+    for (const layout of layouts) {
+      syncPrintOverlay(fabric, layout, frameById.get(layout.frameId))
     }
 
     canvas.requestRenderAll()
@@ -912,6 +1071,7 @@ export function useFabricCanvas(options: Options) {
 
           canvas.add(textbox)
           live.set(element.id, textbox)
+          bringOverlayToFront(canvas, frame.id)
           continue
         }
 
@@ -958,6 +1118,7 @@ export function useFabricCanvas(options: Options) {
 
             canvasRef.current.add(image)
             live.set(element.id, placed)
+            bringOverlayToFront(canvasRef.current, frame.id)
             canvasRef.current.requestRenderAll()
           } finally {
             pending.delete(element.id)
@@ -967,7 +1128,7 @@ export function useFabricCanvas(options: Options) {
     }
 
     canvas.requestRenderAll()
-  }, [])
+  }, [bringOverlayToFront])
 
   useEffect(() => {
     if (!ready) return
@@ -1021,6 +1182,7 @@ export function useFabricCanvas(options: Options) {
     const centre = new fabric.Point(canvas.getWidth() / 2, canvas.getHeight() / 2)
     const clamped = clampZoom(next)
     canvas.zoomToPoint(centre, clamped)
+    canvas.requestRenderAll()
     setZoom(clamped)
   }, [])
 

@@ -7,20 +7,25 @@ import {
   createFrame,
   framesForBookSetup,
   layoutNewPlacements,
+  presetImageBox,
   removeFromFrame,
   reorderFrame,
   updateElement,
   updateFrame,
+  vandeGraafMargins,
   type BookSetup,
   type Box,
   type Frame,
   type ImageElement,
+  type ImagePreset,
   type Margins,
   type PageSize,
   type Project,
   type Selection,
   type TextElement,
 } from "@loupe/core"
+
+import { BLEED_MM } from "@/components/shell/inspector-panel"
 
 import { importFiles } from "@/lib/storage/assets"
 import {
@@ -120,6 +125,10 @@ interface EditorState {
     patch: Partial<Pick<TextElement, "content" | "role" | "align">>,
   ) => void
   updateImageFit: (frameId: string, elementId: string, fit: ImageElement["fit"]) => void
+  /** Snap an image element into one of the fixed layout presets (right-click
+   *  on an image in a frame) — full-bleed, centered with margins, or left
+   *  half. Undoable as one step, the same granularity as `moveToFrame`. */
+  applyImagePreset: (frameId: string, elementId: string, preset: ImagePreset) => void
   /** Bound to an element's normalized `Box` — the text sidebar's width field
    *  and the image sidebar's position/size fields both go through this. */
   updateElementBox: (frameId: string, elementId: string, patch: Partial<Box>) => void
@@ -569,6 +578,38 @@ export const useEditorStore = create<EditorState>((set, get) => {
           element.kind === "image" ? { ...element, fit } : element,
         ),
       })),
+
+    applyImagePreset: (frameId, elementId, preset) => {
+      const frame = get().project.frames.find((f) => f.id === frameId)
+      const prevBox = frame?.elements.find((e) => e.id === elementId)?.frame
+      if (!frame || !prevBox) return
+
+      const margins = frame.margins ?? vandeGraafMargins(frame.pageSize)
+      const nextBox = presetImageBox(preset, frame.pageSize, margins, BLEED_MM)
+
+      const doApply = () =>
+        updateProject((project) => ({
+          ...project,
+          frames: updateElement(project.frames, frameId, elementId, (element) => ({
+            ...element,
+            frame: nextBox,
+          })),
+        }))
+
+      doApply()
+
+      pushUndo({
+        do: doApply,
+        undo: () =>
+          updateProject((project) => ({
+            ...project,
+            frames: updateElement(project.frames, frameId, elementId, (element) => ({
+              ...element,
+              frame: prevBox,
+            })),
+          })),
+      })
+    },
 
     updateElementBox: (frameId, elementId, patch) =>
       updateProject((project) => ({
