@@ -91,6 +91,16 @@ export interface TextElement extends BaseElement {
   /** Named step in the type scale, not a raw pixel size — see typography.ts. */
   role: TypeRole
   align: 'left' | 'center' | 'right'
+  /**
+   * A key into `apps/web/lib/fonts.ts`'s `TEXT_FONTS` list — e.g. `'lora'`,
+   * `'work-sans'`. Optional so older text elements (predating this field)
+   * don't need a migration; `resolveTextFontFamily` in that module falls
+   * back to the default serif for `undefined` or an unrecognized value.
+   * The actual font-loading and CSS wiring live in apps/web, not here — this
+   * is just the stored choice, matching the pattern `Frame.margins` already
+   * sets for an optional field with one obvious default.
+   */
+  fontFamily?: string
 }
 
 export type PageElement = ImageElement | TextElement

@@ -18,6 +18,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DEFAULT_TEXT_FONT, TEXT_FONTS } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
 import { useEditorStore } from "@/state/editor-store"
 
@@ -281,6 +282,13 @@ function TextElementSettings({ frameId, elementId }: { frameId: string; elementI
         />
       </Section>
       <Separator />
+      <Section title="Font">
+        <FontFamilySelect
+          value={element.fontFamily}
+          onChange={(fontFamily) => updateTextElement(frameId, elementId, { fontFamily })}
+        />
+      </Section>
+      <Separator />
       <Section title="Alignment">
         <SelectField
           value={element.align}
@@ -408,6 +416,40 @@ function SelectField<T extends string>({
         {options.map((option) => (
           <SelectItem key={option} value={option}>
             {option}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+/**
+ * A dedicated Select rather than routing through `SelectField` — that one
+ * assumes its options double as their own display labels (title-cased via
+ * CSS), which doesn't fit real font names (`"work-sans"` vs. `"Work Sans"`).
+ * Each option previews in its own actual font, not just names it.
+ */
+const TEXT_FONT_LABELS = new Map(TEXT_FONTS.map((font) => [font.value, font.label]))
+
+function FontFamilySelect({
+  value,
+  onChange,
+}: {
+  value: string | undefined
+  onChange: (value: string) => void
+}) {
+  return (
+    <Select value={value ?? DEFAULT_TEXT_FONT} onValueChange={(next) => onChange(next as string)}>
+      <SelectTrigger>
+        {/* `Select.Value` displays the raw value ("playfair-display") by
+            default — it only shows a real label when given this mapping
+            function, per base-ui's own API for exactly this case. */}
+        <SelectValue>{(current: string) => TEXT_FONT_LABELS.get(current) ?? current}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {TEXT_FONTS.map((font) => (
+          <SelectItem key={font.value} value={font.value} style={{ fontFamily: font.cssFontFamily }}>
+            {font.label}
           </SelectItem>
         ))}
       </SelectContent>

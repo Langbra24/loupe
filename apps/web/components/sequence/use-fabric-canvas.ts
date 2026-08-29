@@ -14,7 +14,17 @@ import {
 
 import { frameGridOriginY, layoutFrames, nearestFrameIndex, type FrameLayout } from "@/components/sequence/frame-grid"
 import { BLEED_MM } from "@/components/shell/inspector-panel"
+import { DEFAULT_TEXT_FONT, resolveTextFontFamily } from "@/lib/fonts"
 import { thumbnailUrl } from "@/lib/storage/assets"
+
+/** Every frame's page is white paper — text committed into one always needs
+ *  a dark, legible fill, unconditionally (there's no dark-page concept in
+ *  this data model). A soft ink black rather than pure `#000` — closer to
+ *  what a printed page's body text actually looks like. */
+const FRAME_TEXT_FILL = "#18181b"
+/** The transient pasteboard textbox's fill while it's sitting on the dark
+ *  canvas, not yet committed to any frame. */
+const PASTEBOARD_TEXT_FILL = "#f4f4f5"
 
 export const MIN_ZOOM = 0.05
 export const MAX_ZOOM = 8
@@ -1339,7 +1349,33 @@ export function useFabricCanvas(options: Options) {
           const dy = Math.abs((existing.top ?? 0) - target.top)
           const dw = Math.abs((existing.width ?? 0) * ((existing.scaleX ?? 1) - target.scaleX))
           const dh = Math.abs((existing.height ?? 0) * ((existing.scaleY ?? 1) - target.scaleY))
-          if (dx < 0.5 && dy < 0.5 && dw < 0.5 && dh < 0.5) continue
+          const geometryChanged = dx >= 0.5 || dy >= 0.5 || dw >= 0.5 || dh >= 0.5
+
+          // Text content/font/alignment edited via the *sidebar* (its own
+          // textarea, Role/Alignment selects, the new font-family picker)
+          // never touch this object directly — only Fabric's own in-canvas
+          // double-click-to-edit does, through its own text-editing events.
+          // Without this check, a sidebar edit updates the store but the
+          // canvas keeps showing the old text/font/alignment until something
+          // else happens to touch this object.
+          let textChanged = false
+          if (element.kind === "text") {
+            const textObject = existing as unknown as {
+              text?: string
+              fontFamily?: string
+              textAlign?: string
+            }
+            const nextFontFamily = resolveTextFontFamily(element.fontFamily)
+            textChanged =
+              textObject.text !== element.content ||
+              textObject.fontFamily !== nextFontFamily ||
+              textObject.textAlign !== element.align
+            if (textChanged) {
+              existing.set({ text: element.content, fontFamily: nextFontFamily, textAlign: element.align })
+            }
+          }
+
+          if (!geometryChanged && !textChanged) continue
 
           existing.set(target)
           existing.setCoords()
@@ -1360,7 +1396,12 @@ export function useFabricCanvas(options: Options) {
             // as a sensible default sized off the box itself, not a promise
             // that it matches the sidebar's type scale yet.
             fontSize: Math.max(absHeight * 0.5, 14),
-            fill: "#f4f4f5",
+            fontFamily: resolveTextFontFamily(element.fontFamily),
+            // Every frame is a white page — text committed here always needs
+            // a dark fill, unconditionally. (Was `#f4f4f5`, the *pasteboard's*
+            // white-on-dark color, copy-pasted from the pre-commit textbox
+            // below — invisible against a white page.)
+            fill: FRAME_TEXT_FILL,
             textAlign: element.align,
             lockRotation: true,
             lockSkewingX: true,
@@ -1596,6 +1637,20 @@ export function useFabricCanvas(options: Options) {
     if (isTextEditing()) return
 
     const centre = canvas.getVpCenter()
+
+    // Adaptive by surface (user-directed): white text if the box is landing
+    // on the dark pasteboard, dark ink if it's landing directly on a frame's
+    // white page — checked against the *anchor point itself*, the same
+    // `frameAt`/`layoutFrames` hit-test `text:editing:exited` already uses
+    // to decide whether a finished box commits into a frame. This only
+    // covers the moment of creation; once committed, `syncFrameElements`
+    // always renders frame text dark regardless of how it started, since
+    // every frame is unconditionally a white page.
+    const { frames: currentFrames, placements, assets: pool } = latest.current
+    const originY = frameGridOriginY(placements, pool)
+    const layouts = layoutFrames(currentFrames, originY)
+    const onFrame = frameAt(layouts, { x: centre.x, y: centre.y }) !== null
+
     const textbox = new fabric.Textbox("", {
       left: centre.x,
       top: centre.y,
@@ -1603,7 +1658,8 @@ export function useFabricCanvas(options: Options) {
       originY: "center",
       width: 320,
       fontSize: 32,
-      fill: "#f4f4f5",
+      fontFamily: resolveTextFontFamily(DEFAULT_TEXT_FONT),
+      fill: onFrame ? FRAME_TEXT_FILL : PASTEBOARD_TEXT_FILL,
       textAlign: "left",
     })
 

@@ -28,6 +28,7 @@ import {
 } from "@loupe/core"
 
 import { BLEED_MM } from "@/components/shell/inspector-panel"
+import { DEFAULT_TEXT_FONT } from "@/lib/fonts"
 
 import { importFiles } from "@/lib/storage/assets"
 import {
@@ -155,7 +156,7 @@ interface EditorState {
   updateTextElement: (
     frameId: string,
     elementId: string,
-    patch: Partial<Pick<TextElement, "content" | "role" | "align">>,
+    patch: Partial<Pick<TextElement, "content" | "role" | "align" | "fontFamily">>,
   ) => void
   updateImageFit: (frameId: string, elementId: string, fit: ImageElement["fit"]) => void
   /** Snap an image element into one of the fixed layout presets (right-click
@@ -446,6 +447,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         content,
         role: "body",
         align: "left",
+        fontFamily: DEFAULT_TEXT_FONT,
       }
 
       const doCreate = () =>
