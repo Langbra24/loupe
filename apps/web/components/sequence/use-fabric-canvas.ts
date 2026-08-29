@@ -1223,16 +1223,59 @@ export function useFabricCanvas(options: Options) {
    * how frame-drag/reorder hit-testing works throughout this file — a
    * larger change than tonight's scope.
    *
-   * Second known limitation: an image element's `fit` (`'cover'`/`'contain'`)
-   * is not honored here — every image stretches to exactly fill its `Box`,
-   * the same way scaleX/scaleY are computed for any other resize. True
-   * cover/contain needs a clip region independent of the object's own scale
-   * (Fabric's `clipPath`, or separate `cropX`/`cropY` bookkeeping), which is
-   * real scope, not a one-line fix. Full-bleed elements (the only shape
-   * `moveToFrame`/`createTextElement` produce today) look correct regardless,
-   * since a box that exactly matches the image's own aspect ratio stretches
-   * and crops identically.
+   * `fit: 'contain'` is honored below via `imageFitTransform` — a single
+   * uniform scale, centered within the Box on whichever axis has slack, so
+   * the whole image stays visible without distortion (the "hold Shift while
+   * scaling" behavior "Centered"/"Left half" presets need).
+   *
+   * `fit: 'cover'` (and the legacy-undefined default) still stretches
+   * independently to exactly fill the Box, rather than true crop-to-fill.
+   * True cover would need a `clipPath` sized to the Box while the image
+   * itself scales uniformly past it — but the object's own selection handles
+   * bound its *own* width/height, not the clip region, so a cover-fitted
+   * image's handles would no longer match what's visible, and
+   * `object:modified` (which reads `width * scaleX` back into a new Box)
+   * would compute the wrong size the moment someone resizes it. That's a
+   * bigger change to drag/resize semantics than this fix's scope. The
+   * stretch fallback is safe specifically for `'cover'` because a full-bleed
+   * Box's aspect ratio is usually close to the frame's own, so crop and
+   * stretch look nearly identical there.
    */
+  /**
+   * How an image element's Fabric object should be positioned/scaled to
+   * honor `ImageElement.fit` inside its absolute on-canvas Box. See the
+   * "Second known limitation" note above `syncFrameElements` for why
+   * `'cover'` stretches rather than crops.
+   */
+  function imageFitTransform(
+    fit: "cover" | "contain" | undefined,
+    naturalWidth: number,
+    naturalHeight: number,
+    absLeft: number,
+    absTop: number,
+    absWidth: number,
+    absHeight: number,
+  ): { left: number; top: number; scaleX: number; scaleY: number } {
+    if (fit === "contain" && naturalWidth > 0 && naturalHeight > 0) {
+      const scale = Math.min(absWidth / naturalWidth, absHeight / naturalHeight)
+      const renderedWidth = naturalWidth * scale
+      const renderedHeight = naturalHeight * scale
+      return {
+        left: absLeft + (absWidth - renderedWidth) / 2,
+        top: absTop + (absHeight - renderedHeight) / 2,
+        scaleX: scale,
+        scaleY: scale,
+      }
+    }
+
+    return {
+      left: absLeft,
+      top: absTop,
+      scaleX: naturalWidth ? absWidth / naturalWidth : 1,
+      scaleY: naturalHeight ? absHeight / naturalHeight : 1,
+    }
+  }
+
   const syncFrameElements = useCallback(async () => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -1274,18 +1317,31 @@ export function useFabricCanvas(options: Options) {
           // Don't fight the object currently under the user's pointer.
           if (existing === draggingRef.current) continue
 
-          const dx = Math.abs((existing.left ?? 0) - absLeft)
-          const dy = Math.abs((existing.top ?? 0) - absTop)
-          const dw = Math.abs((existing.width ?? 0) * (existing.scaleX ?? 1) - absWidth)
-          const dh = Math.abs((existing.height ?? 0) * (existing.scaleY ?? 1) - absHeight)
+          const target =
+            element.kind === "image"
+              ? imageFitTransform(
+                  element.fit,
+                  existing.width ?? 0,
+                  existing.height ?? 0,
+                  absLeft,
+                  absTop,
+                  absWidth,
+                  absHeight,
+                )
+              : {
+                  left: absLeft,
+                  top: absTop,
+                  scaleX: existing.width ? absWidth / existing.width : 1,
+                  scaleY: existing.height ? absHeight / existing.height : 1,
+                }
+
+          const dx = Math.abs((existing.left ?? 0) - target.left)
+          const dy = Math.abs((existing.top ?? 0) - target.top)
+          const dw = Math.abs((existing.width ?? 0) * ((existing.scaleX ?? 1) - target.scaleX))
+          const dh = Math.abs((existing.height ?? 0) * ((existing.scaleY ?? 1) - target.scaleY))
           if (dx < 0.5 && dy < 0.5 && dw < 0.5 && dh < 0.5) continue
 
-          existing.set({
-            left: absLeft,
-            top: absTop,
-            scaleX: existing.width ? absWidth / existing.width : 1,
-            scaleY: existing.height ? absHeight / existing.height : 1,
-          })
+          existing.set(target)
           existing.setCoords()
           continue
         }
@@ -1340,13 +1396,23 @@ export function useFabricCanvas(options: Options) {
             const image: FabricImage = await fabricModule.FabricImage.fromURL(url)
             if (!canvasRef.current) return
 
+            const transform = imageFitTransform(
+              element.fit,
+              image.width ?? 0,
+              image.height ?? 0,
+              absLeft,
+              absTop,
+              absWidth,
+              absHeight,
+            )
+
             image.set({
-              left: absLeft,
-              top: absTop,
+              left: transform.left,
+              top: transform.top,
               originX: "left",
               originY: "top",
-              scaleX: image.width ? absWidth / image.width : 1,
-              scaleY: image.height ? absHeight / image.height : 1,
+              scaleX: transform.scaleX,
+              scaleY: transform.scaleY,
               borderColor: "#6366f1",
               cornerColor: "#6366f1",
               cornerSize: 8,

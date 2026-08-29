@@ -697,19 +697,26 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     applyImagePreset: (frameId, elementId, preset) => {
       const frame = get().project.frames.find((f) => f.id === frameId)
-      const prevBox = frame?.elements.find((e) => e.id === elementId)?.frame
-      if (!frame || !prevBox) return
+      const prevElement = frame?.elements.find((e) => e.id === elementId)
+      if (!frame || !prevElement) return
+      const prevBox = prevElement.frame
 
       const margins = frame.margins ?? vandeGraafMargins(frame.pageSize)
       const nextBox = presetImageBox(preset, frame.pageSize, margins, BLEED_MM)
+      // full-bleed is meant to crop-to-fill the page; centered/left-half are
+      // meant to show the whole image without distortion — see the `fit`
+      // honoring in use-fabric-canvas.ts's syncFrameElements.
+      const nextFit: ImageElement["fit"] = preset === "full-bleed" ? "cover" : "contain"
+      const prevFit = prevElement.kind === "image" ? prevElement.fit : undefined
 
       const doApply = () =>
         updateProject((project) => ({
           ...project,
-          frames: updateElement(project.frames, frameId, elementId, (element) => ({
-            ...element,
-            frame: nextBox,
-          })),
+          frames: updateElement(project.frames, frameId, elementId, (element) =>
+            element.kind === "image"
+              ? { ...element, frame: nextBox, fit: nextFit }
+              : { ...element, frame: nextBox },
+          ),
         }))
 
       doApply()
@@ -719,10 +726,11 @@ export const useEditorStore = create<EditorState>((set, get) => {
         undo: () =>
           updateProject((project) => ({
             ...project,
-            frames: updateElement(project.frames, frameId, elementId, (element) => ({
-              ...element,
-              frame: prevBox,
-            })),
+            frames: updateElement(project.frames, frameId, elementId, (element) =>
+              element.kind === "image"
+                ? { ...element, frame: prevBox, fit: prevFit ?? element.fit }
+                : { ...element, frame: prevBox },
+            ),
           })),
       })
     },
