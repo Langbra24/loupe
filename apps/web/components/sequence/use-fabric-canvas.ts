@@ -1205,6 +1205,41 @@ export function useFabricCanvas(options: Options) {
   /* ---------------------------------------------------------------- */
 
   /**
+   * How an image element's Fabric object should be positioned/scaled to
+   * honor `ImageElement.fit` inside its absolute on-canvas Box. See the
+   * doc comment on `syncFrameElements` below for why `'cover'` stretches
+   * rather than crops.
+   */
+  function imageFitTransform(
+    fit: "cover" | "contain" | undefined,
+    naturalWidth: number,
+    naturalHeight: number,
+    absLeft: number,
+    absTop: number,
+    absWidth: number,
+    absHeight: number,
+  ): { left: number; top: number; scaleX: number; scaleY: number } {
+    if (fit === "contain" && naturalWidth > 0 && naturalHeight > 0) {
+      const scale = Math.min(absWidth / naturalWidth, absHeight / naturalHeight)
+      const renderedWidth = naturalWidth * scale
+      const renderedHeight = naturalHeight * scale
+      return {
+        left: absLeft + (absWidth - renderedWidth) / 2,
+        top: absTop + (absHeight - renderedHeight) / 2,
+        scaleX: scale,
+        scaleY: scale,
+      }
+    }
+
+    return {
+      left: absLeft,
+      top: absTop,
+      scaleX: naturalWidth ? absWidth / naturalWidth : 1,
+      scaleY: naturalHeight ? absHeight / naturalHeight : 1,
+    }
+  }
+
+  /**
    * Draw every frame's own elements (images and text already inside a
    * frame — not pasteboard photographs or a fresh `T` textbox) at their
    * absolute on-canvas position, derived from the frame's current laid-out
@@ -1241,41 +1276,6 @@ export function useFabricCanvas(options: Options) {
    * Box's aspect ratio is usually close to the frame's own, so crop and
    * stretch look nearly identical there.
    */
-  /**
-   * How an image element's Fabric object should be positioned/scaled to
-   * honor `ImageElement.fit` inside its absolute on-canvas Box. See the
-   * "Second known limitation" note above `syncFrameElements` for why
-   * `'cover'` stretches rather than crops.
-   */
-  function imageFitTransform(
-    fit: "cover" | "contain" | undefined,
-    naturalWidth: number,
-    naturalHeight: number,
-    absLeft: number,
-    absTop: number,
-    absWidth: number,
-    absHeight: number,
-  ): { left: number; top: number; scaleX: number; scaleY: number } {
-    if (fit === "contain" && naturalWidth > 0 && naturalHeight > 0) {
-      const scale = Math.min(absWidth / naturalWidth, absHeight / naturalHeight)
-      const renderedWidth = naturalWidth * scale
-      const renderedHeight = naturalHeight * scale
-      return {
-        left: absLeft + (absWidth - renderedWidth) / 2,
-        top: absTop + (absHeight - renderedHeight) / 2,
-        scaleX: scale,
-        scaleY: scale,
-      }
-    }
-
-    return {
-      left: absLeft,
-      top: absTop,
-      scaleX: naturalWidth ? absWidth / naturalWidth : 1,
-      scaleY: naturalHeight ? absHeight / naturalHeight : 1,
-    }
-  }
-
   const syncFrameElements = useCallback(async () => {
     const canvas = canvasRef.current
     if (!canvas) return
