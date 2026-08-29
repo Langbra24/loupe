@@ -638,11 +638,54 @@ export const useEditorStore = create<EditorState>((set, get) => {
         frames: updateFrame(project.frames, frameId, (frame) => ({ ...frame, margins })),
       })),
 
-    setFrameCover: (frameId, isCover) =>
-      updateProject((project) => ({
-        ...project,
-        frames: updateFrame(project.frames, frameId, (frame) => ({ ...frame, isCover })),
-      })),
+    setFrameCover: (frameId, isCover) => {
+      const frames = get().project.frames
+      const index = frames.findIndex((frame) => frame.id === frameId)
+      if (index === -1) return
+
+      const prevIsCover = frames[index].isCover
+      // "Set as cover" also promotes the frame to the front of the book —
+      // same convention every other reorder action here follows: reorder,
+      // then re-derive `position` from the resulting array order. "Remove
+      // cover" never moves anything, and a frame that's already at the
+      // front needs no reorder at all (avoids a no-op move / undo step).
+      const shouldMoveToFront = isCover && index !== 0
+
+      const doSet = () =>
+        updateProject((project) => {
+          const patched = updateFrame(project.frames, frameId, (frame) => ({ ...frame, isCover }))
+          const reordered = shouldMoveToFront
+            ? reorderFrame(
+                patched,
+                patched.findIndex((frame) => frame.id === frameId),
+                0,
+              )
+            : patched
+          return {
+            ...project,
+            frames: reordered.map((frame, i) => ({ ...frame, position: i })),
+          }
+        })
+
+      doSet()
+
+      pushUndo({
+        do: doSet,
+        // Restores both the exact prior array position (splice back to the
+        // original index, mirroring `removeFrame`'s undo) and the prior
+        // `isCover` value, in one step.
+        undo: () =>
+          updateProject((project) => {
+            const current = project.frames.find((frame) => frame.id === frameId)
+            if (!current) return project
+            const restoredFrame = { ...current, isCover: prevIsCover }
+            const withoutFrame = project.frames.filter((frame) => frame.id !== frameId)
+            const restored = [...withoutFrame]
+            restored.splice(index, 0, restoredFrame)
+            return { ...project, frames: restored.map((frame, i) => ({ ...frame, position: i })) }
+          }),
+      })
+    },
 
     updateTextElement: (frameId, elementId, patch) => {
       // Only a content change is treated as the "text edit" undo scenario
