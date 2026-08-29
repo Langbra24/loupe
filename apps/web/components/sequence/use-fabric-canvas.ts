@@ -5,7 +5,7 @@ import type { Canvas, FabricImage, FabricObject, TPointerEventInfo } from "fabri
 import {
   boundingBoxOf,
   frameAt,
-  vandeGraafMargins,
+  defaultFrameMargins,
   type Asset,
   type Box,
   type CanvasPlacement,
@@ -1009,7 +1009,7 @@ export function useFabricCanvas(options: Options) {
     function syncPrintOverlay(fabric: typeof import("fabric"), layout: FrameLayout, frame: Frame | undefined) {
       if (!frame || !canvas) return
 
-      const margins = frame.margins ?? vandeGraafMargins(frame.pageSize)
+      const margins = frame.margins ?? defaultFrameMargins(frame.pageSize)
       const bounds = layout.bounds
       const bleedX = (BLEED_MM / frame.pageSize.width) * bounds.width
       const bleedY = (BLEED_MM / frame.pageSize.height) * bounds.height

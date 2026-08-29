@@ -88,6 +88,35 @@ export function vandeGraafMargins(pageSize: PageSize): PageMargins {
   }
 }
 
+/**
+ * Default margins for a newly created frame.
+ *
+ * Van de Graaf's inner/outer split exists to balance a two-page spread bound
+ * on one edge: the margin nearest the spine is narrower, the outer edge is
+ * wider, so a left-hand and right-hand page read as one balanced unit when
+ * they face each other. That convention only makes visual sense once a page
+ * knows which side of the spine it's on — but `Frame` has no recto/verso
+ * concept yet (every frame renders identically regardless of its position in
+ * the book; see docs/plans/2026-08-22-001-feat-unified-canvas-plan.md). Until
+ * that exists, applying inner/outer as-is puts the same "narrow left, wide
+ * right" bias on every single page, which just reads as an off-center guide
+ * rather than a deliberate spread convention.
+ *
+ * This keeps `vandeGraafMargins` itself untouched — it still documents the
+ * real canon for whenever recto/verso support lands — and instead gives new
+ * frames a symmetric left/right margin, splitting the same total horizontal
+ * margin evenly across both sides so the live text-block width is unchanged
+ * from the canon, just centered. Top/bottom are left as the canon computes
+ * them: that asymmetry (text sitting high on the page) is a real
+ * typographic convention independent of binding side, so it isn't affected
+ * by the same problem.
+ */
+export function defaultFrameMargins(pageSize: PageSize): PageMargins {
+  const canon = vandeGraafMargins(pageSize)
+  const side = round((canon.inner + canon.outer) / 2)
+  return { ...canon, inner: side, outer: side }
+}
+
 /** The live text area left over after the canon margins. */
 export function textBlock(pageSize: PageSize): { width: number; height: number } {
   const margins = vandeGraafMargins(pageSize)
