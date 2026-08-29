@@ -4,6 +4,7 @@ import { BookOpenIcon } from "@phosphor-icons/react"
 import { vandeGraafMargins, type Frame, type Margins } from "@loupe/core"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tabs, TabsIndicator, TabsList, TabsTab } from "@/components/ui/tabs"
 import { useThumbnail } from "@/components/sequence/use-thumbnail"
 import { cn } from "@/lib/utils"
 import { useEditorStore, type PanelView } from "@/state/editor-store"
@@ -42,6 +43,12 @@ export function LayersPanel() {
   )
 }
 
+/**
+ * Canvas/Book switcher, on `@base-ui/react/tabs` (ui/tabs.tsx) rather than a
+ * plain button pair — the active tab now gets a rail that slides between
+ * positions (`TabsIndicator`, styled by `.tabs-indicator-rail` in
+ * globals.css) instead of snapping its background color instantly.
+ */
 function PanelViewSwitcher({
   view,
   onChange,
@@ -49,38 +56,18 @@ function PanelViewSwitcher({
   view: PanelView
   onChange: (view: PanelView) => void
 }) {
-  const views: { id: PanelView; label: string }[] = [
-    { id: "canvas", label: "Canvas" },
-    { id: "book", label: "Book" },
-  ]
-
   return (
-    <div
-      role="tablist"
-      aria-label="Left panel view"
-      className="flex shrink-0 gap-1 border-b px-2 py-1.5"
+    <Tabs
+      value={view}
+      onValueChange={(value) => onChange(value as PanelView)}
+      className="shrink-0 border-b px-2 py-1.5"
     >
-      {views.map((item) => {
-        const isActive = view === item.id
-        return (
-          <button
-            key={item.id}
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onChange(item.id)}
-            className={cn(
-              "flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors",
-              "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-              isActive
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            {item.label}
-          </button>
-        )
-      })}
-    </div>
+      <TabsList aria-label="Left panel view" className="gap-1">
+        <TabsIndicator />
+        <TabsTab value="canvas">Canvas</TabsTab>
+        <TabsTab value="book">Book</TabsTab>
+      </TabsList>
+    </Tabs>
   )
 }
 
@@ -173,7 +160,7 @@ function FrameRow({
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm text-foreground/90">Page {frame.position + 1}</div>
+        <div className="truncate text-sm text-foreground">Page {frame.position + 1}</div>
         <div className="truncate text-[0.7rem] text-muted-foreground">{formatMargins(margins)}</div>
       </div>
     </button>
@@ -188,7 +175,7 @@ function formatMargins(margins: Margins): string {
 
 function PanelLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-2 pt-1 pb-0.5 text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">
+    <div className="px-2 pt-1 pb-0.5 text-xs font-medium text-muted-foreground">
       {children}
     </div>
   )

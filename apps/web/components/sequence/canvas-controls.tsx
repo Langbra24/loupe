@@ -60,7 +60,7 @@ export function CanvasControls({ controls }: { controls: Controls }) {
             render={
               <button
                 onClick={resetZoom}
-                className="min-w-14 rounded-lg px-2 py-1.5 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                className="min-w-14 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
               >
                 {Math.round(zoom * 100)}%
               </button>
@@ -116,7 +116,7 @@ function TooltipBody({ label, shortcut }: { label: string; shortcut: string | nu
     <span className="flex items-center gap-2">
       {label}
       {shortcut && (
-        <kbd data-slot="kbd" className="rounded bg-background/20 px-1 font-mono">
+        <kbd data-slot="kbd" className="rounded bg-background/20 px-1">
           {shortcut}
         </kbd>
       )}
