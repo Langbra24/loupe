@@ -157,9 +157,13 @@ function FrameElementBox({ element, project }: { element: PageElement; project: 
  * press-sheet preview before U12 deleted it: a bleed edge and the content
  * margins, both restored here on each page preview instead of a single
  * folded-sheet mockup, since there is no imposition/fold view to draw them on
- * yet. Colors match the original exactly — `destructive`, at low opacity, is
- * what reads as the "pink" bleed line, kept distinct from the `ring`-colored
- * margin guide so the two never get confused on a real page.
+ * yet. Colors and 2px width match the canvas's own Fabric-drawn version of
+ * these guides (`use-fabric-canvas.ts`'s `syncPrintOverlay`) — a vivid red
+ * for the bleed/trim line (the print-template convention) and a bright
+ * Figma-blue for the content-margin guide, kept far enough apart on the
+ * color wheel that the two never get confused on a real page. Plain hex
+ * rather than the `destructive`/`ring` theme tokens on purpose: these lines
+ * are a fixed print reference, not part of the UI's own light/dark palette.
  */
 function PrintOverlay({ frame, margins }: { frame: Frame; margins: Margins }) {
   const bleedXPercent = (BLEED_MM / frame.pageSize.width) * 100
@@ -169,8 +173,9 @@ function PrintOverlay({ frame, margins }: { frame: Frame; margins: Margins }) {
     <div className="pointer-events-none absolute inset-0">
       {/* Bleed edge. */}
       <div
-        className="absolute border border-dashed border-destructive/60"
+        className="absolute border-2 border-dashed"
         style={{
+          borderColor: "#ff3b30",
           top: `${bleedYPercent}%`,
           bottom: `${bleedYPercent}%`,
           left: `${bleedXPercent}%`,
@@ -179,8 +184,9 @@ function PrintOverlay({ frame, margins }: { frame: Frame; margins: Margins }) {
       />
       {/* Van de Graaf content margins. */}
       <div
-        className="absolute border border-dashed border-ring/50"
+        className="absolute border-2 border-dashed"
         style={{
+          borderColor: "#18a0fb",
           top: `${(margins.top / frame.pageSize.height) * 100}%`,
           bottom: `${(margins.bottom / frame.pageSize.height) * 100}%`,
           left: `${(margins.inner / frame.pageSize.width) * 100}%`,

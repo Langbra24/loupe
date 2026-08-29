@@ -81,6 +81,10 @@ interface Options {
   /** One of the low-opacity "add a paired page" buttons beside the selected
    *  frame was clicked — a new blank page goes directly before/after it. */
   onAddPage: (frameId: string, side: "before" | "after") => void
+  /** Right-click on genuinely empty pasteboard — nothing under the pointer
+   *  at all, not a photograph, frame, or element. Opens a menu with "Add new
+   *  page". */
+  onEmptyCanvasContextMenu: (viewportX: number, viewportY: number) => void
   /** A frame was dragged and dropped near a different slot in the grid.
    *  `from`/`to` are array indices, matching `reorderFrame`'s signature. */
   onReorderFrame: (from: number, to: number) => void
@@ -141,6 +145,7 @@ export function useFabricCanvas(options: Options) {
     onImageContextMenu,
     onFrameContextMenu,
     onAddPage,
+    onEmptyCanvasContextMenu,
     onReorderFrame,
     onDropOnFrame,
     onCreateText,
@@ -161,6 +166,11 @@ export function useFabricCanvas(options: Options) {
    *  objects here so they pan/zoom/reflow with the frame instead of a DOM
    *  overlay that would have to be repositioned by hand. */
   const overlaysRef = useRef(new Map<string, { bleed: FabricObject; margin: FabricObject }>())
+  /** The persistent "cover" badge shown pinned above a frame's top-left
+   *  corner while `Frame.isCover` is set — one per cover frame, a Figma
+   *  dev-mode-style tag that just sits there rather than needing a click to
+   *  reveal. */
+  const coverBadgesRef = useRef(new Map<string, FabricObject>())
   /** The low-opacity "add a paired page" buttons beside the *selected* frame
    *  only — there is never more than one pair on screen at a time. */
   const pageButtonsRef = useRef<{ left: FabricObject; right: FabricObject; frameId: string } | null>(null)
@@ -189,6 +199,18 @@ export function useFabricCanvas(options: Options) {
   /** Placements whose image is loading. Reserved synchronously so a second
    *  overlapping sync pass cannot start drawing the same one. */
   const pendingRef = useRef(new Set<string>())
+  /**
+   * The object genuinely mid-gesture right now, if any — set on
+   * `object:moving`, cleared on `mouse:up`. `syncFrames`/`syncFrameElements`
+   * use this (not `canvas.getActiveObject()`) to decide whether to skip
+   * repositioning an object: a selected-but-idle frame or element must still
+   * pick up a programmatic move (a completed reorder snapping into its grid
+   * slot, an image preset repositioning it) the instant the store updates —
+   * only an object the pointer is *currently* dragging should be left alone,
+   * or a frame drop and a preset-menu click would both silently no-op
+   * whenever their target happened to still be selected.
+   */
+  const draggingRef = useRef<FabricObject | null>(null)
 
   const [zoom, setZoom] = useState(1)
   const [ready, setReady] = useState(false)
@@ -204,6 +226,7 @@ export function useFabricCanvas(options: Options) {
     onImageContextMenu,
     onFrameContextMenu,
     onAddPage,
+    onEmptyCanvasContextMenu,
     onReorderFrame,
     onDropOnFrame,
     onCreateText,
@@ -235,6 +258,7 @@ export function useFabricCanvas(options: Options) {
       onImageContextMenu,
       onFrameContextMenu,
       onAddPage,
+      onEmptyCanvasContextMenu,
       onReorderFrame,
       onDropOnFrame,
       onCreateText,
@@ -404,6 +428,12 @@ export function useFabricCanvas(options: Options) {
           // (currently just "set as cover").
           if (placed?.frameId) {
             handlers.current.onFrameContextMenu(placed.frameId, opt.viewportPoint.x, opt.viewportPoint.y)
+            return
+          }
+
+          // Genuinely empty pasteboard — nothing under the pointer at all.
+          if (!placed) {
+            handlers.current.onEmptyCanvasContextMenu(opt.viewportPoint.x, opt.viewportPoint.y)
           }
           return
         }
@@ -465,37 +495,61 @@ export function useFabricCanvas(options: Options) {
         const gap = 16
         const centerY = layout.bounds.y + layout.bounds.height / 2
 
+        // White fill at 50% opacity with a solid black plus sign — the plus
+        // stays fully opaque (its own Rects have no `opacity` set) while only
+        // the background fades, so the icon itself never washes out. Grouped
+        // into one object so the tag/hover/click handling below only has to
+        // deal with a single target, the same as the plain-Rect version did.
         const makeButton = (side: "before" | "after", x: number) => {
-          const rect = new fabric.Rect({
-            left: x,
-            top: centerY,
+          const bg = new fabric.Rect({
             width: size,
             height: size,
             originX: "center",
             originY: "center",
             rx: 8,
             ry: 8,
-            fill: "rgba(255, 255, 255, 0.12)",
-            stroke: "rgba(255, 255, 255, 0.3)",
-            strokeWidth: 1,
+            fill: "#ffffff",
+            opacity: 0.5,
+          })
+          const barLength = size * 0.45
+          const barThickness = 4
+          const hBar = new fabric.Rect({
+            width: barLength,
+            height: barThickness,
+            originX: "center",
+            originY: "center",
+            fill: "#000000",
+          })
+          const vBar = new fabric.Rect({
+            width: barThickness,
+            height: barLength,
+            originX: "center",
+            originY: "center",
+            fill: "#000000",
+          })
+          const group = new fabric.Group([bg, hBar, vBar], {
+            left: x,
+            top: centerY,
+            originX: "center",
+            originY: "center",
             selectable: false,
             lockMovementX: true,
             lockMovementY: true,
             hoverCursor: "pointer",
             excludeFromExport: true,
           }) as unknown as FabricObject & { isAddPageButton?: boolean; frameId?: string; side?: "before" | "after" }
-          rect.isAddPageButton = true
-          rect.frameId = frameId
-          rect.side = side
-          rect.on("mouseover", () => {
-            rect.set({ fill: "rgba(255, 255, 255, 0.28)" })
+          group.isAddPageButton = true
+          group.frameId = frameId
+          group.side = side
+          group.on("mouseover", () => {
+            bg.set({ opacity: 0.75 })
             canvasRef.current?.requestRenderAll()
           })
-          rect.on("mouseout", () => {
-            rect.set({ fill: "rgba(255, 255, 255, 0.12)" })
+          group.on("mouseout", () => {
+            bg.set({ opacity: 0.5 })
             canvasRef.current?.requestRenderAll()
           })
-          return rect
+          return group
         }
 
         const left = makeButton("before", layout.bounds.x - gap - size / 2)
@@ -547,12 +601,15 @@ export function useFabricCanvas(options: Options) {
         panning = false
         target.selection = true
         clearInsertionIndicator()
+        draggingRef.current = null
       })
 
       /* While a frame is mid-drag, show which grid slot it would land in.
          `object:moving` fires continuously for the object under the pointer,
          so this doesn't need its own mouse:move listener. */
       canvas.on("object:moving", (opt) => {
+        draggingRef.current = opt.target ?? null
+
         const placed = opt.target as PlacedFrame | undefined
         if (!placed?.frameId) return
 
@@ -567,6 +624,11 @@ export function useFabricCanvas(options: Options) {
       /* Write position and scale back to the store when a gesture ends —
          not per frame, which would commit a store write per pointer move. */
       canvas.on("object:modified", (opt) => {
+        // The gesture that produced this event is over — from this point on,
+        // a resync must be free to reposition the object even though it's
+        // still selected (see `draggingRef`'s doc comment).
+        draggingRef.current = null
+
         const placed = opt.target as (PlacedObject & Partial<PlacedFrame> & Partial<PlacedElement>) | undefined
         if (!placed) return
 
@@ -729,6 +791,7 @@ export function useFabricCanvas(options: Options) {
     const drawnElements = elementsRef.current
     const elementsInFlight = elementsPendingRef.current
     const drawnOverlays = overlaysRef.current
+    const drawnCoverBadges = coverBadgesRef.current
 
     return () => {
       disposed = true
@@ -739,7 +802,9 @@ export function useFabricCanvas(options: Options) {
       drawnElements.clear()
       elementsInFlight.clear()
       drawnOverlays.clear()
+      drawnCoverBadges.clear()
       pageButtonsRef.current = null
+      draggingRef.current = null
       indicatorRef.current = null
       const target = canvasRef.current
       canvasRef.current = null
@@ -908,6 +973,7 @@ export function useFabricCanvas(options: Options) {
     const layoutById = new Map(layouts.map((layout) => [layout.frameId, layout]))
     const live = framesRef.current
     const liveOverlays = overlaysRef.current
+    const coverBadges = coverBadgesRef.current
     const frameById = new Map(currentFrames.map((frame) => [frame.id, frame]))
 
     // Remove frame objects whose frame no longer exists.
@@ -921,6 +987,12 @@ export function useFabricCanvas(options: Options) {
       if (!layoutById.has(frameId)) {
         canvas.remove(overlay.bleed, overlay.margin)
         liveOverlays.delete(frameId)
+      }
+    }
+    for (const [frameId, badge] of coverBadges) {
+      if (!layoutById.has(frameId)) {
+        canvas.remove(badge)
+        coverBadges.delete(frameId)
       }
     }
 
@@ -975,6 +1047,13 @@ export function useFabricCanvas(options: Options) {
         originY: "center" as const,
         fill: "transparent",
         strokeDashArray: [6, 5],
+        strokeWidth: 2,
+        // Keep the stroke a constant 2 *screen* pixels regardless of zoom —
+        // without this, `strokeWidth` scales with the canvas's own zoom like
+        // any other geometry, so zooming out shrinks it to sub-pixel and it
+        // effectively disappears (the reported "dotted lines disappear when
+        // I zoom" bug).
+        strokeUniform: true,
         selectable: false,
         evented: false,
         excludeFromExport: true,
@@ -982,17 +1061,63 @@ export function useFabricCanvas(options: Options) {
       const bleed = new fabric.Rect({
         ...shared,
         ...bleedRectProps,
-        stroke: "oklch(0.704 0.191 22.216 / 60%)",
-        strokeWidth: 1.5,
+        // Trim/bleed line — the conventional red seen on print templates.
+        stroke: "#ff3b30",
       })
       const margin = new fabric.Rect({
         ...shared,
         ...marginRectProps,
-        stroke: "oklch(0.552 0.016 285.938 / 50%)",
-        strokeWidth: 1.5,
+        // Content-margin guide — a bright blue/violet, à la Figma's own
+        // layout-grid guides, to read as clearly distinct from the bleed.
+        stroke: "#18a0fb",
       })
       canvas.add(bleed, margin)
       liveOverlays.set(frame.id, { bleed, margin })
+    }
+
+    /**
+     * The "this is the cover" badge — a small filled bookmark glyph (Lucide's
+     * `bookmark` icon path, drawn directly as a `fabric.Path` since this is
+     * the canvas, not DOM — Phosphor/React icons don't apply here) pinned
+     * just above a cover frame's top-left corner. Persistent, not a hover
+     * reveal, matching the "sits there like Figma dev-mode" request.
+     */
+    function syncCoverBadge(fabric: typeof import("fabric"), layout: FrameLayout, frame: Frame | undefined) {
+      if (!frame || !canvas) return
+
+      const existing = coverBadges.get(frame.id)
+      if (!frame.isCover) {
+        if (existing) {
+          canvas.remove(existing)
+          coverBadges.delete(frame.id)
+        }
+        return
+      }
+
+      const badgeLeft = layout.bounds.x
+      const badgeBottom = layout.bounds.y - 12
+
+      if (existing) {
+        existing.set({ left: badgeLeft, top: badgeBottom })
+        canvas.bringObjectToFront(existing)
+        return
+      }
+
+      const size = 36
+      const badge = new fabric.Path("m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z", {
+        left: badgeLeft,
+        top: badgeBottom,
+        originX: "left",
+        originY: "bottom",
+        scaleX: size / 24,
+        scaleY: size / 24,
+        fill: "#f5b400",
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+      })
+      canvas.add(badge)
+      coverBadges.set(frame.id, badge)
     }
 
     for (const layout of layouts) {
@@ -1034,7 +1159,7 @@ export function useFabricCanvas(options: Options) {
       }
 
       // Don't fight the object currently under the user's pointer.
-      if (existing === canvas.getActiveObject()) continue
+      if (existing === draggingRef.current) continue
 
       const dx = Math.abs((existing.left ?? 0) - centerX)
       const dy = Math.abs((existing.top ?? 0) - centerY)
@@ -1058,6 +1183,7 @@ export function useFabricCanvas(options: Options) {
     // frame's own white background instead of racing it.
     for (const layout of layouts) {
       syncPrintOverlay(fabric, layout, frameById.get(layout.frameId))
+      syncCoverBadge(fabric, layout, frameById.get(layout.frameId))
     }
 
     // Reposition an already-open add-page button pair if the frame list
@@ -1146,7 +1272,7 @@ export function useFabricCanvas(options: Options) {
 
         if (existing) {
           // Don't fight the object currently under the user's pointer.
-          if (existing === canvas.getActiveObject()) continue
+          if (existing === draggingRef.current) continue
 
           const dx = Math.abs((existing.left ?? 0) - absLeft)
           const dy = Math.abs((existing.top ?? 0) - absTop)

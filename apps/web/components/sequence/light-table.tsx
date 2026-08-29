@@ -28,6 +28,11 @@ interface FrameMenuTarget {
   y: number
 }
 
+interface EmptyCanvasMenuTarget {
+  x: number
+  y: number
+}
+
 const IMAGE_PRESET_LABELS: Record<ImagePreset, string> = {
   "full-bleed": "Full bleed",
   centered: "Centered",
@@ -45,6 +50,7 @@ export function LightTable() {
   const placements = useEditorStore((state) => state.project.canvas.placements)
   const assets = useEditorStore((state) => state.project.assets)
   const frames = useEditorStore((state) => state.project.frames)
+  const pageSize = useEditorStore((state) => state.project.pageSize)
   const movePlacement = useEditorStore((state) => state.movePlacement)
   const scalePlacement = useEditorStore((state) => state.scalePlacement)
   const reorderFrameById = useEditorStore((state) => state.reorderFrameById)
@@ -59,6 +65,7 @@ export function LightTable() {
   const copySelectedFrame = useEditorStore((state) => state.copySelectedFrame)
   const pasteFrame = useEditorStore((state) => state.pasteFrame)
   const addPairedPage = useEditorStore((state) => state.addPairedPage)
+  const addFrame = useEditorStore((state) => state.addFrame)
   const setFrameCover = useEditorStore((state) => state.setFrameCover)
   const undo = useEditorStore((state) => state.undo)
 
@@ -66,11 +73,12 @@ export function LightTable() {
   // model (see core/src/frames.ts) and its replacement — dropping a photo
   // onto a frame — landed as an ordinary drag. Right-click on a pasteboard
   // photograph itself stays deferred per CLAUDE.md; right-click on an image
-  // already *inside* a frame, or on a frame's own background, does not —
-  // those open the menus below, at the user's explicit direction overriding
-  // that deferral.
+  // already *inside* a frame, on a frame's own background, or on empty
+  // pasteboard does not — those open the menus below, at the user's explicit
+  // direction overriding that deferral.
   const [imageMenu, setImageMenu] = useState<ImageMenuTarget | null>(null)
   const [frameMenu, setFrameMenu] = useState<FrameMenuTarget | null>(null)
+  const [emptyCanvasMenu, setEmptyCanvasMenu] = useState<EmptyCanvasMenuTarget | null>(null)
 
   const { containerRef, canvasElementRef, controls, createTextbox, isTextEditing } = useFabricCanvas({
     placements,
@@ -82,6 +90,7 @@ export function LightTable() {
     onImageContextMenu: (frameId, elementId, x, y) => setImageMenu({ frameId, elementId, x, y }),
     onFrameContextMenu: (frameId, x, y) => setFrameMenu({ frameId, x, y }),
     onAddPage: addPairedPage,
+    onEmptyCanvasContextMenu: (x, y) => setEmptyCanvasMenu({ x, y }),
     onReorderFrame: reorderFrameById,
     onDropOnFrame: moveToFrame,
     onCreateText: createTextElement,
@@ -137,6 +146,17 @@ export function LightTable() {
           }}
         />
       )}
+
+      {emptyCanvasMenu && (
+        <EmptyCanvasContextMenu
+          target={emptyCanvasMenu}
+          onDismiss={() => setEmptyCanvasMenu(null)}
+          onAddPage={() => {
+            addFrame(pageSize)
+            setEmptyCanvasMenu(null)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -173,6 +193,9 @@ function ImagePresetMenu({
         className="absolute z-40 min-w-40 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md"
         style={{ left: target.x, top: target.y }}
       >
+        <div className="px-2 pt-1 pb-0.5 text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">
+          Positioning
+        </div>
         {(Object.keys(IMAGE_PRESET_LABELS) as ImagePreset[]).map((preset) => (
           <button
             key={preset}
@@ -182,6 +205,43 @@ function ImagePresetMenu({
             {IMAGE_PRESET_LABELS[preset]}
           </button>
         ))}
+      </div>
+    </>
+  )
+}
+
+/** Right-click on genuinely empty pasteboard — currently just "Add new
+ *  page", appended to the end of the book at the project's page size. */
+function EmptyCanvasContextMenu({
+  target,
+  onAddPage,
+  onDismiss,
+}: {
+  target: EmptyCanvasMenuTarget
+  onAddPage: () => void
+  onDismiss: () => void
+}) {
+  useEffect(() => {
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onDismiss()
+    }
+    window.addEventListener("keydown", dismiss)
+    return () => window.removeEventListener("keydown", dismiss)
+  }, [onDismiss])
+
+  return (
+    <>
+      <div className="fixed inset-0 z-30" onClick={onDismiss} onContextMenu={(e) => e.preventDefault()} />
+      <div
+        className="absolute z-40 min-w-40 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md"
+        style={{ left: target.x, top: target.y }}
+      >
+        <button
+          onClick={onAddPage}
+          className="block w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+        >
+          Add new page
+        </button>
       </div>
     </>
   )
