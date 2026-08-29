@@ -129,6 +129,26 @@ export function reorderFrame(frames: readonly Frame[], from: number, to: number)
   return moveItem(frames, from, to)
 }
 
+/**
+ * Insert a new frame at a specific array index, shifting everything from
+ * that index onward — the copy/paste and "add a paired page" operations
+ * both need to land a frame *next to* a specific one, not appended at the
+ * end the way `addFrame` (apps/web) does. `index` is clamped to
+ * `[0, frames.length]` rather than throwing on an out-of-range value, the
+ * same tolerant-of-a-stale-index stance `frameAt`/`assignToFrame` take —
+ * the caller may be racing a frame's removal.
+ *
+ * Positions are not re-derived here — same division of responsibility as
+ * `reorderFrame`: this only reorders the array, callers persisting
+ * `Frame.position` re-derive it from the resulting index afterward.
+ */
+export function insertFrame(frames: readonly Frame[], index: number, frame: Frame): Frame[] {
+  const clamped = Math.max(0, Math.min(index, frames.length))
+  const next = [...frames]
+  next.splice(clamped, 0, frame)
+  return next
+}
+
 /** A frame's rectangle on the pasteboard, for hit-testing. Kept separate from
  *  `Frame` itself because where a frame sits on the canvas is a rendering
  *  concern for a later unit — this module only needs the id and the rectangle. */

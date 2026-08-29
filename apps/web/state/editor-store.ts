@@ -6,6 +6,7 @@ import {
   createEmptyProject,
   createFrame,
   framesForBookSetup,
+  insertFrame,
   layoutNewPlacements,
   presetImageBox,
   removeFromFrame,
@@ -19,6 +20,7 @@ import {
   type ImageElement,
   type ImagePreset,
   type Margins,
+  type PageElement,
   type PageSize,
   type Project,
   type Selection,
@@ -95,6 +97,24 @@ interface EditorState {
    *  frames already exist — the dialog only ever fires once per project. */
   setupBook: (setup: BookSetup) => void
 
+  /** Snapshot of a frame's contents (pageSize, margins, elements), set by
+   *  Cmd/Ctrl+C on a selected frame and consumed by `pasteFrame`. UI-only —
+   *  not persisted, the same way `introductionDismissed` isn't: losing the
+   *  clipboard on reload is an acceptable, unsurprising loss. */
+  clipboardFrame: Frame | null
+  /** Copy the currently selected frame's contents to `clipboardFrame`. A
+   *  no-op if nothing selected is a frame. */
+  copySelectedFrame: () => void
+  /** Paste `clipboardFrame` as a new frame immediately after the currently
+   *  selected frame (or at the end, if nothing is selected). Elements are
+   *  deep-cloned with fresh ids — a paste is a new page, not a second
+   *  reference to the same one. A no-op if the clipboard is empty. */
+  pasteFrame: () => void
+  /** The low-opacity "add a paired page" buttons shown beside a selected
+   *  frame — a blank page at the same size, inserted directly before/after
+   *  it. */
+  addPairedPage: (frameId: string, side: "before" | "after") => void
+
   /**
    * Selection, redesigned for the frame model (U7) — see `Selection` in
    * types.ts for why `page`/`element` (keyed by `pageId`) doesn't fit
@@ -119,6 +139,9 @@ interface EditorState {
    *  the old committed-Page model). */
   reviewFrame: (frameId: string) => void
   updateFrameMargins: (frameId: string, margins: Margins) => void
+  /** Toggle a frame's `isCover` flag — the right-click "set as cover" /
+   *  "remove cover" action on a frame's own background. */
+  setFrameCover: (frameId: string, isCover: boolean) => void
   updateTextElement: (
     frameId: string,
     elementId: string,
@@ -188,6 +211,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     project: createEmptyProject(),
     selection: null,
     panelView: "canvas",
+    clipboardFrame: null,
     undoStack: [],
     ...PANEL_DEFAULTS,
     hydrated: false,
@@ -446,6 +470,92 @@ export const useEditorStore = create<EditorState>((set, get) => {
       }))
     },
 
+    copySelectedFrame: () => {
+      const { selection, project } = get()
+      const frameId = selection?.frameId ?? null
+      if (!frameId) return
+      const frame = project.frames.find((f) => f.id === frameId)
+      if (frame) set({ clipboardFrame: frame })
+    },
+
+    pasteFrame: () => {
+      const { clipboardFrame, selection, project } = get()
+      if (!clipboardFrame) return
+
+      const frameId = selection?.frameId ?? null
+      const insertIndex = frameId
+        ? project.frames.findIndex((f) => f.id === frameId) + 1
+        : project.frames.length
+
+      const newFrameId = newId("frame")
+      // A paste is a new page, not a second reference to the copied one — its
+      // elements get fresh ids so editing the copy never touches the original.
+      const newFrame: Frame = {
+        ...clipboardFrame,
+        id: newFrameId,
+        position: insertIndex,
+        elements: clipboardFrame.elements.map((element: PageElement) => ({
+          ...element,
+          id: newId("element"),
+        })),
+      }
+
+      const doPaste = () =>
+        updateProject((project) => ({
+          ...project,
+          frames: insertFrame(project.frames, insertIndex, newFrame).map((frame, index) => ({
+            ...frame,
+            position: index,
+          })),
+        }))
+
+      doPaste()
+
+      pushUndo({
+        do: doPaste,
+        undo: () =>
+          updateProject((project) => ({
+            ...project,
+            frames: project.frames
+              .filter((frame) => frame.id !== newFrameId)
+              .map((frame, index) => ({ ...frame, position: index })),
+          })),
+      })
+    },
+
+    addPairedPage: (frameId, side) => {
+      const frames = get().project.frames
+      const index = frames.findIndex((frame) => frame.id === frameId)
+      const source = frames[index]
+      if (!source) return
+
+      const insertIndex = side === "before" ? index : index + 1
+      const newFrameId = newId("frame")
+      const newFrame = createFrame(newFrameId, source.pageSize, insertIndex)
+
+      const doAdd = () =>
+        updateProject((project) => ({
+          ...project,
+          frames: insertFrame(project.frames, insertIndex, newFrame).map((frame, index) => ({
+            ...frame,
+            position: index,
+          })),
+        }))
+
+      doAdd()
+
+      pushUndo({
+        do: doAdd,
+        undo: () =>
+          updateProject((project) => ({
+            ...project,
+            frames: project.frames
+              .filter((frame) => frame.id !== newFrameId)
+              .map((frame, index) => ({ ...frame, position: index })),
+          })),
+      })
+    },
+
     removeFrame: (frameId) => {
       const frames = get().project.frames
       const index = frames.findIndex((frame) => frame.id === frameId)
@@ -526,6 +636,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
       updateProject((project) => ({
         ...project,
         frames: updateFrame(project.frames, frameId, (frame) => ({ ...frame, margins })),
+      })),
+
+    setFrameCover: (frameId, isCover) =>
+      updateProject((project) => ({
+        ...project,
+        frames: updateFrame(project.frames, frameId, (frame) => ({ ...frame, isCover })),
       })),
 
     updateTextElement: (frameId, elementId, patch) => {

@@ -75,6 +75,12 @@ interface Options {
   /** Right-click on an image already inside a frame — opens the fixed
    *  layout-preset menu (full-bleed / centered / left-half). */
   onImageContextMenu: (frameId: string, elementId: string, viewportX: number, viewportY: number) => void
+  /** Right-click on a frame's own background (the white page, nothing inside
+   *  it hit) — opens the frame-level menu ("set as cover"). */
+  onFrameContextMenu: (frameId: string, viewportX: number, viewportY: number) => void
+  /** One of the low-opacity "add a paired page" buttons beside the selected
+   *  frame was clicked — a new blank page goes directly before/after it. */
+  onAddPage: (frameId: string, side: "before" | "after") => void
   /** A frame was dragged and dropped near a different slot in the grid.
    *  `from`/`to` are array indices, matching `reorderFrame`'s signature. */
   onReorderFrame: (from: number, to: number) => void
@@ -133,6 +139,8 @@ export function useFabricCanvas(options: Options) {
     onScale,
     onContextMenu,
     onImageContextMenu,
+    onFrameContextMenu,
+    onAddPage,
     onReorderFrame,
     onDropOnFrame,
     onCreateText,
@@ -153,6 +161,15 @@ export function useFabricCanvas(options: Options) {
    *  objects here so they pan/zoom/reflow with the frame instead of a DOM
    *  overlay that would have to be repositioned by hand. */
   const overlaysRef = useRef(new Map<string, { bleed: FabricObject; margin: FabricObject }>())
+  /** The low-opacity "add a paired page" buttons beside the *selected* frame
+   *  only — there is never more than one pair on screen at a time. */
+  const pageButtonsRef = useRef<{ left: FabricObject; right: FabricObject; frameId: string } | null>(null)
+  /** Set by the create-canvas effect to the real `syncAddPageButtons`, so
+   *  `syncFrames` (a separate `useCallback`, run on every frame-list change)
+   *  can reposition an already-open button pair when the selected frame's
+   *  layout shifts — e.g. right after one of the buttons themselves inserts
+   *  a page — without both being defined in the same closure. */
+  const syncAddPageButtonsRef = useRef<(frameId: string | null) => void>(() => undefined)
 
   /** Keep a frame's print guides drawn above its own contents — called after
    *  `syncFrameElements` adds a new image/text object, since those are added
@@ -185,6 +202,8 @@ export function useFabricCanvas(options: Options) {
     onScale,
     onContextMenu,
     onImageContextMenu,
+    onFrameContextMenu,
+    onAddPage,
     onReorderFrame,
     onDropOnFrame,
     onCreateText,
@@ -214,6 +233,8 @@ export function useFabricCanvas(options: Options) {
       onScale,
       onContextMenu,
       onImageContextMenu,
+      onFrameContextMenu,
+      onAddPage,
       onReorderFrame,
       onDropOnFrame,
       onCreateText,
@@ -375,7 +396,21 @@ export function useFabricCanvas(options: Options) {
               opt.viewportPoint.x,
               opt.viewportPoint.y,
             )
+            return
           }
+
+          // The frame's own background rect — no elementId, no placementId,
+          // just a frameId. Right-click here opens the frame-level menu
+          // (currently just "set as cover").
+          if (placed?.frameId) {
+            handlers.current.onFrameContextMenu(placed.frameId, opt.viewportPoint.x, opt.viewportPoint.y)
+          }
+          return
+        }
+
+        const addPageButton = opt.target as (FabricObject & { isAddPageButton?: boolean; frameId?: string; side?: "before" | "after" }) | undefined
+        if (addPageButton?.isAddPageButton && addPageButton.frameId && addPageButton.side) {
+          handlers.current.onAddPage(addPageButton.frameId, addPageButton.side)
           return
         }
 
@@ -398,6 +433,79 @@ export function useFabricCanvas(options: Options) {
        * U6) have no `frameId`, so selecting one clears the frame selection
        * the same way clicking empty canvas does.
        */
+      /**
+       * The two "add a paired page" buttons beside a selected frame —
+       * user-directed, shown only while that frame (not one of its elements)
+       * is the active object. Positioned at the frame's vertical midpoint —
+       * "center the buttons horizontally at half of the A5 [page] size" — on
+       * the outside of its left/right edges. Rebuilt from scratch on every
+       * call rather than diffed in place: the pair only exists for whichever
+       * frame is currently selected, so there's no ongoing per-frame state
+       * worth preserving across a resync the way `syncFrames`/`syncPrintOverlay`
+       * diff-and-update for every frame, every render.
+       */
+      function clearAddPageButtons() {
+        const target_canvas = canvasRef.current
+        const existing = pageButtonsRef.current
+        if (existing && target_canvas) target_canvas.remove(existing.left, existing.right)
+        pageButtonsRef.current = null
+      }
+
+      function syncAddPageButtons(frameId: string | null) {
+        clearAddPageButtons()
+        const target_canvas = canvasRef.current
+        if (!frameId || !target_canvas) return
+
+        const { frames: currentFrames, placements: currentPlacements, assets: pool } = latest.current
+        const originY = frameGridOriginY(currentPlacements, pool)
+        const layout = layoutFrames(currentFrames, originY).find((l) => l.frameId === frameId)
+        if (!layout) return
+
+        const size = 48
+        const gap = 16
+        const centerY = layout.bounds.y + layout.bounds.height / 2
+
+        const makeButton = (side: "before" | "after", x: number) => {
+          const rect = new fabric.Rect({
+            left: x,
+            top: centerY,
+            width: size,
+            height: size,
+            originX: "center",
+            originY: "center",
+            rx: 8,
+            ry: 8,
+            fill: "rgba(255, 255, 255, 0.12)",
+            stroke: "rgba(255, 255, 255, 0.3)",
+            strokeWidth: 1,
+            selectable: false,
+            lockMovementX: true,
+            lockMovementY: true,
+            hoverCursor: "pointer",
+            excludeFromExport: true,
+          }) as unknown as FabricObject & { isAddPageButton?: boolean; frameId?: string; side?: "before" | "after" }
+          rect.isAddPageButton = true
+          rect.frameId = frameId
+          rect.side = side
+          rect.on("mouseover", () => {
+            rect.set({ fill: "rgba(255, 255, 255, 0.28)" })
+            canvasRef.current?.requestRenderAll()
+          })
+          rect.on("mouseout", () => {
+            rect.set({ fill: "rgba(255, 255, 255, 0.12)" })
+            canvasRef.current?.requestRenderAll()
+          })
+          return rect
+        }
+
+        const left = makeButton("before", layout.bounds.x - gap - size / 2)
+        const right = makeButton("after", layout.bounds.x + layout.bounds.width + gap + size / 2)
+        target_canvas.add(left, right)
+        pageButtonsRef.current = { left, right, frameId }
+        target_canvas.requestRenderAll()
+      }
+      syncAddPageButtonsRef.current = syncAddPageButtons
+
       const notifyFrameSelection = () => {
         const active = canvasRef.current?.getActiveObject() as
           | (PlacedFrame & Partial<PlacedElement>)
@@ -405,14 +513,19 @@ export function useFabricCanvas(options: Options) {
 
         if (active?.elementId && active.frameId) {
           handlers.current.onSelectElement(active.frameId, active.elementId)
+          syncAddPageButtons(null)
           return
         }
 
         handlers.current.onSelectFrame(active?.frameId ?? null)
+        syncAddPageButtons(active?.frameId ?? null)
       }
       canvas.on("selection:created", notifyFrameSelection)
       canvas.on("selection:updated", notifyFrameSelection)
-      canvas.on("selection:cleared", () => handlers.current.onSelectFrame(null))
+      canvas.on("selection:cleared", () => {
+        handlers.current.onSelectFrame(null)
+        syncAddPageButtons(null)
+      })
 
       canvas.on("mouse:move", (opt) => {
         if (!panning) return
@@ -626,6 +739,7 @@ export function useFabricCanvas(options: Options) {
       drawnElements.clear()
       elementsInFlight.clear()
       drawnOverlays.clear()
+      pageButtonsRef.current = null
       indicatorRef.current = null
       const target = canvasRef.current
       canvasRef.current = null
@@ -944,6 +1058,12 @@ export function useFabricCanvas(options: Options) {
     // frame's own white background instead of racing it.
     for (const layout of layouts) {
       syncPrintOverlay(fabric, layout, frameById.get(layout.frameId))
+    }
+
+    // Reposition an already-open add-page button pair if the frame list
+    // changed under it (most notably: one of the buttons was just clicked).
+    if (pageButtonsRef.current) {
+      syncAddPageButtonsRef.current(pageButtonsRef.current.frameId)
     }
 
     canvas.requestRenderAll()

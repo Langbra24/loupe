@@ -8,12 +8,22 @@ import { BookSetupDialog } from "@/components/sequence/book-setup-dialog"
 import { ImportPhotosButton } from "@/components/sequence/import-photos"
 import { CanvasControls } from "@/components/sequence/canvas-controls"
 import { useFabricCanvas } from "@/components/sequence/use-fabric-canvas"
-import { useTextToolShortcut, useUndoShortcut } from "@/components/sequence/use-canvas-shortcuts"
+import {
+  useCopyPasteShortcut,
+  useTextToolShortcut,
+  useUndoShortcut,
+} from "@/components/sequence/use-canvas-shortcuts"
 import { useEditorStore } from "@/state/editor-store"
 
 interface ImageMenuTarget {
   frameId: string
   elementId: string
+  x: number
+  y: number
+}
+
+interface FrameMenuTarget {
+  frameId: string
   x: number
   y: number
 }
@@ -46,15 +56,21 @@ export function LightTable() {
   const updateElementBox = useEditorStore((state) => state.updateElementBox)
   const updateTextElement = useEditorStore((state) => state.updateTextElement)
   const applyImagePreset = useEditorStore((state) => state.applyImagePreset)
+  const copySelectedFrame = useEditorStore((state) => state.copySelectedFrame)
+  const pasteFrame = useEditorStore((state) => state.pasteFrame)
+  const addPairedPage = useEditorStore((state) => state.addPairedPage)
+  const setFrameCover = useEditorStore((state) => state.setFrameCover)
   const undo = useEditorStore((state) => state.undo)
 
   // Right-click promotion into an Edit lived here; Edit is gone from the data
   // model (see core/src/frames.ts) and its replacement — dropping a photo
   // onto a frame — landed as an ordinary drag. Right-click on a pasteboard
   // photograph itself stays deferred per CLAUDE.md; right-click on an image
-  // already *inside* a frame does not — that opens the layout-preset menu
-  // below, at the user's explicit direction overriding that deferral.
+  // already *inside* a frame, or on a frame's own background, does not —
+  // those open the menus below, at the user's explicit direction overriding
+  // that deferral.
   const [imageMenu, setImageMenu] = useState<ImageMenuTarget | null>(null)
+  const [frameMenu, setFrameMenu] = useState<FrameMenuTarget | null>(null)
 
   const { containerRef, canvasElementRef, controls, createTextbox, isTextEditing } = useFabricCanvas({
     placements,
@@ -64,6 +80,8 @@ export function LightTable() {
     onScale: scalePlacement,
     onContextMenu: () => {},
     onImageContextMenu: (frameId, elementId, x, y) => setImageMenu({ frameId, elementId, x, y }),
+    onFrameContextMenu: (frameId, x, y) => setFrameMenu({ frameId, x, y }),
+    onAddPage: addPairedPage,
     onReorderFrame: reorderFrameById,
     onDropOnFrame: moveToFrame,
     onCreateText: createTextElement,
@@ -78,6 +96,9 @@ export function LightTable() {
   useTextToolShortcut({ enabled: true, isTextboxEditing: isTextEditing, createTextbox })
   // Cmd/Ctrl+Z undoes the last reorder/move/create/delete/text-edit (U8).
   useUndoShortcut({ enabled: true, undo })
+  // Cmd/Ctrl+C copies the selected page, Cmd/Ctrl+V pastes it as a new one
+  // right after it (user-directed).
+  useCopyPasteShortcut({ enabled: true, copySelectedFrame, pasteFrame })
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -101,6 +122,18 @@ export function LightTable() {
           onSelect={(preset) => {
             applyImagePreset(imageMenu.frameId, imageMenu.elementId, preset)
             setImageMenu(null)
+          }}
+        />
+      )}
+
+      {frameMenu && (
+        <FrameContextMenu
+          target={frameMenu}
+          isCover={frames.find((f) => f.id === frameMenu.frameId)?.isCover ?? false}
+          onDismiss={() => setFrameMenu(null)}
+          onToggleCover={(isCover) => {
+            setFrameCover(frameMenu.frameId, isCover)
+            setFrameMenu(null)
           }}
         />
       )}
@@ -149,6 +182,49 @@ function ImagePresetMenu({
             {IMAGE_PRESET_LABELS[preset]}
           </button>
         ))}
+      </div>
+    </>
+  )
+}
+
+/**
+ * Right-click menu on a frame's own background (not on one of its elements)
+ * — currently just the "set as cover" toggle. What being a cover actually
+ * unlocks in the sidebar (extra text/design options) is still undefined;
+ * this is the entry point for that, not the feature itself yet.
+ */
+function FrameContextMenu({
+  target,
+  isCover,
+  onToggleCover,
+  onDismiss,
+}: {
+  target: FrameMenuTarget
+  isCover: boolean
+  onToggleCover: (isCover: boolean) => void
+  onDismiss: () => void
+}) {
+  useEffect(() => {
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onDismiss()
+    }
+    window.addEventListener("keydown", dismiss)
+    return () => window.removeEventListener("keydown", dismiss)
+  }, [onDismiss])
+
+  return (
+    <>
+      <div className="fixed inset-0 z-30" onClick={onDismiss} onContextMenu={(e) => e.preventDefault()} />
+      <div
+        className="absolute z-40 min-w-44 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md"
+        style={{ left: target.x, top: target.y }}
+      >
+        <button
+          onClick={() => onToggleCover(!isCover)}
+          className="block w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+        >
+          {isCover ? "Remove cover" : "Set as cover"}
+        </button>
       </div>
     </>
   )

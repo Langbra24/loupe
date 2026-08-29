@@ -217,6 +217,42 @@ export function useTextToolShortcut({ enabled, isTextboxEditing, createTextbox }
   }, [enabled, isTextboxEditing, createTextbox])
 }
 
+export interface CopyPasteShortcutOptions {
+  enabled: boolean
+  copySelectedFrame: () => void
+  pasteFrame: () => void
+}
+
+/**
+ * Binds Cmd/Ctrl+C / Cmd/Ctrl+V on a selected frame to a page copy/paste —
+ * "select the page, hit Cmd/Ctrl+C, then paste with V" (user-directed).
+ * Guarded by `isTypingTarget` the same way undo is: inside a text field,
+ * copy/paste should fall through to the browser's own clipboard, not this
+ * frame-level command.
+ */
+export function useCopyPasteShortcut({ enabled, copySelectedFrame, pasteFrame }: CopyPasteShortcutOptions): void {
+  useEffect(() => {
+    if (!enabled) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return
+      if (isTypingTarget(event.target)) return
+
+      const key = event.key.toLowerCase()
+      if (key === "c") {
+        event.preventDefault()
+        copySelectedFrame()
+      } else if (key === "v") {
+        event.preventDefault()
+        pasteFrame()
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [enabled, copySelectedFrame, pasteFrame])
+}
+
 export interface UndoShortcutOptions {
   enabled: boolean
   undo: () => void

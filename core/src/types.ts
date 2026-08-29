@@ -141,6 +141,14 @@ export interface Frame {
   position: number
   elements: PageElement[]
   margins?: Margins
+  /**
+   * Marked as a cover via the canvas right-click menu (user-directed,
+   * overriding CLAUDE.md's general context-menu deferral). Purely a flag on
+   * an otherwise ordinary `Frame` — a cover holds the same `PageElement[]`
+   * as any other page. What it unlocks in the sidebar (extra text/design
+   * options) is still being defined; for now it drives a visual marker only.
+   */
+  isCover?: boolean
 }
 
 /**

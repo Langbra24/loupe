@@ -5,6 +5,7 @@ import {
   createFrame,
   frameAt,
   framesForBookSetup,
+  insertFrame,
   presetImageBox,
   refitElementsForPageSize,
   removeFromFrame,
@@ -243,6 +244,38 @@ describe("refitElementsForPageSize", () => {
 
   it("handles an empty element list without crashing", () => {
     expect(refitElementsForPageSize(OLD_SIZE, NEW_SIZE, [])).toEqual([])
+  })
+})
+
+describe("insertFrame", () => {
+  const frames = [frame("f1", 0), frame("f2", 1), frame("f3", 2)]
+
+  it("inserts a frame at the given index, shifting the rest right", () => {
+    const inserted = frame("new", 99)
+    const result = insertFrame(frames, 1, inserted)
+
+    expect(result.map((f) => f.id)).toEqual(["f1", "new", "f2", "f3"])
+  })
+
+  it("inserts at the end when the index is past the array length", () => {
+    const inserted = frame("new", 99)
+    const result = insertFrame(frames, 10, inserted)
+
+    expect(result.map((f) => f.id)).toEqual(["f1", "f2", "f3", "new"])
+  })
+
+  it("inserts at the start when the index is negative", () => {
+    const inserted = frame("new", 99)
+    const result = insertFrame(frames, -1, inserted)
+
+    expect(result.map((f) => f.id)).toEqual(["new", "f1", "f2", "f3"])
+  })
+
+  it("leaves the source array untouched", () => {
+    const before = [...frames]
+    insertFrame(frames, 1, frame("new", 99))
+
+    expect(frames).toEqual(before)
   })
 })
 
