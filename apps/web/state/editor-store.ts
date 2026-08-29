@@ -43,9 +43,9 @@ import {
  * (the frame array before a reorder, the placement a photograph came from),
  * not a snapshot of the whole project. This is a command stack scoped to
  * these specific canvas mutations, not a general state-snapshot/time-travel
- * system — there is no redo action consuming `do` yet; it exists so the
- * stack is symmetric and a redo can be added later without changing the
- * shape.
+ * system. `redo()` consumes the `do` side: an undone command moves onto
+ * `redoStack`, and redoing it calls `.do()` and moves it back onto
+ * `undoStack` — the same shape serves both directions.
  */
 interface UndoCommand {
   do: () => void
@@ -67,6 +67,12 @@ interface EditorState {
    *  after opening a project must never reach into a previous project's
    *  history. */
   undoStack: UndoCommand[]
+  /** Commands popped off `undoStack` by `undo()`, available for `redo()` to
+   *  replay. Cleared alongside `undoStack` on project load, and cleared by
+   *  `pushUndo` on every new action — the standard convention that
+   *  performing a fresh action after an undo invalidates the redo history,
+   *  since there is no longer a consistent timeline to redo into. */
+  redoStack: UndoCommand[]
   leftPanelOpen: boolean
   rightPanelOpen: boolean
   hydrated: boolean
@@ -78,9 +84,13 @@ interface EditorState {
   introductionDismissed: boolean
 
   hydrate: () => Promise<void>
-  /** Pops the most recent `UndoCommand` and runs its `undo` side. A no-op,
-   *  not an error, when the stack is empty. */
+  /** Pops the most recent `UndoCommand` and runs its `undo` side, then pushes
+   *  it onto `redoStack`. A no-op, not an error, when the stack is empty. */
   undo: () => void
+  /** Pops the most recent `UndoCommand` off `redoStack` and runs its `do`
+   *  side, then pushes it back onto `undoStack`. A no-op, not an error, when
+   *  the stack is empty. */
+  redo: () => void
 
   importPhotos: (files: readonly File[]) => Promise<void>
   movePlacement: (placementId: string, x: number, y: number) => void
@@ -200,9 +210,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
     return next
   }
 
-  /** Append one undoable step to the stack. */
+  /** Append one undoable step to the stack. Clears `redoStack` — performing
+   *  any new action after an undo invalidates the redo history, since it
+   *  would otherwise redo into a timeline that branched away the moment this
+   *  new command landed. */
   const pushUndo = (command: UndoCommand) =>
-    set((state) => ({ undoStack: [...state.undoStack, command] }))
+    set((state) => ({ undoStack: [...state.undoStack, command], redoStack: [] }))
 
   return {
     // Must be a valid empty project, not undefined: the server render and the
@@ -213,6 +226,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     panelView: "canvas",
     clipboardFrame: null,
     undoStack: [],
+    redoStack: [],
     ...PANEL_DEFAULTS,
     hydrated: false,
     importProgress: null,
@@ -221,11 +235,11 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     hydrate: async () => {
       if (get().hydrated) return
-      // A fresh load's undo stack must never reach into a previous project's
-      // history (U8) — cleared unconditionally, before either branch below,
-      // since there is nothing in the just-created empty project worth
-      // undoing either way.
-      set({ undoStack: [] })
+      // A fresh load's undo/redo stacks must never reach into a previous
+      // project's history (U8) — cleared unconditionally, before either
+      // branch below, since there is nothing in the just-created empty
+      // project worth undoing (or redoing) either way.
+      set({ undoStack: [], redoStack: [] })
       try {
         const { project, migrationError } = await loadProject()
         set({ project, hydrated: true, lastError: migrationError })
@@ -240,8 +254,22 @@ export const useEditorStore = create<EditorState>((set, get) => {
       const stack = get().undoStack
       const command = stack[stack.length - 1]
       if (!command) return
-      set({ undoStack: stack.slice(0, -1) })
+      set((state) => ({
+        undoStack: stack.slice(0, -1),
+        redoStack: [...state.redoStack, command],
+      }))
       command.undo()
+    },
+
+    redo: () => {
+      const stack = get().redoStack
+      const command = stack[stack.length - 1]
+      if (!command) return
+      set((state) => ({
+        redoStack: stack.slice(0, -1),
+        undoStack: [...state.undoStack, command],
+      }))
+      command.do()
     },
 
     importPhotos: async (files) => {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { ImagesIcon } from "@phosphor-icons/react"
+import { Redo2Icon, Undo2Icon } from "lucide-react"
 import type { ImagePreset } from "@loupe/core"
 
 import { BookSetupDialog } from "@/components/sequence/book-setup-dialog"
@@ -13,7 +14,19 @@ import {
   useTextToolShortcut,
   useUndoShortcut,
 } from "@/components/sequence/use-canvas-shortcuts"
+import { modifierLabel, usePlatform } from "@/components/sequence/use-platform"
+import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { useEditorStore } from "@/state/editor-store"
+
+/** Matches `CanvasControls`' tooltip delay (same feel across the canvas's
+ *  floating chrome). */
+const TOOLTIP_DELAY_MS = 600
 
 interface ImageMenuTarget {
   frameId: string
@@ -68,6 +81,7 @@ export function LightTable() {
   const addFrame = useEditorStore((state) => state.addFrame)
   const setFrameCover = useEditorStore((state) => state.setFrameCover)
   const undo = useEditorStore((state) => state.undo)
+  const redo = useEditorStore((state) => state.redo)
 
   // Right-click promotion into an Edit lived here; Edit is gone from the data
   // model (see core/src/frames.ts) and its replacement — dropping a photo
@@ -103,8 +117,9 @@ export function LightTable() {
 
   // `T` creates and inline-edits a pasteboard text box (U6).
   useTextToolShortcut({ enabled: true, isTextboxEditing: isTextEditing, createTextbox })
-  // Cmd/Ctrl+Z undoes the last reorder/move/create/delete/text-edit (U8).
-  useUndoShortcut({ enabled: true, undo })
+  // Cmd/Ctrl+Z undoes the last reorder/move/create/delete/text-edit (U8);
+  // Cmd/Ctrl+Shift+Z / Cmd/Ctrl+Y redoes it.
+  useUndoShortcut({ enabled: true, undo, redo })
   // Cmd/Ctrl+C copies the selected page, Cmd/Ctrl+V pastes it as a new one
   // right after it (user-directed).
   useCopyPasteShortcut({ enabled: true, copySelectedFrame, pasteFrame })
@@ -306,18 +321,92 @@ function EmptyTable() {
 }
 
 /** Import stays reachable once the table has photographs on it — the empty
- *  state is copy, not the only door in. */
+ *  state is copy, not the only door in. Undo/Redo live in the same pill
+ *  (user-directed) since both are canvas-wide actions with nowhere else
+ *  persistent to sit. */
 function ImportAffordance() {
   const progress = useEditorStore((state) => state.importProgress)
+  const undo = useEditorStore((state) => state.undo)
+  const redo = useEditorStore((state) => state.redo)
+  const canUndo = useEditorStore((state) => state.undoStack.length > 0)
+  const canRedo = useEditorStore((state) => state.redoStack.length > 0)
+
+  const platform = usePlatform()
+  const modifier = modifierLabel(platform)
+  const shortcut = (key: string) => (modifier ? `${modifier} ${key}` : null)
 
   return (
-    <div className="absolute top-3 left-3 z-20 flex items-center gap-2 rounded-xl border bg-background/90 p-1 shadow-sm backdrop-blur">
-      <ImportPhotosButton variant="icon" />
-      {progress && (
-        <span className="pr-2 text-xs text-muted-foreground">
-          Importing {progress.done} of {progress.total}…
+    <TooltipProvider delay={TOOLTIP_DELAY_MS}>
+      <div className="absolute top-3 left-3 z-20 flex items-center gap-2 rounded-xl border bg-background/90 p-1 shadow-sm backdrop-blur">
+        <ImportPhotosButton variant="icon" />
+
+        <div className="h-4 w-px bg-border" />
+
+        <HistoryButton
+          label="Undo"
+          shortcut={shortcut("Z")}
+          disabled={!canUndo}
+          onClick={undo}
+        >
+          <Undo2Icon />
+        </HistoryButton>
+        <HistoryButton
+          label="Redo"
+          shortcut={shortcut("⇧Z")}
+          disabled={!canRedo}
+          onClick={redo}
+        >
+          <Redo2Icon />
+        </HistoryButton>
+
+        {progress && (
+          <span className="pr-2 text-xs text-muted-foreground">
+            Importing {progress.done} of {progress.total}…
+          </span>
+        )}
+      </div>
+    </TooltipProvider>
+  )
+}
+
+function HistoryButton({
+  label,
+  shortcut,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string
+  shortcut: string | null
+  disabled: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={label}
+            disabled={disabled}
+            onClick={onClick}
+          >
+            {children}
+          </Button>
+        }
+      />
+      <TooltipContent>
+        <span className="flex items-center gap-2">
+          {label}
+          {shortcut && (
+            <kbd data-slot="kbd" className="rounded bg-background/20 px-1">
+              {shortcut}
+            </kbd>
+          )}
         </span>
-      )}
-    </div>
+      </TooltipContent>
+    </Tooltip>
   )
 }

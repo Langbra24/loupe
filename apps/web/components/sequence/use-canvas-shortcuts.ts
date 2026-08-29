@@ -256,33 +256,40 @@ export function useCopyPasteShortcut({ enabled, copySelectedFrame, pasteFrame }:
 export interface UndoShortcutOptions {
   enabled: boolean
   undo: () => void
+  redo: () => void
 }
 
 /**
- * Binds the platform undo shortcut (`Cmd/Ctrl+Z`, U8) to the store's
- * `undo()`. Guarded by `isTypingTarget` the same way the frame/text
- * shortcuts are — but for undo specifically, that guard matters more than
- * usual: inside a text field (the sidebar's content textarea, the project
- * name field, anywhere), `Ctrl+Z` should fall through to the browser's own
- * native text-undo, not this app-level command stack. Returning early here
- * (rather than calling `preventDefault`) is what lets that fall-through
- * happen.
+ * Binds the platform undo/redo shortcuts to the store's `undo()`/`redo()`:
+ * `Cmd/Ctrl+Z` for undo (U8), `Cmd/Ctrl+Shift+Z` for redo, plus `Cmd/Ctrl+Y`
+ * as the secondary redo shortcut Windows users expect. Guarded by
+ * `isTypingTarget` the same way the frame/text shortcuts are — but for
+ * undo/redo specifically, that guard matters more than usual: inside a text
+ * field (the sidebar's content textarea, the project name field, anywhere),
+ * these should fall through to the browser's own native text-undo/redo, not
+ * this app-level command stack. Returning early here (rather than calling
+ * `preventDefault`) is what lets that fall-through happen.
  */
-export function useUndoShortcut({ enabled, undo }: UndoShortcutOptions): void {
+export function useUndoShortcut({ enabled, undo, redo }: UndoShortcutOptions): void {
   useEffect(() => {
     if (!enabled) return
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== "z") return
       if (!event.ctrlKey && !event.metaKey) return
-      if (event.shiftKey) return // Redo (Cmd/Ctrl+Shift+Z) isn't implemented — leave it alone.
       if (isTypingTarget(event.target)) return
 
-      event.preventDefault()
-      undo()
+      const key = event.key.toLowerCase()
+      if (key === "z") {
+        event.preventDefault()
+        if (event.shiftKey) redo()
+        else undo()
+      } else if (key === "y") {
+        event.preventDefault()
+        redo()
+      }
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [enabled, undo])
+  }, [enabled, undo, redo])
 }
