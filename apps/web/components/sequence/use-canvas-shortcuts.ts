@@ -293,3 +293,48 @@ export function useUndoShortcut({ enabled, undo, redo }: UndoShortcutOptions): v
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [enabled, undo, redo])
 }
+
+export interface DeleteFrameShortcutOptions {
+  enabled: boolean
+  /** Whether a frame (a page itself, not one of its elements) is currently
+   *  selected — the caller passes `selection?.kind === "frame"` rather than
+   *  the raw `Selection`, so this hook only needs a boolean plus the id. */
+  isFrameSelected: boolean
+  selectedFrameId: string | null
+  removeFrame: (frameId: string) => void
+}
+
+/**
+ * Backspace/Delete removes the selected page (user-directed) — same
+ * `removeFrame` action the right-click menu's "Delete page" item calls, so
+ * both paths land one undoable step, restorable via the existing undo stack.
+ *
+ * Guarded by `isTypingTarget` for the obvious reason: Backspace is the most
+ * common key there is in a text field, and must never delete a page just
+ * because the sidebar's content textarea happens to have focus. Also guarded
+ * on `isFrameSelected` specifically — selecting an image or text element
+ * *inside* a frame does not arm this shortcut, only selecting the frame
+ * itself (the white page background) does.
+ */
+export function useDeleteFrameShortcut({
+  enabled,
+  isFrameSelected,
+  selectedFrameId,
+  removeFrame,
+}: DeleteFrameShortcutOptions): void {
+  useEffect(() => {
+    if (!enabled) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Backspace" && event.key !== "Delete") return
+      if (isTypingTarget(event.target)) return
+      if (!isFrameSelected || !selectedFrameId) return
+
+      event.preventDefault()
+      removeFrame(selectedFrameId)
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [enabled, isFrameSelected, selectedFrameId, removeFrame])
+}

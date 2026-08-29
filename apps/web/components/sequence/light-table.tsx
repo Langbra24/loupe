@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { ImagesIcon } from "@phosphor-icons/react"
-import { Redo2Icon, Undo2Icon } from "lucide-react"
+import { Redo2Icon, Trash2Icon, Undo2Icon } from "lucide-react"
 import type { ImagePreset } from "@loupe/core"
 
 import { BookSetupDialog } from "@/components/sequence/book-setup-dialog"
@@ -11,6 +11,7 @@ import { CanvasControls } from "@/components/sequence/canvas-controls"
 import { useFabricCanvas } from "@/components/sequence/use-fabric-canvas"
 import {
   useCopyPasteShortcut,
+  useDeleteFrameShortcut,
   useTextToolShortcut,
   useUndoShortcut,
 } from "@/components/sequence/use-canvas-shortcuts"
@@ -80,6 +81,8 @@ export function LightTable() {
   const addPairedPage = useEditorStore((state) => state.addPairedPage)
   const addFrame = useEditorStore((state) => state.addFrame)
   const setFrameCover = useEditorStore((state) => state.setFrameCover)
+  const removeFrame = useEditorStore((state) => state.removeFrame)
+  const selection = useEditorStore((state) => state.selection)
   const undo = useEditorStore((state) => state.undo)
   const redo = useEditorStore((state) => state.redo)
 
@@ -123,6 +126,14 @@ export function LightTable() {
   // Cmd/Ctrl+C copies the selected page, Cmd/Ctrl+V pastes it as a new one
   // right after it (user-directed).
   useCopyPasteShortcut({ enabled: true, copySelectedFrame, pasteFrame })
+  // Backspace/Delete removes the selected page (user-directed) — same action
+  // as the right-click menu's "Delete page".
+  useDeleteFrameShortcut({
+    enabled: true,
+    isFrameSelected: selection?.kind === "frame",
+    selectedFrameId: selection?.kind === "frame" ? selection.frameId : null,
+    removeFrame,
+  })
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -157,6 +168,10 @@ export function LightTable() {
           onDismiss={() => setFrameMenu(null)}
           onToggleCover={(isCover) => {
             setFrameCover(frameMenu.frameId, isCover)
+            setFrameMenu(null)
+          }}
+          onDelete={() => {
+            removeFrame(frameMenu.frameId)
             setFrameMenu(null)
           }}
         />
@@ -272,11 +287,13 @@ function FrameContextMenu({
   target,
   isCover,
   onToggleCover,
+  onDelete,
   onDismiss,
 }: {
   target: FrameMenuTarget
   isCover: boolean
   onToggleCover: (isCover: boolean) => void
+  onDelete: () => void
   onDismiss: () => void
 }) {
   useEffect(() => {
@@ -299,6 +316,14 @@ function FrameContextMenu({
           className="block w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
         >
           {isCover ? "Remove cover" : "Set as cover"}
+        </button>
+        <div className="my-1 h-px bg-border" />
+        <button
+          onClick={onDelete}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10"
+        >
+          <Trash2Icon className="size-3.5" />
+          Delete page
         </button>
       </div>
     </>
