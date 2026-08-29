@@ -1111,7 +1111,7 @@ export function useFabricCanvas(options: Options) {
         originY: "bottom",
         scaleX: size / 24,
         scaleY: size / 24,
-        fill: "#f5b400",
+        fill: "#18a0fb",
         selectable: false,
         evented: false,
         excludeFromExport: true,
