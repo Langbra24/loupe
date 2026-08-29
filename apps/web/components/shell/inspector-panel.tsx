@@ -6,6 +6,7 @@ import {
   sizeForRole,
   defaultFrameMargins,
   type ImageElement,
+  type ImagePreset,
   type Margins,
   type Selection,
   type TextElement,
@@ -14,6 +15,7 @@ import {
 
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { useEditorStore } from "@/state/editor-store"
 
@@ -30,6 +32,22 @@ export function sidebarVariantFor(selection: Selection): SidebarVariant {
 
 const TYPE_ROLES: TypeRole[] = ["title", "subtitle", "body", "caption", "credit", "folio"]
 const ALIGNMENTS: TextElement["align"][] = ["left", "center", "right"]
+
+/**
+ * Same three fixed layout presets the canvas's right-click menu offers on a
+ * frame's image element (`ImagePresetMenu` in light-table.tsx), duplicated
+ * here rather than imported — that file is being touched by parallel work
+ * and isn't set up to export this map, and it's small enough that
+ * duplicating it is cheaper than risking a merge conflict over an export.
+ * Both call sites end up at the same store action, `applyImagePreset`, so
+ * the sidebar buttons below and the canvas menu always agree on what each
+ * preset does.
+ */
+const IMAGE_PRESET_LABELS: Record<ImagePreset, string> = {
+  "full-bleed": "Full bleed",
+  centered: "Centered",
+  "left-half": "Left half",
+}
 
 /**
  * Standard trim bleed, in millimetres — the same fixed value the pre-frame
@@ -224,7 +242,7 @@ function MarginField({
         step="0.1"
         value={value}
         onChange={(event) => onChange(event.target.valueAsNumber)}
-        className="w-20 rounded-md border bg-transparent px-2 py-0.5 text-right font-mono text-xs focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+        className="w-20 rounded-md border bg-input/30 px-2 py-0.5 text-right text-xs text-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       />
     </label>
   )
@@ -255,7 +273,7 @@ function TextElementSettings({ frameId, elementId }: { frameId: string; elementI
           value={element.content}
           onChange={(event) => updateTextElement(frameId, elementId, { content: event.target.value })}
           rows={3}
-          className="mt-1 w-full resize-none rounded-md border bg-transparent px-2 py-1 text-sm leading-snug focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          className="mt-1 w-full resize-none rounded-md border bg-input/30 px-2 py-1 text-sm leading-snug text-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
         />
       </Section>
       <Separator />
@@ -295,6 +313,7 @@ function ImageElementSettings({ frameId, elementId }: { frameId: string; element
   )
   const updateImageFit = useEditorStore((state) => state.updateImageFit)
   const updateElementBox = useEditorStore((state) => state.updateElementBox)
+  const applyImagePreset = useEditorStore((state) => state.applyImagePreset)
 
   if (!element || element.kind !== "image") return <Hint>This element no longer exists.</Hint>
 
@@ -310,6 +329,22 @@ function ImageElementSettings({ frameId, elementId }: { frameId: string; element
           options={["cover", "contain"] as const}
           onChange={(fit) => updateImageFit(frameId, elementId, fit)}
         />
+      </Section>
+      <Separator />
+      <Section title="Layout preset">
+        <div className="grid grid-cols-3 gap-1.5">
+          {(Object.keys(IMAGE_PRESET_LABELS) as ImagePreset[]).map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => applyImagePreset(frameId, elementId, preset)}
+              className="rounded-md border bg-input/30 px-1.5 py-1.5 text-center text-[0.7rem] leading-tight font-medium text-foreground transition-colors hover:bg-input/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              {IMAGE_PRESET_LABELS[preset]}
+            </button>
+          ))}
+        </div>
+        <Hint>Same presets as the canvas&apos;s right-click menu on this image.</Hint>
       </Section>
       <Separator />
       <Section title="Position">
@@ -344,17 +379,18 @@ function SelectField<T extends string>({
   onChange: (value: T) => void
 }) {
   return (
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value as T)}
-      className="w-full rounded-md border bg-transparent px-2 py-1 text-sm capitalize focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-    >
-      {options.map((option) => (
-        <option key={option} value={option} className="bg-background capitalize">
-          {option}
-        </option>
-      ))}
-    </select>
+    <Select value={value} onValueChange={(next) => onChange(next as T)}>
+      <SelectTrigger>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option} value={option}>
+            {option}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 
@@ -381,7 +417,7 @@ function PercentField({
           if (Number.isNaN(percent)) return
           onChange(percent / 100)
         }}
-        className="w-20 rounded-md border bg-transparent px-2 py-0.5 text-right font-mono text-xs focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+        className="w-20 rounded-md border bg-input/30 px-2 py-0.5 text-right text-xs text-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       />
       <span className="text-xs text-muted-foreground">%</span>
     </label>
@@ -391,9 +427,7 @@ function PercentField({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-1">
-      <h2 className="pb-1 text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">
-        {title}
-      </h2>
+      <h2 className="pb-1 text-xs font-medium text-muted-foreground">{title}</h2>
       {children}
     </section>
   )
@@ -403,7 +437,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3 py-0.5 text-sm">
       <span className="text-muted-foreground">{label}</span>
-      <span className="truncate font-mono text-xs">{value}</span>
+      <span className="truncate text-xs text-foreground">{value}</span>
     </div>
   )
 }
