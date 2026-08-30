@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { ImagesIcon } from "@phosphor-icons/react"
-import { Redo2Icon, Trash2Icon, Undo2Icon } from "lucide-react"
+import { Redo2Icon, Trash2Icon, TypeIcon, Undo2Icon } from "lucide-react"
 import type { ImagePreset } from "@loupe/core"
 
 import { BookSetupDialog } from "@/components/sequence/book-setup-dialog"
@@ -66,6 +66,8 @@ export function LightTable() {
   const assets = useEditorStore((state) => state.project.assets)
   const frames = useEditorStore((state) => state.project.frames)
   const pageSize = useEditorStore((state) => state.project.pageSize)
+  const typeBaseSize = useEditorStore((state) => state.project.typeBaseSize)
+  const typeRatio = useEditorStore((state) => state.project.typeRatio)
   const movePlacement = useEditorStore((state) => state.movePlacement)
   const scalePlacement = useEditorStore((state) => state.scalePlacement)
   const reorderFrameById = useEditorStore((state) => state.reorderFrameById)
@@ -103,6 +105,8 @@ export function LightTable() {
     placements,
     assets,
     frames,
+    typeBaseSize,
+    typeRatio,
     onMove: movePlacement,
     onScale: scalePlacement,
     onContextMenu: () => {},
@@ -155,7 +159,7 @@ export function LightTable() {
         <canvas ref={canvasElementRef} className="absolute inset-0" />
       </div>
 
-      {assets.length === 0 ? <EmptyTable /> : <ImportAffordance />}
+      {assets.length === 0 ? <EmptyTable /> : <ImportAffordance createTextbox={createTextbox} />}
 
       {assets.length > 0 && frames.length === 0 && <BookSetupDialog />}
 
@@ -356,11 +360,15 @@ function EmptyTable() {
   )
 }
 
-/** Import stays reachable once the table has photographs on it — the empty
- *  state is copy, not the only door in. Undo/Redo live in the same pill
- *  (user-directed) since both are canvas-wide actions with nowhere else
- *  persistent to sit. */
-function ImportAffordance() {
+/**
+ * Import stays reachable once the table has photographs on it — the empty
+ * state is copy, not the only door in. Grouped with the text tool in its own
+ * pill (both are "add something to the canvas" actions); Undo/Redo get a
+ * separate pill (both are history actions on whatever's already there) — an
+ * 8px gap (`gap-2`) between the two groups makes that distinction visible
+ * rather than reading as one long row of five buttons.
+ */
+function ImportAffordance({ createTextbox }: { createTextbox: () => void }) {
   const progress = useEditorStore((state) => state.importProgress)
   const undo = useEditorStore((state) => state.undo)
   const redo = useEditorStore((state) => state.redo)
@@ -373,30 +381,57 @@ function ImportAffordance() {
 
   return (
     <TooltipProvider delay={TOOLTIP_DELAY_MS}>
-      <div className="absolute top-3 left-3 z-20 flex items-center gap-2 rounded-xl border bg-background/90 p-1 shadow-sm backdrop-blur">
-        <ImportPhotosButton variant="icon" />
+      <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
+        <div className="flex items-center gap-2 rounded-xl border bg-background/90 p-1 shadow-sm backdrop-blur">
+          <ImportPhotosButton variant="icon" />
 
-        <div className="h-4 w-px bg-border" />
+          <div className="h-4 w-px bg-border" />
 
-        <HistoryButton
-          label="Undo"
-          shortcut={shortcut("Z")}
-          disabled={!canUndo}
-          onClick={undo}
-        >
-          <Undo2Icon />
-        </HistoryButton>
-        <HistoryButton
-          label="Redo"
-          shortcut={shortcut("⇧Z")}
-          disabled={!canRedo}
-          onClick={redo}
-        >
-          <Redo2Icon />
-        </HistoryButton>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Add text"
+                  onClick={createTextbox}
+                >
+                  <TypeIcon />
+                </Button>
+              }
+            />
+            <TooltipContent>
+              <span className="flex items-center gap-2">
+                Add text
+                <kbd data-slot="kbd" className="rounded bg-background/20 px-1">
+                  T
+                </kbd>
+              </span>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+
+        <div className="flex items-center gap-2 rounded-xl border bg-background/90 p-1 shadow-sm backdrop-blur">
+          <HistoryButton
+            label="Undo"
+            shortcut={shortcut("Z")}
+            disabled={!canUndo}
+            onClick={undo}
+          >
+            <Undo2Icon />
+          </HistoryButton>
+          <HistoryButton
+            label="Redo"
+            shortcut={shortcut("⇧Z")}
+            disabled={!canRedo}
+            onClick={redo}
+          >
+            <Redo2Icon />
+          </HistoryButton>
+        </div>
 
         {progress && (
-          <span className="pr-2 text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             Importing {progress.done} of {progress.total}…
           </span>
         )}

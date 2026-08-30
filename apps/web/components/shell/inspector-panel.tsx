@@ -33,7 +33,10 @@ export function sidebarVariantFor(selection: Selection): SidebarVariant {
   return selection.kind
 }
 
-const TYPE_ROLES: TypeRole[] = ["title", "subtitle", "body", "caption", "credit", "folio"]
+// "credit" and "folio" exist in `TypeRole` (core keeps them for the type
+// scale's own sake) but aren't offered as picker options here — the sidebar
+// only needs the four roles a photobook's captions/titles actually use.
+const TYPE_ROLES: TypeRole[] = ["title", "subtitle", "body", "caption"]
 const ALIGNMENTS: TextElement["align"][] = ["left", "center", "right"]
 
 /**
@@ -274,7 +277,7 @@ function TextElementSettings({ frameId, elementId }: { frameId: string; elementI
         />
       </Section>
       <Separator />
-      <Section title="Role">
+      <Section title="Type">
         <SelectField
           value={element.role}
           options={TYPE_ROLES}
@@ -489,6 +492,11 @@ function PercentField({
  * shared `--accent` token, now distinct from `--background` — see the fix
  * note in globals.css) and is `tabIndex={-1}` so Tab still moves between
  * fields, not through the steppers.
+ *
+ * The chevrons themselves only show up on hover (or while the field has
+ * focus) — `group-hover`/`group-focus-within` on the wrapper, rather than
+ * sitting there permanently — so a column of these fields reads as plain
+ * number inputs at rest, matching the design.
  */
 function NumberField({
   value,
@@ -512,7 +520,7 @@ function NumberField({
   }
 
   return (
-    <div className="relative">
+    <div className="group relative">
       <input
         type="number"
         step={step}
@@ -524,9 +532,9 @@ function NumberField({
           if (Number.isNaN(next)) return
           onChange(clamp(next))
         }}
-        className="w-20 rounded-md border bg-input/30 py-0.5 pr-5 pl-2 text-right text-xs text-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+        className="w-20 rounded-md border bg-input/30 py-1 pr-5 pl-2 text-right text-xs text-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       />
-      <div className="absolute inset-y-0 right-0.5 flex flex-col justify-center">
+      <div className="absolute inset-y-0 right-0.5 flex flex-col justify-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
         <button
           type="button"
           tabIndex={-1}

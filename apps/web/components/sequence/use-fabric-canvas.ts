@@ -6,13 +6,20 @@ import {
   boundingBoxOf,
   frameAt,
   defaultFrameMargins,
+  sizeForRole,
   type Asset,
   type Box,
   type CanvasPlacement,
   type Frame,
 } from "@loupe/core"
 
-import { frameGridOriginY, layoutFrames, nearestFrameIndex, type FrameLayout } from "@/components/sequence/frame-grid"
+import {
+  FRAME_DISPLAY_WIDTH,
+  frameGridOriginY,
+  layoutFrames,
+  nearestFrameIndex,
+  type FrameLayout,
+} from "@/components/sequence/frame-grid"
 import { BLEED_MM } from "@/components/shell/inspector-panel"
 import { DEFAULT_TEXT_FONT, resolveTextFontFamily } from "@/lib/fonts"
 import { thumbnailUrl } from "@/lib/storage/assets"
@@ -25,6 +32,22 @@ const FRAME_TEXT_FILL = "#18181b"
 /** The transient pasteboard textbox's fill while it's sitting on the dark
  *  canvas, not yet committed to any frame. */
 const PASTEBOARD_TEXT_FILL = "#f4f4f5"
+
+/** Real-world millimetres per point (1pt = 1/72in, 1in = 25.4mm). */
+const MM_PER_PT = 25.4 / 72
+
+/**
+ * Scene units per point of type, for one frame. A frame always renders at
+ * `FRAME_DISPLAY_WIDTH` scene units wide regardless of its real millimetre
+ * page size (`frameRectAt` in frame-grid.ts) — an A4 frame and an A5 frame
+ * both draw 1200 units wide, just at different real-world scales — so
+ * converting a role's point size (`sizeForRole`, itself derived from the
+ * project's `typeBaseSize`/`typeRatio`) into scene units has to go through
+ * *this* frame's own mm-to-unit ratio, not a fixed constant.
+ */
+function sceneUnitsPerPt(pageWidthMm: number): number {
+  return (FRAME_DISPLAY_WIDTH / pageWidthMm) * MM_PER_PT
+}
 
 export const MIN_ZOOM = 0.05
 export const MAX_ZOOM = 8
@@ -79,6 +102,13 @@ interface Options {
   placements: readonly CanvasPlacement[]
   assets: readonly Asset[]
   frames: readonly Frame[]
+  /** The project's type scale (R13's Book-level settings) — threaded through
+   *  so a frame text element's rendered `fontSize` can be derived from its
+   *  `role` via `sizeForRole`, the same computation the sidebar's read-only
+   *  "Size" row already shows. Without these, the canvas has no way to know
+   *  what "10pt" means in scene units. */
+  typeBaseSize: number
+  typeRatio: number
   onMove: (placementId: string, x: number, y: number) => void
   onScale: (placementId: string, scale: number) => void
   onContextMenu: (placementId: string, viewportX: number, viewportY: number) => void
@@ -149,6 +179,8 @@ export function useFabricCanvas(options: Options) {
     placements,
     assets,
     frames,
+    typeBaseSize,
+    typeRatio,
     onMove,
     onScale,
     onContextMenu,
@@ -245,7 +277,7 @@ export function useFabricCanvas(options: Options) {
     onUpdateElementBox,
     onUpdateTextContent,
   })
-  const latest = useRef({ placements, assets, frames })
+  const latest = useRef({ placements, assets, frames, typeBaseSize, typeRatio })
 
   /** Set by the create-canvas effect once the Fabric module has loaded, so
    *  `createTextbox` (called from outside that effect, by the keyboard
@@ -277,7 +309,7 @@ export function useFabricCanvas(options: Options) {
       onUpdateElementBox,
       onUpdateTextContent,
     }
-    latest.current = { placements, assets, frames }
+    latest.current = { placements, assets, frames, typeBaseSize, typeRatio }
   })
 
   useEffect(() => {
@@ -605,13 +637,29 @@ export function useFabricCanvas(options: Options) {
         panFrom = { x: event.clientX, y: event.clientY }
       })
 
-      canvas.on("mouse:up", () => {
+      canvas.on("mouse:up", (opt) => {
         const target = canvasRef.current
         if (!target) return
         panning = false
         target.selection = true
         clearInsertionIndicator()
         draggingRef.current = null
+
+        // A plain click on an already-placed text element — not a drag, not
+        // a resize — enters editing immediately, cursor ready: one click to
+        // select *and* start typing, rather than needing Fabric's own
+        // built-in double-click. Fabric always attaches a `transform` to
+        // this event for a transformable target, armed but not yet acted on
+        // — `actionPerformed` is the field that actually distinguishes "the
+        // pointer moved enough to drag/resize" from a click that never left
+        // its starting corner, so checking `opt.transform` alone would treat
+        // every click as a drag and never enter editing at all.
+        const clicked = opt.target as (Partial<PlacedElement> & { isEditing?: boolean; enterEditing?: () => void }) | undefined
+        const transform = opt.transform as { actionPerformed?: boolean } | null | undefined
+        if (!transform?.actionPerformed && clicked?.elementKind === "text" && !clicked.isEditing) {
+          clicked.enterEditing?.()
+          target.requestRenderAll()
+        }
       })
 
       /* While a frame is mid-drag, show which grid slot it would land in.
@@ -1291,7 +1339,13 @@ export function useFabricCanvas(options: Options) {
     if (!canvas) return
 
     const fabric = await import("fabric")
-    const { frames: currentFrames, placements: currentPlacements, assets: pool } = latest.current
+    const {
+      frames: currentFrames,
+      placements: currentPlacements,
+      assets: pool,
+      typeBaseSize,
+      typeRatio,
+    } = latest.current
     const originY = frameGridOriginY(currentPlacements, pool)
     const layoutByFrameId = new Map(layoutFrames(currentFrames, originY).map((l) => [l.frameId, l]))
     const live = elementsRef.current
@@ -1364,14 +1418,23 @@ export function useFabricCanvas(options: Options) {
               text?: string
               fontFamily?: string
               textAlign?: string
+              fontSize?: number
             }
             const nextFontFamily = resolveTextFontFamily(element.fontFamily)
+            const nextFontSize =
+              sizeForRole(element.role, typeBaseSize, typeRatio) * sceneUnitsPerPt(frame.pageSize.width)
             textChanged =
               textObject.text !== element.content ||
               textObject.fontFamily !== nextFontFamily ||
-              textObject.textAlign !== element.align
+              textObject.textAlign !== element.align ||
+              Math.abs((textObject.fontSize ?? 0) - nextFontSize) >= 0.5
             if (textChanged) {
-              existing.set({ text: element.content, fontFamily: nextFontFamily, textAlign: element.align })
+              existing.set({
+                text: element.content,
+                fontFamily: nextFontFamily,
+                textAlign: element.align,
+                fontSize: nextFontSize,
+              })
             }
           }
 
@@ -1391,11 +1454,13 @@ export function useFabricCanvas(options: Options) {
             originX: "left",
             originY: "top",
             width: Math.max(absWidth, 20),
-            // No typographic scale is threaded into this hook — a role-aware
-            // size (title/subtitle/body/caption) is a follow-up; this reads
-            // as a sensible default sized off the box itself, not a promise
-            // that it matches the sidebar's type scale yet.
-            fontSize: Math.max(absHeight * 0.5, 14),
+            // Role-aware size, converted from the project's type scale (in
+            // points) into this frame's own scene units — see
+            // `sceneUnitsPerPt`'s doc comment on why that conversion has to
+            // be per-frame rather than a fixed constant. Matches the
+            // sidebar's read-only "Size" row, which shows the same
+            // `sizeForRole` value in points.
+            fontSize: sizeForRole(element.role, typeBaseSize, typeRatio) * sceneUnitsPerPt(frame.pageSize.width),
             fontFamily: resolveTextFontFamily(element.fontFamily),
             // Every frame is a white page — text committed here always needs
             // a dark fill, unconditionally. (Was `#f4f4f5`, the *pasteboard's*
