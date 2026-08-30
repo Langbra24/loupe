@@ -122,6 +122,7 @@ export function LightTable() {
     onUpdateElementBox: updateElementBox,
     onUpdateTextContent: (frameId, elementId, content) =>
       updateTextElement(frameId, elementId, { content }),
+    onRemoveElement: removeElement,
   })
 
   // `T` arms the text tool; the next click/drag on the canvas places it (U6).

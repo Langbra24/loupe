@@ -144,11 +144,14 @@ interface Options {
    *  it joins that frame's elements and leaves the pasteboard. */
   onDropOnFrame: (placementId: string, frameId: string) => void
   /**
-   * A text box created via `T` finished editing while its center sat over a
-   * frame's bounds — it becomes that frame's text element. See the
-   * `text:editing:exited` handler below for what happens when it doesn't.
+   * Creates a text element on a frame — called either immediately by
+   * `placeTextbox` when the text tool's click/drag lands on a frame (the
+   * common case), or by `text:editing:exited` when a pasteboard textbox that
+   * started on empty canvas finishes editing while its center sat over a
+   * frame's bounds. See that handler for what happens when it doesn't.
+   * Returns the new element's id.
    */
-  onCreateText: (frameId: string, content: string) => void
+  onCreateText: (frameId: string, content: string) => string
   /**
    * The active Fabric object changed to (or away from) a frame — drives the
    * contextual sidebar (U7). `null` when nothing selected is a frame: a
@@ -168,6 +171,11 @@ interface Options {
    *  triggers). Distinct from `onCreateText`, which is for a brand-new
    *  pasteboard textbox landing on a frame for the first time. */
   onUpdateTextContent: (frameId: string, elementId: string, content: string) => void
+  /** Removes an element outright — used when a text element (freshly placed
+   *  directly on a frame, or an existing one cleared out during a re-edit)
+   *  finishes editing with empty content, so it doesn't linger as an
+   *  invisible full-bleed element nobody can see to delete. */
+  onRemoveElement: (frameId: string, elementId: string) => void
 }
 
 /** A Fabric `Textbox` created via the `T` shortcut, mid- or post-edit. There
@@ -207,6 +215,7 @@ export function useFabricCanvas(options: Options) {
     onSelectElement,
     onUpdateElementBox,
     onUpdateTextContent,
+    onRemoveElement,
   } = options
 
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -296,6 +305,16 @@ export function useFabricCanvas(options: Options) {
    */
   const suppressSelectionClearRef = useRef(false)
 
+  /** The id of a `TextElement` `placeTextbox` just created directly on a
+   *  frame (empty content, not yet rendered) — checked by `syncFrameElements`
+   *  when it creates that element's Fabric object for the first time, so it
+   *  can call `.enterEditing()` on it immediately. `placeTextbox` has no
+   *  Fabric object to call that on itself: the element only exists in the
+   *  store at that point, one render behind. Cleared the moment it's
+   *  consumed, so a later, unrelated element landing with this same id
+   *  never re-triggers editing. */
+  const pendingAutoEditElementIdRef = useRef<string | null>(null)
+
   const [zoom, setZoom] = useState(1)
   const [ready, setReady] = useState(false)
 
@@ -318,6 +337,7 @@ export function useFabricCanvas(options: Options) {
     onSelectElement,
     onUpdateElementBox,
     onUpdateTextContent,
+    onRemoveElement,
   })
   const latest = useRef({ placements, assets, frames, typeBaseSize, typeRatio })
 
@@ -345,6 +365,7 @@ export function useFabricCanvas(options: Options) {
       onSelectElement,
       onUpdateElementBox,
       onUpdateTextContent,
+      onRemoveElement,
     }
     latest.current = { placements, assets, frames, typeBaseSize, typeRatio }
   })
@@ -482,17 +503,26 @@ export function useFabricCanvas(options: Options) {
 
       /**
        * Places a new text box (user-directed, see `armTextTool`'s doc
-       * comment for why this is a separate step from arming the tool) and
-       * immediately enters editing on it.
+       * comment for why this is a separate step from arming the tool).
        *
-       * Adaptive fill by surface: white text if the box is landing on the
-       * dark pasteboard, dark ink if it's landing directly on a frame's white
-       * page — checked against the placement point itself, the same
-       * `frameAt`/`layoutFrames` hit-test `text:editing:exited` already uses
-       * to decide whether a finished box commits into a frame. This only
-       * covers the moment of creation; once committed, `syncFrameElements`
-       * always renders frame text dark regardless of how it started, since
-       * every frame is unconditionally a white page.
+       * Landing on a frame commits it as a real `TextElement` immediately,
+       * with empty content — not deferred until editing ends. Per direct
+       * user feedback: the sidebar showing nothing for a text box that's
+       * plainly sitting there, selected, being typed into, read as the same
+       * "did this even work?" confusion the click-to-place rework was
+       * supposed to fix, just moved one step later. `syncFrameElements`
+       * renders the committed element on its next pass; `pendingAutoEditElementIdRef`
+       * (checked there) is how this function reaches into that later,
+       * separate render to enter editing on *that* object once it exists —
+       * there's nothing to call `.enterEditing()` on yet at this point, only
+       * a store write.
+       *
+       * A click that misses every frame keeps the old deferred-commit
+       * behavior (U6's documented judgment call for "text created off any
+       * frame"): a loose, unsaved Fabric object, hit-tested again in
+       * `text:editing:exited` once editing ends, since there's no frame to
+       * commit into yet and the sidebar has nothing coherent to show for a
+       * pasteboard doodle outside the book model.
        */
       function placeTextbox(center: { x: number; y: number }, width: number) {
         const target_canvas = canvasRef.current
@@ -501,7 +531,12 @@ export function useFabricCanvas(options: Options) {
         const { frames: currentFrames, placements, assets: pool } = latest.current
         const originY = frameGridOriginY(placements, pool)
         const layouts = layoutFrames(currentFrames, originY)
-        const onFrame = frameAt(layouts, center) !== null
+        const hitFrameId = frameAt(layouts, center)
+
+        if (hitFrameId) {
+          pendingAutoEditElementIdRef.current = handlers.current.onCreateText(hitFrameId, "")
+          return
+        }
 
         const textbox = new fabric.Textbox("", {
           left: center.x,
@@ -511,7 +546,7 @@ export function useFabricCanvas(options: Options) {
           width,
           fontSize: 32,
           fontFamily: resolveTextFontFamily(DEFAULT_TEXT_FONT),
-          fill: onFrame ? FRAME_TEXT_FILL : PASTEBOARD_TEXT_FILL,
+          fill: PASTEBOARD_TEXT_FILL,
           textAlign: "left",
         })
 
@@ -962,9 +997,20 @@ export function useFabricCanvas(options: Options) {
         // Re-editing an already-placed frame text element (double-click,
         // Fabric's own built-in trigger) commits its content in place —
         // distinct from a fresh pasteboard textbox landing on a frame for
-        // the first time, which is everything below this branch.
+        // the first time, which is everything below this branch. Since
+        // `placeTextbox` now commits directly onto a frame immediately, with
+        // empty content, this branch is also what a *brand-new* box hits if
+        // the user clicks away without ever typing — empty content is
+        // discarded there rather than saved, the same "nobody wants an empty
+        // caption box left behind" rule the miss-a-frame branch below
+        // already applies, so this doesn't leave an invisible full-bleed
+        // element sitting in the frame.
         if (textbox.elementId && textbox.frameId) {
-          handlers.current.onUpdateTextContent(textbox.frameId, textbox.elementId, content)
+          if (content.length === 0) {
+            handlers.current.onRemoveElement(textbox.frameId, textbox.elementId)
+          } else {
+            handlers.current.onUpdateTextContent(textbox.frameId, textbox.elementId, content)
+          }
           return
         }
 
@@ -1642,6 +1688,16 @@ export function useFabricCanvas(options: Options) {
           canvas.add(textbox)
           live.set(element.id, textbox)
           bringOverlayToFront(canvas, frame.id)
+
+          // This is the element `placeTextbox` just created directly on
+          // this frame, rendered here for the first time — enter editing on
+          // it now, the same immediate cursor-ready state a click used to
+          // get before that element existed anywhere but the store.
+          if (pendingAutoEditElementIdRef.current === element.id) {
+            pendingAutoEditElementIdRef.current = null
+            canvas.setActiveObject(textbox)
+            ;(textbox as unknown as { enterEditing: () => void }).enterEditing()
+          }
           continue
         }
 

@@ -97,9 +97,16 @@ interface EditorState {
   movePlacement: (placementId: string, x: number, y: number) => void
   scalePlacement: (placementId: string, scale: number) => void
   moveToFrame: (placementId: string, frameId: string) => void
-  /** A pasteboard text box (U6) finished editing over a frame's bounds —
-   *  see `use-fabric-canvas.ts`'s `text:editing:exited` handler. */
-  createTextElement: (frameId: string, content: string) => void
+  /** Creates a text element on a frame — either a pasteboard text box (U6)
+   *  finishing editing over a frame's bounds, or (the common case since the
+   *  click-to-place rework) armTextTool placing directly on a frame, where
+   *  this fires immediately with empty content so the sidebar has something
+   *  to show from the very first keystroke rather than only once editing
+   *  ends. Returns the new element's id — the caller needs it to find the
+   *  Fabric object `syncFrameElements` renders for it and enter editing on
+   *  that object once it exists (see `pendingAutoEditElementIdRef` in
+   *  use-fabric-canvas.ts). */
+  createTextElement: (frameId: string, content: string) => string
   /** Remove an image or text element from its frame — the Backspace/Delete
    *  shortcut when one is selected (but not actively being edited; see
    *  `useDeleteSelectionShortcut`). Restores it at its original index within
@@ -494,6 +501,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
           set({ selection: null })
         },
       })
+
+      return elementId
     },
 
     removeElement: (frameId, elementId) => {
