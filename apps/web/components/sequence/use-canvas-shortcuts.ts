@@ -189,32 +189,37 @@ export interface TextToolOptions {
   enabled: boolean
   /** Fabric-level fact, not React state — see `shouldCreateTextbox`. */
   isTextboxEditing: () => boolean
-  createTextbox: () => void
+  /** Arms the text tool — the *next click* on the canvas is what actually
+   *  places the box (see `armTextTool` in use-fabric-canvas.ts). `T` no
+   *  longer creates a box outright, per direct user feedback that a box
+   *  materializing at the viewport center made a same-gesture "click to
+   *  place it" read as clicking away and abandoning it. */
+  armTextTool: () => void
 }
 
-/** Wires the `T` shortcut (create-and-edit a pasteboard text box, U6) to
- *  `window`'s keydown stream. Split from `shouldCreateTextbox` for the same
- *  reason `useFrameKeyboardShortcuts` is split from `handleFrameKeyDown`. */
-export function useTextToolShortcut({ enabled, isTextboxEditing, createTextbox }: TextToolOptions): void {
+/** Wires the `T` shortcut (arm the text tool, U6) to `window`'s keydown
+ *  stream. Split from `shouldCreateTextbox` for the same reason
+ *  `useFrameKeyboardShortcuts` is split from `handleFrameKeyDown`. */
+export function useTextToolShortcut({ enabled, isTextboxEditing, armTextTool }: TextToolOptions): void {
   useEffect(() => {
     if (!enabled) return
 
     const onKeyDown = (event: KeyboardEvent) => {
-      const shouldCreate = shouldCreateTextbox({
+      const shouldArm = shouldCreateTextbox({
         key: event.key,
         hasModifier: event.ctrlKey || event.metaKey || event.altKey,
         isDomTypingTarget: isTypingTarget(event.target),
         isTextboxEditing: isTextboxEditing(),
       })
-      if (!shouldCreate) return
+      if (!shouldArm) return
 
       event.preventDefault()
-      createTextbox()
+      armTextTool()
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [enabled, isTextboxEditing, createTextbox])
+  }, [enabled, isTextboxEditing, armTextTool])
 }
 
 export interface CopyPasteShortcutOptions {

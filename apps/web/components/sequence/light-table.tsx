@@ -101,7 +101,7 @@ export function LightTable() {
   const [frameMenu, setFrameMenu] = useState<FrameMenuTarget | null>(null)
   const [emptyCanvasMenu, setEmptyCanvasMenu] = useState<EmptyCanvasMenuTarget | null>(null)
 
-  const { containerRef, canvasElementRef, controls, createTextbox, isTextEditing } = useFabricCanvas({
+  const { containerRef, canvasElementRef, controls, armTextTool, isTextEditing } = useFabricCanvas({
     placements,
     assets,
     frames,
@@ -124,8 +124,8 @@ export function LightTable() {
       updateTextElement(frameId, elementId, { content }),
   })
 
-  // `T` creates and inline-edits a pasteboard text box (U6).
-  useTextToolShortcut({ enabled: true, isTextboxEditing: isTextEditing, createTextbox })
+  // `T` arms the text tool; the next click/drag on the canvas places it (U6).
+  useTextToolShortcut({ enabled: true, isTextboxEditing: isTextEditing, armTextTool })
   // Cmd/Ctrl+Z undoes the last reorder/move/create/delete/text-edit (U8);
   // Cmd/Ctrl+Shift+Z / Cmd/Ctrl+Y redoes it.
   useUndoShortcut({ enabled: true, undo, redo })
@@ -159,7 +159,7 @@ export function LightTable() {
         <canvas ref={canvasElementRef} className="absolute inset-0" />
       </div>
 
-      {assets.length === 0 ? <EmptyTable /> : <ImportAffordance createTextbox={createTextbox} />}
+      {assets.length === 0 ? <EmptyTable /> : <ImportAffordance armTextTool={armTextTool} />}
 
       {assets.length > 0 && frames.length === 0 && <BookSetupDialog />}
 
@@ -368,7 +368,7 @@ function EmptyTable() {
  * 8px gap (`gap-2`) between the two groups makes that distinction visible
  * rather than reading as one long row of five buttons.
  */
-function ImportAffordance({ createTextbox }: { createTextbox: () => void }) {
+function ImportAffordance({ armTextTool }: { armTextTool: () => void }) {
   const progress = useEditorStore((state) => state.importProgress)
   const undo = useEditorStore((state) => state.undo)
   const redo = useEditorStore((state) => state.redo)
@@ -394,7 +394,7 @@ function ImportAffordance({ createTextbox }: { createTextbox: () => void }) {
                   variant="ghost"
                   size="icon-xs"
                   aria-label="Add text"
-                  onClick={createTextbox}
+                  onClick={armTextTool}
                 >
                   <TypeIcon />
                 </Button>

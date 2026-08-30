@@ -33,6 +33,18 @@ const FRAME_TEXT_FILL = "#18181b"
  *  canvas, not yet committed to any frame. */
 const PASTEBOARD_TEXT_FILL = "#f4f4f5"
 
+/** Width a plain click (not a click-and-drag) gives a new text box —
+ *  dragging instead sizes it explicitly, see `armTextTool`. */
+const DEFAULT_TEXTBOX_WIDTH = 320
+
+/** Screen pixels of pointer movement, converted to the canvas's own scene
+ *  units by the current zoom, below which a text-placement gesture counts as
+ *  a click rather than a drag. Fixed in screen space rather than scene space
+ *  so the same gesture (a few pixels of unintentional hand tremor) reads the
+ *  same at any zoom level, instead of a deep zoom-out turning ordinary clicks
+ *  into accidental drags. */
+const TEXT_PLACEMENT_CLICK_THRESHOLD_PX = 6
+
 /** Real-world millimetres per point (1pt = 1/72in, 1in = 25.4mm). */
 const MM_PER_PT = 25.4 / 72
 
@@ -222,6 +234,18 @@ export function useFabricCanvas(options: Options) {
    *  layout shifts — e.g. right after one of the buttons themselves inserts
    *  a page — without both being defined in the same closure. */
   const syncAddPageButtonsRef = useRef<(frameId: string | null) => void>(() => undefined)
+  /** Whether the text tool is armed (`T` pressed, or the Add text button
+   *  clicked) and waiting for the click/drag that decides where the new text
+   *  box lands — see `armTextTool`'s doc comment. Read from the `mouse:down`/
+   *  `mouse:up` handlers below, which is why this is a ref rather than React
+   *  state: those fire well outside React's render cycle. */
+  const placingTextRef = useRef(false)
+  /** Scene point captured on `mouse:down` while `placingTextRef` is armed —
+   *  `null` whenever a placement gesture isn't currently in progress. Compared
+   *  against the `mouse:up` point to tell a plain click (place a
+   *  default-width box there) from a click-and-drag (size the box to the
+   *  drag). */
+  const textPlacementStartRef = useRef<{ x: number; y: number } | null>(null)
 
   /** Keep a frame's print guides drawn above its own contents — called after
    *  `syncFrameElements` adds a new image/text object, since those are added
@@ -279,11 +303,6 @@ export function useFabricCanvas(options: Options) {
   })
   const latest = useRef({ placements, assets, frames, typeBaseSize, typeRatio })
 
-  /** Set by the create-canvas effect once the Fabric module has loaded, so
-   *  `createTextbox` (called from outside that effect, by the keyboard
-   *  shortcut) can construct a `fabric.Textbox` without importing it again. */
-  const fabricRef = useRef<typeof import("fabric") | null>(null)
-
   /** Set once `fitToView` is defined below; read by the first-frame effect so
    *  that effect does not depend on the callback's identity. */
   const fitToViewRef = useRef<() => void>(() => undefined)
@@ -316,10 +335,36 @@ export function useFabricCanvas(options: Options) {
     let disposed = false
     let canvas: Canvas | null = null
 
+    /** Cancels an in-progress text placement (Escape, right-click, or the
+     *  gesture completing) without creating anything, and restores normal
+     *  canvas interaction. Declared here (outside the async IIFE below) so
+     *  both the mouse handlers inside it and the Escape listener below —
+     *  which needs to exist, and get cleaned up, independent of whether the
+     *  Fabric module has finished loading — can reach it. */
+    function disarmTextPlacement() {
+      placingTextRef.current = false
+      textPlacementStartRef.current = null
+      const target_canvas = canvasRef.current
+      if (!target_canvas) return
+      target_canvas.selection = true
+      target_canvas.skipTargetFind = false
+      target_canvas.defaultCursor = "default"
+      target_canvas.hoverCursor = "move"
+      target_canvas.requestRenderAll()
+    }
+
+    /* Escape cancels an armed text placement without creating anything — the
+       same "changed my mind" escape hatch a right-click gives it in the
+       mouse:down handler below. Window-level (not a Fabric canvas event)
+       since the tool can be armed with focus anywhere. */
+    const onKeyDownDuringTextPlacement = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && placingTextRef.current) disarmTextPlacement()
+    }
+    window.addEventListener("keydown", onKeyDownDuringTextPlacement)
+
     void (async () => {
       const fabric = await import("fabric")
       if (disposed || !canvasElementRef.current) return
-      fabricRef.current = fabric
 
       canvas = new fabric.Canvas(canvasElementRef.current, {
         backgroundColor: "transparent",
@@ -417,6 +462,47 @@ export function useFabricCanvas(options: Options) {
         target_canvas?.requestRenderAll()
       }
 
+      /**
+       * Places a new text box (user-directed, see `armTextTool`'s doc
+       * comment for why this is a separate step from arming the tool) and
+       * immediately enters editing on it.
+       *
+       * Adaptive fill by surface: white text if the box is landing on the
+       * dark pasteboard, dark ink if it's landing directly on a frame's white
+       * page — checked against the placement point itself, the same
+       * `frameAt`/`layoutFrames` hit-test `text:editing:exited` already uses
+       * to decide whether a finished box commits into a frame. This only
+       * covers the moment of creation; once committed, `syncFrameElements`
+       * always renders frame text dark regardless of how it started, since
+       * every frame is unconditionally a white page.
+       */
+      function placeTextbox(center: { x: number; y: number }, width: number) {
+        const target_canvas = canvasRef.current
+        if (!target_canvas) return
+
+        const { frames: currentFrames, placements, assets: pool } = latest.current
+        const originY = frameGridOriginY(placements, pool)
+        const layouts = layoutFrames(currentFrames, originY)
+        const onFrame = frameAt(layouts, center) !== null
+
+        const textbox = new fabric.Textbox("", {
+          left: center.x,
+          top: center.y,
+          originX: "center",
+          originY: "center",
+          width,
+          fontSize: 32,
+          fontFamily: resolveTextFontFamily(DEFAULT_TEXT_FONT),
+          fill: onFrame ? FRAME_TEXT_FILL : PASTEBOARD_TEXT_FILL,
+          textAlign: "left",
+        })
+
+        target_canvas.add(textbox)
+        target_canvas.setActiveObject(textbox)
+        textbox.enterEditing()
+        target_canvas.requestRenderAll()
+      }
+
       /* Zoom: keep the point under the cursor fixed. */
       canvas.on("mouse:wheel", (opt: TPointerEventInfo<WheelEvent>) => {
         const target = canvasRef.current
@@ -442,6 +528,21 @@ export function useFabricCanvas(options: Options) {
         const event = opt.e as MouseEvent
         const isMiddle = event.button === 1
         const isRight = event.button === 2
+
+        // The text tool is armed (`T`, or the Add text button) and waiting
+        // for the click/drag that places it — this click is that gesture,
+        // not a normal selection/pan/context-menu click, so it's handled
+        // entirely here and never falls through to the logic below.
+        // Right-click cancels instead of placing, the same "changed my mind"
+        // escape hatch Escape gives it elsewhere.
+        if (placingTextRef.current) {
+          if (isRight) {
+            disarmTextPlacement()
+          } else {
+            textPlacementStartRef.current = { x: opt.scenePoint.x, y: opt.scenePoint.y }
+          }
+          return
+        }
 
         if (isRight) {
           const placed = opt.target as (PlacedObject & Partial<PlacedElement>) | undefined
@@ -640,6 +741,28 @@ export function useFabricCanvas(options: Options) {
       canvas.on("mouse:up", (opt) => {
         const target = canvasRef.current
         if (!target) return
+
+        // Completes a text-placement gesture armed by `armTextTool` — a
+        // plain click places a default-width box centered there; a
+        // click-and-drag sizes it to the drag instead. `textPlacementStartRef`
+        // being null (armed, but no mousedown landed on the canvas — e.g. the
+        // button was clicked again, or focus was elsewhere) means there is
+        // nothing to place; this mouseup is unrelated to the gesture.
+        if (placingTextRef.current) {
+          const start = textPlacementStartRef.current
+          if (start) {
+            const end = { x: opt.scenePoint.x, y: opt.scenePoint.y }
+            const dragWidth = Math.abs(end.x - start.x)
+            const clickThreshold = TEXT_PLACEMENT_CLICK_THRESHOLD_PX / target.getZoom()
+            const dragged = dragWidth > clickThreshold
+            const center = dragged ? { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 } : start
+            const width = dragged ? Math.max(60, dragWidth) : DEFAULT_TEXTBOX_WIDTH
+            placeTextbox(center, width)
+          }
+          disarmTextPlacement()
+          return
+        }
+
         panning = false
         target.selection = true
         clearInsertionIndicator()
@@ -854,6 +977,7 @@ export function useFabricCanvas(options: Options) {
     return () => {
       disposed = true
       setReady(false)
+      window.removeEventListener("keydown", onKeyDownDuringTextPlacement)
       objects.clear()
       inFlight.clear()
       drawnFrames.clear()
@@ -864,6 +988,8 @@ export function useFabricCanvas(options: Options) {
       pageButtonsRef.current = null
       draggingRef.current = null
       indicatorRef.current = null
+      placingTextRef.current = false
+      textPlacementStartRef.current = null
       const target = canvasRef.current
       canvasRef.current = null
       void target?.dispose()
@@ -1691,52 +1817,42 @@ export function useFabricCanvas(options: Options) {
   }, [])
 
   /**
-   * `T` (no modifier): create a `Textbox` centered in the current viewport
-   * and immediately enter editing (KTD5) — never at the pointer position,
-   * per the plan's committed decision.
+   * `T` (no modifier), or the toolbar's Add text button: arms the text tool
+   * rather than creating a text box outright — the next click (or
+   * click-and-drag) on the canvas is what decides where it lands and how
+   * wide it starts, handled by the `mouse:down`/`mouse:up` pair set up in
+   * the create-canvas effect above (see `placeTextbox`/`disarmTextPlacement`
+   * there). `canvas.skipTargetFind` is set so that click hits the bare
+   * canvas regardless of what's underneath — a photograph, a frame, an
+   * existing text element — none of which should get selected or dragged by
+   * a click that's actually about placing new text.
+   *
+   * This replaces the previous behavior (create-and-edit a box centered in
+   * the viewport, immediately) per direct user feedback: reported twice,
+   * for both the button and the `T` key, as text landing somewhere
+   * unexpected and effectively vanishing — clicking to "place" the
+   * already-created, still-empty box instead read as clicking away from it,
+   * which exits editing and discards it as empty content. Superseds this
+   * hook's earlier documented decision to never place at the pointer.
    */
-  const createTextbox = useCallback(() => {
+  const armTextTool = useCallback(() => {
     const canvas = canvasRef.current
-    const fabric = fabricRef.current
-    if (!canvas || !fabric) return
+    if (!canvas) return
     if (isTextEditing()) return
+    if (placingTextRef.current) return
 
-    const centre = canvas.getVpCenter()
-
-    // Adaptive by surface (user-directed): white text if the box is landing
-    // on the dark pasteboard, dark ink if it's landing directly on a frame's
-    // white page — checked against the *anchor point itself*, the same
-    // `frameAt`/`layoutFrames` hit-test `text:editing:exited` already uses
-    // to decide whether a finished box commits into a frame. This only
-    // covers the moment of creation; once committed, `syncFrameElements`
-    // always renders frame text dark regardless of how it started, since
-    // every frame is unconditionally a white page.
-    const { frames: currentFrames, placements, assets: pool } = latest.current
-    const originY = frameGridOriginY(placements, pool)
-    const layouts = layoutFrames(currentFrames, originY)
-    const onFrame = frameAt(layouts, { x: centre.x, y: centre.y }) !== null
-
-    const textbox = new fabric.Textbox("", {
-      left: centre.x,
-      top: centre.y,
-      originX: "center",
-      originY: "center",
-      width: 320,
-      fontSize: 32,
-      fontFamily: resolveTextFontFamily(DEFAULT_TEXT_FONT),
-      fill: onFrame ? FRAME_TEXT_FILL : PASTEBOARD_TEXT_FILL,
-      textAlign: "left",
-    })
-
-    canvas.add(textbox)
-    canvas.setActiveObject(textbox)
-    textbox.enterEditing()
+    placingTextRef.current = true
+    canvas.discardActiveObject()
+    canvas.selection = false
+    canvas.skipTargetFind = true
+    canvas.defaultCursor = "text"
+    canvas.hoverCursor = "text"
     canvas.requestRenderAll()
   }, [isTextEditing])
 
   const controls: CanvasControls = { zoom, ready, zoomIn, zoomOut, resetZoom, fitToView }
 
-  return { containerRef, canvasElementRef, controls, createTextbox, isTextEditing }
+  return { containerRef, canvasElementRef, controls, armTextTool, isTextEditing }
 }
 
 function clampZoom(value: number): number {
