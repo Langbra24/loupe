@@ -120,7 +120,7 @@ export function InspectorPanel() {
       <ScrollArea className="min-h-0 flex-1">
         <div
           className={cn(
-            "flex flex-col gap-4 px-3 pt-14 pb-4 transition-opacity motion-reduce:transition-none",
+            "flex flex-col gap-6 px-3 pt-14 pb-4 transition-opacity motion-reduce:transition-none",
             phase === "leaving" ? "opacity-0 duration-150 ease-in" : "opacity-100 duration-200 ease-out",
           )}
         >
@@ -265,18 +265,19 @@ function TextElementSettings({ frameId, elementId }: { frameId: string; elementI
   return (
     <>
       <Section title="Text">
-        <Row
-          label="Size"
-          value={`${sizeForRole(element.role, project.typeBaseSize, project.typeRatio)} pt`}
-        />
         <textarea
           value={element.content}
           onChange={(event) => updateTextElement(frameId, elementId, { content: event.target.value })}
           rows={3}
-          className="mt-1 w-full resize-none rounded-md border bg-input/30 px-2 py-1 text-sm leading-snug text-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          className="w-full resize-none rounded-md border bg-input/30 px-2 py-1 text-sm leading-snug text-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
         />
       </Section>
       <Separator />
+      {/* Type/Size/Font/Alignment read as one cluster of type controls in
+          the reference (Paper node 7H-0) — grouped by the same gap-6 every
+          section already gets, but without a divider line between each of
+          these four specifically, unlike the harder break before/after the
+          cluster. */}
       <Section title="Type">
         <SelectField
           value={element.role}
@@ -284,14 +285,20 @@ function TextElementSettings({ frameId, elementId }: { frameId: string; elementI
           onChange={(role) => updateTextElement(frameId, elementId, { role })}
         />
       </Section>
-      <Separator />
+      <Section title="Size">
+        {/* Derived from Type × the book's type scale, not its own field on
+            `TextElement` — styled to match the pickers around it (the
+            reference gives it the same bordered-row-plus-chevron treatment)
+            but inert, since there's no override value here to pick from
+            yet. Changing Type is what actually changes this. */}
+        <StaticSelectStyledValue value={`${sizeForRole(element.role, project.typeBaseSize, project.typeRatio)}pt`} />
+      </Section>
       <Section title="Font">
         <FontFamilySelect
           value={element.fontFamily}
           onChange={(fontFamily) => updateTextElement(frameId, elementId, { fontFamily })}
         />
       </Section>
-      <Separator />
       <Section title="Alignment">
         <SelectField
           value={element.align}
@@ -400,6 +407,24 @@ function ImageElementSettings({ frameId, elementId }: { frameId: string; element
 /* ------------------------------------------------------------------ */
 /* Shared field/layout primitives                                       */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Same visual shell as `SelectTrigger` (border, tinted background, chevron)
+ * for a value that isn't actually pickable here — the "Size" row, which is
+ * computed from Type × the book's type scale rather than its own field.
+ * Matches the reference's styling rather than falling back to a plain
+ * `Row` for it, but stays a `<div>`, not a `Select`: rendering a real Select
+ * with a single option (or none) would open onto an empty popup, which
+ * reads as broken rather than as "this isn't editable here."
+ */
+function StaticSelectStyledValue({ value }: { value: string }) {
+  return (
+    <div className="flex w-full items-center justify-between gap-2 rounded-md border bg-input/30 py-1 pr-2 pl-2 text-sm text-foreground capitalize">
+      {value}
+      <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
+    </div>
+  )
+}
 
 function SelectField<T extends string>({
   value,
