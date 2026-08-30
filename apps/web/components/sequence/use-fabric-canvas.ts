@@ -278,6 +278,24 @@ export function useFabricCanvas(options: Options) {
    */
   const draggingRef = useRef<FabricObject | null>(null)
 
+  /**
+   * Suppresses the `selection:cleared` handler below while a photo or text
+   * box is mid-commit into a frame (dropped, or finished editing over one).
+   * Both paths swap out the pasteboard Fabric object for a new frame-owned
+   * one, and `canvas.remove()` on an object still wired into the active
+   * selection fires its own `selection:cleared` — without this, that
+   * teardown-of-the-old-object noise reads as a genuine user deselection and
+   * clobbers the very "this is now selected" store write the commit is
+   * trying to make (`onCreateText`, `onDropOnFrame` -> `moveToFrame`), right
+   * back to book-level settings, undoing the whole point of the commit.
+   * Set true right before the object that's about to be swapped away is
+   * removed, and cleared once the swap is fully resolved — synchronously for
+   * a text box (`text:editing:exited` removes it immediately), across a
+   * render cycle for a photo (`syncObjects` removes the old placement object
+   * later, once the store reflects it joined a frame).
+   */
+  const suppressSelectionClearRef = useRef(false)
+
   const [zoom, setZoom] = useState(1)
   const [ready, setReady] = useState(false)
 
@@ -720,6 +738,7 @@ export function useFabricCanvas(options: Options) {
       canvas.on("selection:created", notifyFrameSelection)
       canvas.on("selection:updated", notifyFrameSelection)
       canvas.on("selection:cleared", () => {
+        if (suppressSelectionClearRef.current) return
         handlers.current.onSelectFrame(null)
         syncAddPageButtons(null)
       })
@@ -853,6 +872,12 @@ export function useFabricCanvas(options: Options) {
           const hitFrameId = frameAt(layouts, { x: dropX, y: dropY })
 
           if (hitFrameId) {
+            // See `suppressSelectionClearRef`'s doc comment: the old
+            // placement object doesn't disappear until `syncObjects` next
+            // runs (a later render, once `placements` reflects the move),
+            // so the suppression window has to span that gap too — cleared
+            // there, not here, once that removal actually happens.
+            suppressSelectionClearRef.current = true
             handlers.current.onDropOnFrame(placed.placementId, hitFrameId)
             return
           }
@@ -956,8 +981,13 @@ export function useFabricCanvas(options: Options) {
 
         if (!hitFrameId) return
 
-        handlers.current.onCreateText(hitFrameId, content)
+        // See `suppressSelectionClearRef`'s doc comment: removing this
+        // textbox fires `selection:cleared`, which would otherwise clobber
+        // `onCreateText`'s selection write back to book-level settings.
+        suppressSelectionClearRef.current = true
         target_canvas.remove(textbox)
+        handlers.current.onCreateText(hitFrameId, content)
+        suppressSelectionClearRef.current = false
         target_canvas.requestRenderAll()
       })
 
@@ -1046,6 +1076,12 @@ export function useFabricCanvas(options: Options) {
         live.delete(placementId)
       }
     }
+    // See `suppressSelectionClearRef`'s doc comment: this is the other end
+    // of the window `object:modified`'s frame-drop branch opens — the old
+    // placement object it dropped is exactly one of the ones just removed
+    // above, so the suppression can safely lift now that the removal (and
+    // whatever `selection:cleared` noise it made) has actually happened.
+    suppressSelectionClearRef.current = false
 
     // Add objects for placements not yet drawn. Existing objects are left
     // alone — the canvas owns their position while mounted.

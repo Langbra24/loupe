@@ -414,19 +414,33 @@ export const useEditorStore = create<EditorState>((set, get) => {
           }
         })
 
-      doMove()
+      const applyMove = () => {
+        doMove()
+        // Without this, the sidebar has nothing to point at the instant a
+        // photograph lands in a frame: the pasteboard `CanvasPlacement`
+        // Fabric object is gone (replaced by a new frame-owned one
+        // `syncFrameElements` draws next render), so `canvas.getActiveObject()`
+        // comes back empty and the selection-cleared path reverts the
+        // sidebar to book-level settings — even though something did land,
+        // right there, selected-looking, on the canvas.
+        set({ selection: { kind: "image-element", frameId, elementId } })
+      }
+
+      applyMove()
 
       pushUndo({
-        do: doMove,
+        do: applyMove,
         // The photograph's exact prior placement (position, scale,
         // rotation) is restored verbatim — U8's "restores it to its prior
         // frame (or pasteboard)" scenario, here the pasteboard side of it.
-        undo: () =>
+        undo: () => {
           updateProject((project) => ({
             ...project,
             canvas: { placements: [...project.canvas.placements, placement] },
             frames: removeFromFrame(project.frames, frameId, elementId),
-          })),
+          }))
+          set({ selection: null })
+        },
       })
     },
 
@@ -456,18 +470,29 @@ export const useEditorStore = create<EditorState>((set, get) => {
         fontFamily: DEFAULT_TEXT_FONT,
       }
 
-      const doCreate = () =>
+      const doCreate = () => {
         updateProject((project) => ({ ...project, frames: assignToFrame(project.frames, frameId, element) }))
+        // Without this, the sidebar has nothing to point at the instant a
+        // pasteboard textbox commits into a frame: the transient Fabric
+        // object is removed (a new frame-owned one takes its place on the
+        // next `syncFrameElements` render), so `canvas.getActiveObject()`
+        // comes back empty and the selection-cleared path reverts the
+        // sidebar to book-level settings — even though text just landed,
+        // right there, on the canvas.
+        set({ selection: { kind: "text-element", frameId, elementId } })
+      }
 
       doCreate()
 
       pushUndo({
         do: doCreate,
-        undo: () =>
+        undo: () => {
           updateProject((project) => ({
             ...project,
             frames: removeFromFrame(project.frames, frameId, elementId),
-          })),
+          }))
+          set({ selection: null })
+        },
       })
     },
 
