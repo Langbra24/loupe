@@ -191,3 +191,69 @@ input[type="number"]::-webkit-outer-spin-button {
     transition: none;
   }
 }
+
+/**
+ * The onboarding dialog's entrance (Introduction in shell/introduction.tsx) —
+ * plays once per mount, per the animations skill's dialog + "Split, Then
+ * Stagger" recipes. The overlay and dialog fade/scale in together on the
+ * same curve `.tabs-indicator-rail` uses above; each `.intro-section` then
+ * cascades in on its own delay via a `--n` custom property set inline in
+ * markup (0, 1, 2…), so content reads as one connected reveal — top part,
+ * then who built it, then why, then the button last — rather than four
+ * independent pop-ins. `animation-delay` starts before the dialog's own
+ * 220ms settle finishes, deliberately: overlapping the two is what keeps a
+ * four-step reveal feeling instant instead of like a slideshow. Last piece
+ * lands at ~570ms total, well inside "first-run moments can be a little more
+ * elaborate" while still reading as quick.
+ */
+.intro-overlay {
+  animation: intro-overlay-in 200ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.intro-dialog {
+  animation: intro-dialog-in 220ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.intro-section {
+  opacity: 0;
+  animation: intro-section-in 260ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  animation-delay: calc(100ms + var(--n, 0) * 70ms);
+}
+@keyframes intro-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes intro-dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes intro-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .intro-overlay,
+  .intro-dialog,
+  .intro-section {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
