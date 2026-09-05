@@ -26,11 +26,46 @@ describe("composeFeedbackBody", () => {
         "\n\n---\nSubmitted through Loupe's in-app feedback control. No project name, filenames, or other project state were included.",
     )
   })
+
+  it("omits the contact block entirely when no contact is given", () => {
+    const body = composeFeedbackBody("hi")
+    expect(body).not.toContain("Name:")
+    expect(body).not.toContain("Email:")
+  })
+
+  it("includes just a Name line when only a name is given", () => {
+    const body = composeFeedbackBody("hi", { name: "Jane Doe" })
+    expect(body).toContain("\n\n---\nName: Jane Doe\n\n---\n")
+    expect(body).not.toContain("Email:")
+  })
+
+  it("includes just an Email line when only an email is given", () => {
+    const body = composeFeedbackBody("hi", { email: "jane@example.com" })
+    expect(body).not.toContain("Name:")
+    expect(body).toContain("\n\n---\nEmail: jane@example.com\n\n---\n")
+  })
+
+  it("includes both lines, name first, when both are given", () => {
+    const body = composeFeedbackBody("hi", { name: "Jane Doe", email: "jane@example.com" })
+    expect(body).toContain("\n\n---\nName: Jane Doe\nEmail: jane@example.com\n\n---\n")
+  })
+
+  it("treats blank/whitespace-only name and email as not given", () => {
+    const body = composeFeedbackBody("hi", { name: "   ", email: "" })
+    expect(body).not.toContain("Name:")
+    expect(body).not.toContain("Email:")
+  })
+
+  it("trims surrounding whitespace from name and email", () => {
+    const body = composeFeedbackBody("hi", { name: "  Jane Doe  ", email: "  jane@example.com  " })
+    expect(body).toContain("Name: Jane Doe\n")
+    expect(body).toContain("Email: jane@example.com\n")
+  })
 })
 
 describe("composeGitHubIssueUrl", () => {
   it("points at the given repo's issues/new endpoint", () => {
-    const url = composeGitHubIssueUrl("hello", "acme/example")
+    const url = composeGitHubIssueUrl("hello", undefined, "acme/example")
     expect(url.startsWith("https://github.com/acme/example/issues/new?")).toBe(true)
   })
 
@@ -39,6 +74,16 @@ describe("composeGitHubIssueUrl", () => {
     const url = composeGitHubIssueUrl(feedback)
     const { body } = decodeParams(url)
     expect(body).toBe(composeFeedbackBody(feedback))
+  })
+
+  it("round-trips an optional name/email into the composed body", () => {
+    const feedback = "The export button is confusing."
+    const contact = { name: "Jane Doe", email: "jane@example.com" }
+    const url = composeGitHubIssueUrl(feedback, contact)
+    const { body } = decodeParams(url)
+    expect(body).toBe(composeFeedbackBody(feedback, contact))
+    expect(body).toContain("Name: Jane Doe")
+    expect(body).toContain("Email: jane@example.com")
   })
 
   it("composes successfully at exactly the 2,000-character cap", () => {

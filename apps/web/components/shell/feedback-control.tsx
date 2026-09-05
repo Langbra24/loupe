@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { ChatCircleIcon } from "@phosphor-icons/react"
+import { ImageIcon } from "lucide-react"
 import { Popover } from "@base-ui/react/popover"
 
 import { Button } from "@/components/ui/button"
@@ -14,6 +15,13 @@ import { composeGitHubIssueUrl, FEEDBACK_MAX_LENGTH } from "@/lib/feedback-url"
  * (KTD9) and opens it in a new tab — the bookmaker submits under their own
  * GitHub account, and nothing is ever sent from Loupe itself (AE6).
  *
+ * `name`/`email` are both optional (R23's follow-up) and fold into the
+ * issue body rather than going anywhere else — there is still no backend
+ * here. No confirmation email is sent for a given email address: that would
+ * need a real backend beyond the Stripe-only one CLAUDE.md allows, so an
+ * email here is just contact info the maintainer can read in the filed
+ * issue and reply to by hand, not something Loupe acts on itself.
+ *
  * The 2,000-character cap is enforced in the textarea itself (`maxLength`)
  * with a live counter, not just at submit time, so typing past the limit is
  * simply impossible rather than silently truncated later.
@@ -25,6 +33,8 @@ import { composeGitHubIssueUrl, FEEDBACK_MAX_LENGTH } from "@/lib/feedback-url"
  */
 export function FeedbackControl() {
   const [open, setOpen] = useState(false)
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
   const [text, setText] = useState("")
   const toastManager = useToastManager()
 
@@ -32,8 +42,10 @@ export function FeedbackControl() {
 
   const handleSubmit = () => {
     if (!canSubmit) return
-    const url = composeGitHubIssueUrl(text)
+    const url = composeGitHubIssueUrl(text, { name, email })
     window.open(url, "_blank", "noopener,noreferrer")
+    setName("")
+    setEmail("")
     setText("")
     setOpen(false)
     toastManager.add({
@@ -61,6 +73,27 @@ export function FeedbackControl() {
               itself.
             </Popover.Description>
 
+            {/* Both optional (R23) — folded into the issue body on submit,
+                not sent anywhere on their own. Two columns rather than
+                stacked: neither needs more than a short single line, and it
+                keeps this from pushing the textarea further down. */}
+            <div className="grid grid-cols-2 gap-2 pb-2">
+              <input
+                type="text"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Name (optional)"
+                className="w-full rounded-lg border bg-background p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="Email (optional)"
+                className="w-full rounded-lg border bg-background p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+            </div>
+
             <textarea
               value={text}
               onChange={(event) => setText(event.target.value)}
@@ -69,6 +102,15 @@ export function FeedbackControl() {
               rows={5}
               className="w-full resize-none rounded-lg border bg-background p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             />
+
+            {/* A hint, not an upload control — feedback still only ever
+                composes a URL and opens a new tab (AE6), and GitHub's own
+                issue form already accepts a dragged or pasted screenshot
+                once the bookmaker is there. */}
+            <div className="flex items-center gap-1.5 pt-1.5 text-xs text-muted-foreground">
+              <ImageIcon className="size-3.5 shrink-0" />
+              You can attach screenshots on the GitHub issue page after it opens.
+            </div>
 
             <div className="flex items-center justify-between pt-2">
               <span
