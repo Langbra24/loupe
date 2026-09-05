@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { ChatCircleIcon } from "@phosphor-icons/react"
 import { ImageIcon } from "lucide-react"
 import { Popover } from "@base-ui/react/popover"
@@ -30,15 +30,43 @@ import { composeGitHubIssueUrl, FEEDBACK_MAX_LENGTH } from "@/lib/feedback-url"
  * backend, nothing sent from Loupe itself" actually rests on — the toast
  * (user-directed) is a same-app acknowledgment on top of it, not a claim that
  * an issue was filed without the bookmaker doing anything in the new tab.
+ *
+ * The screenshot button (per direct follow-up) opens the OS file picker via
+ * the exact same hidden-input pattern `ImportPhotosButton` uses — but there
+ * is still nowhere in Loupe for a picked file to actually go: AE6 rules out
+ * a backend to upload it to, and a GitHub issue URL has no query parameter
+ * that attaches a file to the page it opens. The best this can honestly do
+ * is copy the image to the OS clipboard, so the one remaining manual step
+ * once the GitHub tab opens is a paste instead of a re-pick from disk.
  */
 export function FeedbackControl() {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [text, setText] = useState("")
+  const [screenshot, setScreenshot] = useState<{ name: string; copied: boolean } | null>(null)
+  const screenshotInputRef = useRef<HTMLInputElement | null>(null)
   const toastManager = useToastManager()
 
   const canSubmit = text.trim().length > 0 && text.length <= FEEDBACK_MAX_LENGTH
+
+  const handleScreenshotChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    // Reset so re-picking the same file still fires a change event — same
+    // reasoning as ImportPhotosButton's identical line.
+    event.target.value = ""
+    if (!file) return
+
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ [file.type]: file })])
+      setScreenshot({ name: file.name, copied: true })
+    } catch {
+      // Clipboard image writes aren't universally supported (Safari's own
+      // rules, a non-secure context, a permission denial) — the file was
+      // still picked, so say so, just without promising a paste will work.
+      setScreenshot({ name: file.name, copied: false })
+    }
+  }
 
   const handleSubmit = () => {
     if (!canSubmit) return
@@ -47,6 +75,7 @@ export function FeedbackControl() {
     setName("")
     setEmail("")
     setText("")
+    setScreenshot(null)
     setOpen(false)
     toastManager.add({
       title: "Feedback submitted",
@@ -74,10 +103,9 @@ export function FeedbackControl() {
             </Popover.Description>
 
             {/* Both optional (R23) — folded into the issue body on submit,
-                not sent anywhere on their own. Two columns rather than
-                stacked: neither needs more than a short single line, and it
-                keeps this from pushing the textarea further down. */}
-            <div className="grid grid-cols-2 gap-2 pb-2">
+                not sent anywhere on their own. Stacked, not side by side
+                (user-directed). */}
+            <div className="flex flex-col gap-2 pb-2">
               <input
                 type="text"
                 value={name}
@@ -103,13 +131,35 @@ export function FeedbackControl() {
               className="w-full resize-none rounded-lg border bg-background p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             />
 
-            {/* A hint, not an upload control — feedback still only ever
-                composes a URL and opens a new tab (AE6), and GitHub's own
-                issue form already accepts a dragged or pasted screenshot
-                once the bookmaker is there. */}
+            {/* Same hidden-input trigger `ImportPhotosButton` uses for the
+                canvas's own "+" — see this component's doc comment for what
+                actually happens to the picked file. */}
+            <input
+              ref={screenshotInputRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={handleScreenshotChange}
+            />
             <div className="flex items-center gap-1.5 pt-1.5 text-xs text-muted-foreground">
-              <ImageIcon className="size-3.5 shrink-0" />
-              You can attach screenshots on the GitHub issue page after it opens.
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Add a screenshot"
+                onClick={() => screenshotInputRef.current?.click()}
+              >
+                <ImageIcon className="size-3.5" />
+              </Button>
+              {screenshot ? (
+                <span className="truncate">
+                  {screenshot.copied
+                    ? `${screenshot.name} copied — paste it (⌘V/Ctrl+V) into the GitHub issue.`
+                    : `${screenshot.name} selected — attach it manually on the GitHub issue page.`}
+                </span>
+              ) : (
+                <span>Add a screenshot, or attach one directly on the GitHub issue page.</span>
+              )}
             </div>
 
             <div className="flex items-center justify-between pt-2">
