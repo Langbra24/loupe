@@ -144,12 +144,12 @@ export function FeedbackControl() {
             <div className="flex items-center gap-1.5 pt-1.5 text-xs text-muted-foreground">
               <Button
                 type="button"
-                variant="ghost"
-                size="icon-xs"
+                variant="outline"
+                size="icon-sm"
                 aria-label="Add a screenshot"
                 onClick={() => screenshotInputRef.current?.click()}
               >
-                <ImageIcon className="size-3.5" />
+                <ImageIcon className="size-4" />
               </Button>
               {screenshot ? (
                 <span className="truncate">
@@ -158,7 +158,7 @@ export function FeedbackControl() {
                     : `${screenshot.name} selected — attach it manually on the GitHub issue page.`}
                 </span>
               ) : (
-                <span>Add a screenshot, or attach one directly on the GitHub issue page.</span>
+                <span>Add screenshot or attachment.</span>
               )}
             </div>
 
