@@ -40,6 +40,23 @@ export function sizeForRole(role: TypeRole, baseSize: number, ratio: number): nu
   return round(baseSize * Math.pow(ratio, step))
 }
 
+/**
+ * The size a `TextElement` actually renders at: its own `fontSize` override
+ * when set, `sizeForRole` otherwise. Most text has no override and just
+ * takes its role's scale-derived size — this only exists so the sidebar's
+ * "Size" field (and a freshly created element's initial, deliberately
+ * larger-than-scale default) have somewhere to write a value that actually
+ * takes effect, without every element needing one.
+ */
+export function resolveTextSize(
+  role: TypeRole,
+  fontSize: number | undefined,
+  baseSize: number,
+  ratio: number,
+): number {
+  return fontSize ?? sizeForRole(role, baseSize, ratio)
+}
+
 /** The whole scale at once — for rendering a specimen or a type panel. */
 export function typeScale(baseSize: number, ratio: number): Record<TypeRole, number> {
   const roles = Object.keys(ROLE_STEPS) as TypeRole[]

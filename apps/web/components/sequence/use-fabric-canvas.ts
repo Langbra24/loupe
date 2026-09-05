@@ -6,7 +6,7 @@ import {
   boundingBoxOf,
   frameAt,
   defaultFrameMargins,
-  sizeForRole,
+  resolveTextSize,
   type Asset,
   type Box,
   type CanvasPlacement,
@@ -149,9 +149,11 @@ interface Options {
    * common case), or by `text:editing:exited` when a pasteboard textbox that
    * started on empty canvas finishes editing while its center sat over a
    * frame's bounds. See that handler for what happens when it doesn't.
-   * Returns the new element's id.
+   * `box` is the element's normalized position/size within the frame,
+   * derived from wherever the user actually clicked/dragged — omitted falls
+   * back to the full-bleed default. Returns the new element's id.
    */
-  onCreateText: (frameId: string, content: string) => string
+  onCreateText: (frameId: string, content: string, box?: Box) => string
   /**
    * The active Fabric object changed to (or away from) a frame — drives the
    * contextual sidebar (U7). `null` when nothing selected is a frame: a
@@ -534,7 +536,26 @@ export function useFabricCanvas(options: Options) {
         const hitFrameId = frameAt(layouts, center)
 
         if (hitFrameId) {
-          pendingAutoEditElementIdRef.current = handlers.current.onCreateText(hitFrameId, "")
+          const layout = layouts.find((l) => l.frameId === hitFrameId)
+          // Wherever the user actually clicked/dragged, converted to the
+          // frame's normalized coordinates — not the full-bleed default
+          // `createTextElement` falls back to when this is omitted. Per
+          // direct user feedback: a box that always snapped to the top-left
+          // of the page regardless of where you clicked read as broken,
+          // once committing-on-click (rather than on edit-exit) made that
+          // snap instant instead of a barely-noticed jump after the fact.
+          // Height is nominal — Fabric grows a Textbox's rendered height
+          // from its content regardless of the stored Box, so there's
+          // nothing for this value to visibly get right or wrong.
+          const box = layout
+            ? {
+                x: clamp01((center.x - width / 2 - layout.bounds.x) / layout.bounds.width),
+                y: clamp01((center.y - layout.bounds.y) / layout.bounds.height),
+                width: clamp01(width / layout.bounds.width),
+                height: 0.08,
+              }
+            : undefined
+          pendingAutoEditElementIdRef.current = handlers.current.onCreateText(hitFrameId, "", box)
           return
         }
 
@@ -1027,12 +1048,24 @@ export function useFabricCanvas(options: Options) {
 
         if (!hitFrameId) return
 
+        const layout = layouts.find((l) => l.frameId === hitFrameId)
+        const center = { x: textbox.left ?? 0, y: textbox.top ?? 0 }
+        const width = (textbox.width ?? 0) * (textbox.scaleX ?? 1)
+        const box = layout
+          ? {
+              x: clamp01((center.x - width / 2 - layout.bounds.x) / layout.bounds.width),
+              y: clamp01((center.y - layout.bounds.y) / layout.bounds.height),
+              width: clamp01(width / layout.bounds.width),
+              height: 0.08,
+            }
+          : undefined
+
         // See `suppressSelectionClearRef`'s doc comment: removing this
         // textbox fires `selection:cleared`, which would otherwise clobber
         // `onCreateText`'s selection write back to book-level settings.
         suppressSelectionClearRef.current = true
         target_canvas.remove(textbox)
-        handlers.current.onCreateText(hitFrameId, content)
+        handlers.current.onCreateText(hitFrameId, content, box)
         suppressSelectionClearRef.current = false
         target_canvas.requestRenderAll()
       })
@@ -1630,7 +1663,8 @@ export function useFabricCanvas(options: Options) {
             }
             const nextFontFamily = resolveTextFontFamily(element.fontFamily)
             const nextFontSize =
-              sizeForRole(element.role, typeBaseSize, typeRatio) * sceneUnitsPerPt(frame.pageSize.width)
+              resolveTextSize(element.role, element.fontSize, typeBaseSize, typeRatio) *
+              sceneUnitsPerPt(frame.pageSize.width)
             textChanged =
               textObject.text !== element.content ||
               textObject.fontFamily !== nextFontFamily ||
@@ -1662,13 +1696,15 @@ export function useFabricCanvas(options: Options) {
             originX: "left",
             originY: "top",
             width: Math.max(absWidth, 20),
-            // Role-aware size, converted from the project's type scale (in
-            // points) into this frame's own scene units — see
-            // `sceneUnitsPerPt`'s doc comment on why that conversion has to
-            // be per-frame rather than a fixed constant. Matches the
-            // sidebar's read-only "Size" row, which shows the same
-            // `sizeForRole` value in points.
-            fontSize: sizeForRole(element.role, typeBaseSize, typeRatio) * sceneUnitsPerPt(frame.pageSize.width),
+            // The element's own `fontSize` override when it has one,
+            // role-aware scale size otherwise — converted from points into
+            // this frame's own scene units; see `sceneUnitsPerPt`'s doc
+            // comment on why that conversion has to be per-frame rather than
+            // a fixed constant. Matches the sidebar's Size field, which
+            // shows the same `resolveTextSize` value in points.
+            fontSize:
+              resolveTextSize(element.role, element.fontSize, typeBaseSize, typeRatio) *
+              sceneUnitsPerPt(frame.pageSize.width),
             fontFamily: resolveTextFontFamily(element.fontFamily),
             // Every frame is a white page — text committed here always needs
             // a dark fill, unconditionally. (Was `#f4f4f5`, the *pasteboard's*
@@ -1949,4 +1985,13 @@ export function useFabricCanvas(options: Options) {
 
 function clampZoom(value: number): number {
   return Math.min(Math.max(value, MIN_ZOOM), MAX_ZOOM)
+}
+
+/** Clamps a normalized `Box` coordinate/dimension to `[0, 1]` — used when
+ *  converting a click/drag's scene position into a frame's normalized
+ *  coordinates, so a gesture that starts or ends outside the frame's own
+ *  bounds (dragging past its edge) doesn't produce a Box that hangs off the
+ *  page. */
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value))
 }

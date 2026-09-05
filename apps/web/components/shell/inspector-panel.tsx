@@ -5,7 +5,7 @@ import { ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 import {
   checkPageCount,
   presetImageBox,
-  sizeForRole,
+  resolveTextSize,
   defaultFrameMargins,
   type ImageElement,
   type ImagePreset,
@@ -286,12 +286,10 @@ function TextElementSettings({ frameId, elementId }: { frameId: string; elementI
         />
       </Section>
       <Section title="Size">
-        {/* Derived from Type × the book's type scale, not its own field on
-            `TextElement` — styled to match the pickers around it (the
-            reference gives it the same bordered-row-plus-chevron treatment)
-            but inert, since there's no override value here to pick from
-            yet. Changing Type is what actually changes this. */}
-        <StaticSelectStyledValue value={`${sizeForRole(element.role, project.typeBaseSize, project.typeRatio)}pt`} />
+        <SizeSelect
+          value={resolveTextSize(element.role, element.fontSize, project.typeBaseSize, project.typeRatio)}
+          onChange={(fontSize) => updateTextElement(frameId, elementId, { fontSize })}
+        />
       </Section>
       <Section title="Font">
         <FontFamilySelect
@@ -408,21 +406,39 @@ function ImageElementSettings({ frameId, elementId }: { frameId: string; element
 /* Shared field/layout primitives                                       */
 /* ------------------------------------------------------------------ */
 
+/** Common point sizes for the text sidebar's Size picker — a reasonable
+ *  fixed set covering caption through display sizes, not the full type
+ *  scale (that's `Type`'s job) or arbitrary free entry (a picker matches the
+ *  reference's chevron-select styling; a stepper input doesn't). */
+const TEXT_SIZE_OPTIONS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48, 60, 72] as const
+
 /**
- * Same visual shell as `SelectTrigger` (border, tinted background, chevron)
- * for a value that isn't actually pickable here — the "Size" row, which is
- * computed from Type × the book's type scale rather than its own field.
- * Matches the reference's styling rather than falling back to a plain
- * `Row` for it, but stays a `<div>`, not a `Select`: rendering a real Select
- * with a single option (or none) would open onto an empty popup, which
- * reads as broken rather than as "this isn't editable here."
+ * The "Size" field: overrides `TextElement.fontSize` directly, independent
+ * of `Type` (role) — the two used to be the same control (size was purely
+ * `sizeForRole(role, ...)`, with nothing for this field to write to), which
+ * is why it rendered but did nothing. `value` is always shown even when it
+ * isn't one of the presets (an existing element's role-derived size before
+ * ever getting an explicit override) — never hide a real, valid value just
+ * because it doesn't match a preset.
  */
-function StaticSelectStyledValue({ value }: { value: string }) {
+function SizeSelect({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const options = TEXT_SIZE_OPTIONS.includes(value as (typeof TEXT_SIZE_OPTIONS)[number])
+    ? TEXT_SIZE_OPTIONS
+    : [...TEXT_SIZE_OPTIONS, value].sort((a, b) => a - b)
+
   return (
-    <div className="flex w-full items-center justify-between gap-2 rounded-md border bg-input/30 py-1 pr-2 pl-2 text-sm text-foreground capitalize">
-      {value}
-      <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
-    </div>
+    <Select value={value} onValueChange={(next) => onChange(next as number)}>
+      <SelectTrigger>
+        <SelectValue>{(current: number) => `${current}pt`}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((size) => (
+          <SelectItem key={size} value={size}>
+            {size}pt
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 

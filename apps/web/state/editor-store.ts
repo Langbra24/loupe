@@ -38,6 +38,17 @@ import {
 } from "@/lib/storage/project"
 
 /**
+ * A freshly created text element's initial `fontSize` override (points) —
+ * deliberately independent of the type scale's `sizeForRole('body', ...)`
+ * value (10pt at the book's default base/ratio), which reads as an almost
+ * invisible scrap of text the instant a box lands rather than something the
+ * user can see they just placed. User-directed: "big enough so the user can
+ * see that we rendered a text box." Still just a starting point — the
+ * sidebar's Size field overwrites it same as any other override.
+ */
+const DEFAULT_NEW_TEXT_SIZE = 24
+
+/**
  * One undoable step (U8). `do` replays the mutation forward; `undo` reverses
  * it. Both are plain closures over whatever state the action needs to
  * invert itself — a targeted snapshot of just what that action touched
@@ -106,7 +117,7 @@ interface EditorState {
    *  Fabric object `syncFrameElements` renders for it and enter editing on
    *  that object once it exists (see `pendingAutoEditElementIdRef` in
    *  use-fabric-canvas.ts). */
-  createTextElement: (frameId: string, content: string) => string
+  createTextElement: (frameId: string, content: string, box?: Box) => string
   /** Remove an image or text element from its frame — the Backspace/Delete
    *  shortcut when one is selected (but not actively being edited; see
    *  `useDeleteSelectionShortcut`). Restores it at its original index within
@@ -169,7 +180,7 @@ interface EditorState {
   updateTextElement: (
     frameId: string,
     elementId: string,
-    patch: Partial<Pick<TextElement, "content" | "role" | "align" | "fontFamily">>,
+    patch: Partial<Pick<TextElement, "content" | "role" | "align" | "fontFamily" | "fontSize">>,
   ) => void
   updateImageFit: (frameId: string, elementId: string, fit: ImageElement["fit"]) => void
   /** Snap an image element into one of the fixed layout presets (right-click
@@ -452,22 +463,26 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     /**
-     * A pasteboard `Textbox` (U6) finished editing with its center over a
-     * frame — see `use-fabric-canvas.ts`. `role`/`align` default to `'body'`/
-     * `'left'` and `frame` to the same full-bleed `{0,0,1,1}` box
-     * `moveToFrame` gives a dropped photograph: there is no UI yet for
-     * positioning or restyling text within its frame (that lands with U7's
-     * sidebar), so the least-surprising start is "fills the page, plain
-     * body text" rather than guessing at a caption-sized box.
+     * A text box lands on a frame — either `armTextTool`'s click/drag (the
+     * common case; `box` is that gesture's position/size, converted to the
+     * frame's normalized coordinates), or a pasteboard `Textbox` (U6)
+     * finishing editing with its center over a frame with no click-position
+     * of its own to give (see `use-fabric-canvas.ts`), in which case `box`
+     * is omitted and this falls back to the same full-bleed `{0,0,1,1}` box
+     * `moveToFrame` gives a dropped photograph. `role`/`align` default to
+     * `'body'`/`'left'`: there is no UI yet for restyling text beyond the
+     * sidebar's existing Type/Font/Alignment/Size fields, so the
+     * least-surprising start is plain body text, sized so it's visibly
+     * there (`DEFAULT_NEW_TEXT_SIZE`) rather than guessing at a role.
      */
-    createTextElement: (frameId, content) => {
+    createTextElement: (frameId, content, box) => {
       // Generated up front for the same reason `moveToFrame`'s is — the
       // undo closure needs the id that actually landed.
       const elementId = newId("element")
       const element: TextElement = {
         id: elementId,
         name: content.trim().slice(0, 40) || "Text",
-        frame: { x: 0, y: 0, width: 1, height: 1 },
+        frame: box ?? { x: 0, y: 0, width: 1, height: 1 },
         locked: false,
         hidden: false,
         kind: "text",
@@ -475,6 +490,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         role: "body",
         align: "left",
         fontFamily: DEFAULT_TEXT_FONT,
+        fontSize: DEFAULT_NEW_TEXT_SIZE,
       }
 
       const doCreate = () => {

@@ -101,6 +101,19 @@ export interface TextElement extends BaseElement {
    * sets for an optional field with one obvious default.
    */
   fontFamily?: string
+  /**
+   * Point size, overriding the type scale's `sizeForRole(role, ...)` value
+   * for this one element. Optional — most text should just take its role's
+   * scale-derived size, which is why this doesn't replace `role` as the
+   * primary size control; it exists for the sidebar's "Size" field to
+   * actually do something; see `resolveTextSize` in typography.ts for how
+   * the two combine (this wins when set, `role` otherwise). Set to a fixed
+   * default (not derived from the scale) on every freshly created text
+   * element — see `armTextTool` in apps/web's use-fabric-canvas.ts — so a
+   * brand-new box reads as visibly "a text box landed here" rather than a
+   * near-invisible 10pt scrap at the book's default base size.
+   */
+  fontSize?: number
 }
 
 export type PageElement = ImageElement | TextElement
