@@ -169,9 +169,18 @@ export function LightTable() {
       {imageMenu && (
         <ImagePresetMenu
           target={imageMenu}
+          isCover={frames.find((f) => f.id === imageMenu.frameId)?.isCover ?? false}
           onDismiss={() => setImageMenu(null)}
           onSelect={(preset) => {
             applyImagePreset(imageMenu.frameId, imageMenu.elementId, preset)
+            setImageMenu(null)
+          }}
+          onToggleCover={(isCover) => {
+            setFrameCover(imageMenu.frameId, isCover)
+            setImageMenu(null)
+          }}
+          onDelete={() => {
+            removeFrame(imageMenu.frameId)
             setImageMenu(null)
           }}
         />
@@ -208,19 +217,31 @@ export function LightTable() {
 }
 
 /**
- * Fixed layout presets for an image already inside a frame — right-click
- * access, same convention a desktop layout tool would use for "arrange"
- * commands. Positioned at the click point in viewport coordinates, which is
- * the same coordinate space `containerRef` occupies, so no conversion is
- * needed between the Fabric event and this DOM overlay.
+ * Right-click menu on an image already inside a frame: the fixed layout
+ * presets, same convention a desktop layout tool would use for "arrange"
+ * commands, plus the frame-level "set as cover"/"delete page" actions
+ * `FrameContextMenu` below offers for a frame's own background. Merged in
+ * here (rather than requiring a separate right-click on empty frame
+ * background) because a full-bleed image covers the entire page — there is
+ * no exposed background left to right-click, which made those two actions
+ * unreachable for exactly the frames most likely to want them. Positioned
+ * at the click point in viewport coordinates, which is the same coordinate
+ * space `containerRef` occupies, so no conversion is needed between the
+ * Fabric event and this DOM overlay.
  */
 function ImagePresetMenu({
   target,
+  isCover,
   onSelect,
+  onToggleCover,
+  onDelete,
   onDismiss,
 }: {
   target: ImageMenuTarget
+  isCover: boolean
   onSelect: (preset: ImagePreset) => void
+  onToggleCover: (isCover: boolean) => void
+  onDelete: () => void
   onDismiss: () => void
 }) {
   useEffect(() => {
@@ -239,9 +260,10 @@ function ImagePresetMenu({
         className="absolute z-40 min-w-40 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md"
         style={{ left: target.x, top: target.y }}
       >
-        <div className="px-2 pt-1 pb-0.5 text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">
-          Positioning
-        </div>
+        {/* Plain secondary-colored label, not a caps'd/tracked section
+            header — matches the sidebar's own `Section` heading treatment
+            (inspector-panel.tsx) rather than a separate convention. */}
+        <div className="px-2 pt-1 pb-0.5 text-xs font-medium text-muted-foreground">Positioning</div>
         {(Object.keys(IMAGE_PRESET_LABELS) as ImagePreset[]).map((preset) => (
           <button
             key={preset}
@@ -251,6 +273,21 @@ function ImagePresetMenu({
             {IMAGE_PRESET_LABELS[preset]}
           </button>
         ))}
+        <div className="my-1 h-px bg-border" />
+        <button
+          onClick={() => onToggleCover(!isCover)}
+          className="block w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+        >
+          {isCover ? "Remove cover" : "Set as cover"}
+        </button>
+        <div className="my-1 h-px bg-border" />
+        <button
+          onClick={onDelete}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10"
+        >
+          <Trash2Icon className="size-3.5" />
+          Delete page
+        </button>
       </div>
     </>
   )

@@ -33,6 +33,27 @@ const FRAME_TEXT_FILL = "#18181b"
  *  canvas, not yet committed to any frame. */
 const PASTEBOARD_TEXT_FILL = "#f4f4f5"
 
+/**
+ * A text element's selection border/corner color — the same blue as the
+ * content-margin guide (`syncPrintOverlay` below), per direct user
+ * feedback: Fabric's own default selection tint reads as a barely-visible
+ * near-white against a frame's white page, effectively invisible right
+ * where it matters most. Frame-owned image elements already get their own
+ * deliberate selection color (`#6366f1`, set where their Fabric object is
+ * created below) — text gets its own rather than reusing that one, matching
+ * the specific blue the user pointed at rather than the nearest existing
+ * one.
+ *
+ * Applied as both `borderColor` and `editingBorderColor`, not just the
+ * former: `IText`'s editing machinery swaps `borderColor` to
+ * `editingBorderColor` the moment editing starts and restores it from a
+ * snapshot on exit (see Fabric's `ITextBehavior`), so a freshly placed box —
+ * which enters editing immediately, per `armTextTool` — would otherwise
+ * show Fabric's own near-invisible default the whole time it's actually
+ * being typed into, the exact moment this needs to be visible most.
+ */
+const TEXT_SELECTION_COLOR = "#18a0fb"
+
 /** Width a plain click (not a click-and-drag) gives a new text box —
  *  dragging instead sizes it explicitly, see `armTextTool`. */
 const DEFAULT_TEXTBOX_WIDTH = 320
@@ -569,6 +590,9 @@ export function useFabricCanvas(options: Options) {
           fontFamily: resolveTextFontFamily(DEFAULT_TEXT_FONT),
           fill: PASTEBOARD_TEXT_FILL,
           textAlign: "left",
+          borderColor: TEXT_SELECTION_COLOR,
+          cornerColor: TEXT_SELECTION_COLOR,
+          editingBorderColor: TEXT_SELECTION_COLOR,
         })
 
         target_canvas.add(textbox)
@@ -1715,6 +1739,9 @@ export function useFabricCanvas(options: Options) {
             lockRotation: true,
             lockSkewingX: true,
             lockSkewingY: true,
+            borderColor: TEXT_SELECTION_COLOR,
+            cornerColor: TEXT_SELECTION_COLOR,
+            editingBorderColor: TEXT_SELECTION_COLOR,
           }) as unknown as PlacedElement
           textbox.frameId = frame.id
           textbox.elementId = element.id
