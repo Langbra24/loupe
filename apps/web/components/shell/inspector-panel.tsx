@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ChevronDownIcon, ChevronUpIcon } from "lucide-react"
+import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 import {
   checkPageCount,
   presetImageBox,
@@ -18,6 +18,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsIndicator, TabsList, TabsTab } from "@/components/ui/tabs"
 import { DEFAULT_TEXT_FONT, TEXT_FONTS } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
 import { useEditorStore } from "@/state/editor-store"
@@ -273,11 +274,20 @@ function TextElementSettings({ frameId, elementId }: { frameId: string; elementI
         />
       </Section>
       <Separator />
-      {/* Type/Size/Font/Alignment read as one cluster of type controls in
+      {/* Alignment/Type/Size/Font read as one cluster of type controls in
           the reference (Paper node 7H-0) — grouped by the same gap-6 every
           section already gets, but without a divider line between each of
           these four specifically, unlike the harder break before/after the
-          cluster. */}
+          cluster. Alignment leads the cluster (moved above Type, per direct
+          user feedback) since left/center/right icons are the more
+          universally recognized formatting control — most text tools put
+          it first, ahead of anything role- or scale-related. */}
+      <Section title="Alignment">
+        <AlignmentTabs
+          value={element.align}
+          onChange={(align) => updateTextElement(frameId, elementId, { align })}
+        />
+      </Section>
       <Section title="Type">
         <SelectField
           value={element.role}
@@ -295,13 +305,6 @@ function TextElementSettings({ frameId, elementId }: { frameId: string; elementI
         <FontFamilySelect
           value={element.fontFamily}
           onChange={(fontFamily) => updateTextElement(frameId, elementId, { fontFamily })}
-        />
-      </Section>
-      <Section title="Alignment">
-        <SelectField
-          value={element.align}
-          options={ALIGNMENTS}
-          onChange={(align) => updateTextElement(frameId, elementId, { align })}
         />
       </Section>
       <Separator />
@@ -439,6 +442,52 @@ function SizeSelect({ value, onChange }: { value: number; onChange: (value: numb
         ))}
       </SelectContent>
     </Select>
+  )
+}
+
+const ALIGNMENT_ICONS: Record<TextElement["align"], typeof AlignLeftIcon> = {
+  left: AlignLeftIcon,
+  center: AlignCenterIcon,
+  right: AlignRightIcon,
+}
+
+/**
+ * Left/center/right alignment as an icon tab rail — replacing a `Select`
+ * dropdown that spelled the options out as text ("left", "center", "right").
+ * Per direct user feedback: this is the one field in the panel where a
+ * near-universal iconographic convention already exists (every text tool
+ * puts these three glyphs in a row), so a dropdown was working against
+ * familiarity rather than for it. Built on the same `Tabs` component
+ * (ui/tabs.tsx) the left panel's Canvas/Book switcher uses, for the same
+ * sliding-rail feel — `TabsTab`'s default text styling is irrelevant here
+ * since each tab holds only an icon, centered via the added flex classes.
+ */
+function AlignmentTabs({
+  value,
+  onChange,
+}: {
+  value: TextElement["align"]
+  onChange: (value: TextElement["align"]) => void
+}) {
+  return (
+    <Tabs value={value} onValueChange={(next) => onChange(next as TextElement["align"])}>
+      <TabsList aria-label="Text alignment" className="gap-1">
+        <TabsIndicator />
+        {ALIGNMENTS.map((align) => {
+          const Icon = ALIGNMENT_ICONS[align]
+          return (
+            <TabsTab
+              key={align}
+              value={align}
+              aria-label={`Align ${align}`}
+              className="flex items-center justify-center"
+            >
+              <Icon className="size-4" />
+            </TabsTab>
+          )
+        })}
+      </TabsList>
+    </Tabs>
   )
 }
 
