@@ -231,17 +231,17 @@ function FrameSettings({ frameId }: { frameId: string }) {
 
   return (
     <>
-      <Section title="Frame">
-        <Row label="Page size" value={frame.pageSize.name} />
-        <Row label="Position" value={`Page ${frame.position + 1}`} />
+      <Section title="Layout">
+        <StaticFieldBox label="Page size" value={frame.pageSize.name} />
+        <StaticFieldBox label="Position" value={`Page ${frame.position + 1}`} mono />
       </Section>
       <Separator />
       <Section title="Margins">
+        <Hint>Millimetres as defaults</Hint>
         <MarginField label="Top" value={margins.top} onChange={(v) => setMargin("top", v)} />
         <MarginField label="Inner" value={margins.inner} onChange={(v) => setMargin("inner", v)} />
         <MarginField label="Outer" value={margins.outer} onChange={(v) => setMargin("outer", v)} />
         <MarginField label="Bottom" value={margins.bottom} onChange={(v) => setMargin("bottom", v)} />
-        <Hint>Millimetres. Defaults to equal margins on every side.</Hint>
       </Section>
       <Separator />
       <Section title="Print">
@@ -827,6 +827,33 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between gap-3 py-0.5 text-sm">
       <span className="text-muted-foreground">{label}</span>
       <span className="truncate text-xs text-foreground">{value}</span>
+    </div>
+  )
+}
+
+/**
+ * A read-only value shown inside a field-styled box (Paper reference HQ-0's
+ * "Page size"/"Position" rows in the frame sidebar) — label above, value
+ * below in the same `bg-input/30`/`border`/`rounded-md` box every editable
+ * field in this file uses, rather than `Row`'s plain inline text. Neither
+ * value is actually editable here (a frame's page size is fixed once the
+ * book is set up; its position comes from dragging it in the canvas grid,
+ * not from typing a page number), but the reference wants both to read as
+ * fields, not labels, for visual consistency with the boxed fields around
+ * them. `mono` matches this file's existing convention of a monospace
+ * face for numeric/code-like values (the hex color field, the page-count
+ * field) — used here for "Position" (a page number) but not "Page size"
+ * (a name).
+ */
+function StaticFieldBox({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex flex-col items-start gap-1.5 py-0.5 text-sm">
+      <span className="text-foreground">{label}</span>
+      <div className="flex h-7.5 w-full items-center rounded-md border bg-input/30 px-2">
+        <span className={cn("w-full truncate text-right text-xs text-foreground", mono && "font-mono")}>
+          {value}
+        </span>
+      </div>
     </div>
   )
 }
