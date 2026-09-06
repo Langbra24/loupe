@@ -180,7 +180,7 @@ interface EditorState {
   updateTextElement: (
     frameId: string,
     elementId: string,
-    patch: Partial<Pick<TextElement, "content" | "role" | "align" | "fontFamily" | "fontSize">>,
+    patch: Partial<Pick<TextElement, "content" | "role" | "align" | "fontFamily" | "fontSize" | "color">>,
   ) => void
   updateImageFit: (frameId: string, elementId: string, fit: ImageElement["fit"]) => void
   /** Snap an image element into one of the fixed layout presets (right-click

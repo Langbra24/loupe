@@ -2,14 +2,22 @@
 
 import { useEffect, useState } from "react"
 import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
+import { Popover } from "@base-ui/react/popover"
 import {
   checkPageCount,
+  cmykToHex,
+  hexToRgb,
+  isValidHex,
   presetImageBox,
   resolveTextSize,
+  rgbToCmyk,
+  rgbToHex,
   defaultFrameMargins,
+  type CmykColor,
   type ImageElement,
   type ImagePreset,
   type Margins,
+  type RgbColor,
   type Selection,
   type TextElement,
   type TypeRole,
@@ -68,6 +76,17 @@ const IMAGE_PRESET_LABELS: Record<ImagePreset, string> = {
  * old Print mode was removed was a real loss, not an intentional cut.
  */
 export const BLEED_MM = 3
+
+/**
+ * A text element's default fill when `TextElement.color` is unset — every
+ * frame is a white printed page, so this has to be dark, unconditionally.
+ * Centralized here (rather than duplicated as a literal) for the same
+ * reason `BLEED_MM` is: `use-fabric-canvas.ts` imports this exact value for
+ * the actual canvas rendering, and the Color field below needs the same
+ * value to show as its placeholder swatch for an element that has no
+ * override yet — the two must never drift apart from each other.
+ */
+export const DEFAULT_TEXT_COLOR = "#18181b"
 
 /**
  * The right panel: one sidebar that reflects whatever is currently selected
@@ -305,6 +324,12 @@ function TextElementSettings({ frameId, elementId }: { frameId: string; elementI
         <FontFamilySelect
           value={element.fontFamily}
           onChange={(fontFamily) => updateTextElement(frameId, elementId, { fontFamily })}
+        />
+      </Section>
+      <Section title="Color">
+        <ColorField
+          value={element.color ?? DEFAULT_TEXT_COLOR}
+          onChange={(color) => updateTextElement(frameId, elementId, { color })}
         />
       </Section>
       <Separator />
@@ -547,6 +572,135 @@ function FontFamilySelect({
         ))}
       </SelectContent>
     </Select>
+  )
+}
+
+/** Which color space the swatch popover's channel inputs are currently
+ *  expressed in. Doesn't change what's stored — `TextElement.color` is
+ *  always a hex string; this only picks which fields the user edits it
+ *  through (R: photographers and print professionals think in RGB or CMYK,
+ *  not hex). */
+type ColorInputMode = "rgb" | "cmyk"
+
+/**
+ * The text sidebar's Color field (R23 follow-up). A swatch + hex trigger,
+ * matching the reference (Paper node 1Y-0)'s row styling but built from this
+ * project's own input tokens (`bg-input/30`, `border`) rather than the
+ * reference's literal oklch/hex values, same as every other field in this
+ * file. Opens a popover with a live swatch, a raw hex field for a quick
+ * paste, and an RGB/CMYK tab switch over the same value — CMYK exists
+ * because this is a print layout tool, and CMYK is how a print professional
+ * actually thinks about ink, not a screen's RGB.
+ */
+function ColorField({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
+  const [mode, setMode] = useState<ColorInputMode>("rgb")
+  const [hexDraft, setHexDraft] = useState(value)
+  const [lastCommittedValue, setLastCommittedValue] = useState(value)
+
+  // The hex field is free text while it's being typed (an in-progress "#18"
+  // shouldn't be rejected or reformatted mid-keystroke) — only commit
+  // upstream once it's a genuinely valid hex. When `value` changes from
+  // elsewhere (RGB/CMYK fields, or a different element being selected), the
+  // draft needs to follow it — same "adjust state during render" pattern
+  // `InspectorPanel` above uses for `displayed`/`selection`, not an effect,
+  // since this is a pure response to a prop change rather than a side effect
+  // on an external system.
+  if (value !== lastCommittedValue) {
+    setLastCommittedValue(value)
+    setHexDraft(value)
+  }
+
+  const rgb = hexToRgb(value)
+  const cmyk = rgbToCmyk(rgb)
+
+  const commitHex = (next: string) => {
+    setHexDraft(next)
+    if (isValidHex(next)) onChange(next.startsWith("#") ? next : `#${next}`)
+  }
+  const setRgbChannel = (patch: Partial<RgbColor>) => onChange(rgbToHex({ ...rgb, ...patch }))
+  const setCmykChannel = (patch: Partial<CmykColor>) => onChange(cmykToHex({ ...cmyk, ...patch }))
+
+  return (
+    <Popover.Root>
+      <Popover.Trigger
+        render={
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-md border bg-input/30 py-1 pr-2 pl-1 text-sm text-foreground transition-colors outline-none data-popup-open:border-ring focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <span
+              className="size-4 shrink-0 rounded-xs border border-white/10"
+              style={{ backgroundColor: value }}
+            />
+            <span className="flex-1 truncate text-right font-mono text-xs tracking-wider text-foreground">
+              {value}
+            </span>
+          </button>
+        }
+      />
+      <Popover.Portal>
+        <Popover.Positioner side="bottom" align="start" sideOffset={8}>
+          <Popover.Popup className="z-50 w-56 origin-(--transform-origin) rounded-xl border bg-popover p-3 text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
+            <div className="flex items-center gap-2 pb-3">
+              <span
+                className="size-8 shrink-0 rounded-md border border-white/10"
+                style={{ backgroundColor: value }}
+              />
+              <input
+                type="text"
+                value={hexDraft}
+                onChange={(event) => commitHex(event.target.value)}
+                spellCheck={false}
+                className="w-full rounded-md border bg-input/30 px-2 py-1 font-mono text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+            </div>
+            <Tabs value={mode} onValueChange={(next) => setMode(next as ColorInputMode)}>
+              <TabsList aria-label="Color input mode" className="mb-3 gap-1">
+                <TabsIndicator />
+                <TabsTab value="rgb">RGB</TabsTab>
+                <TabsTab value="cmyk">CMYK</TabsTab>
+              </TabsList>
+            </Tabs>
+            {mode === "rgb" ? (
+              <div className="flex flex-col gap-1.5">
+                <ColorChannelField label="R" value={rgb.r} max={255} onChange={(r) => setRgbChannel({ r })} />
+                <ColorChannelField label="G" value={rgb.g} max={255} onChange={(g) => setRgbChannel({ g })} />
+                <ColorChannelField label="B" value={rgb.b} max={255} onChange={(b) => setRgbChannel({ b })} />
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <ColorChannelField label="C" value={cmyk.c} max={100} onChange={(c) => setCmykChannel({ c })} />
+                <ColorChannelField label="M" value={cmyk.m} max={100} onChange={(m) => setCmykChannel({ m })} />
+                <ColorChannelField label="Y" value={cmyk.y} max={100} onChange={(y) => setCmykChannel({ y })} />
+                <ColorChannelField label="K" value={cmyk.k} max={100} onChange={(k) => setCmykChannel({ k })} />
+              </div>
+            )}
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  )
+}
+
+/** One RGB (0-255) or CMYK (0-100%) channel in the Color field's popover —
+ *  reuses `NumberField`'s stepper styling so these read as the same kind of
+ *  control as the margin/position fields elsewhere in this sidebar. */
+function ColorChannelField({
+  label,
+  value,
+  max,
+  onChange,
+}: {
+  label: string
+  value: number
+  max: number
+  onChange: (value: number) => void
+}) {
+  return (
+    <label className="flex items-center justify-between gap-3 text-sm">
+      <span className="w-4 text-xs font-medium text-muted-foreground">{label}</span>
+      <NumberField value={value} step={1} min={0} max={max} onChange={onChange} />
+    </label>
   )
 }
 

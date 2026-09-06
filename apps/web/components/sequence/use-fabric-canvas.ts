@@ -20,15 +20,10 @@ import {
   nearestFrameIndex,
   type FrameLayout,
 } from "@/components/sequence/frame-grid"
-import { BLEED_MM } from "@/components/shell/inspector-panel"
+import { BLEED_MM, DEFAULT_TEXT_COLOR } from "@/components/shell/inspector-panel"
 import { DEFAULT_TEXT_FONT, resolveTextFontFamily } from "@/lib/fonts"
 import { thumbnailUrl } from "@/lib/storage/assets"
 
-/** Every frame's page is white paper — text committed into one always needs
- *  a dark, legible fill, unconditionally (there's no dark-page concept in
- *  this data model). A soft ink black rather than pure `#000` — closer to
- *  what a printed page's body text actually looks like. */
-const FRAME_TEXT_FILL = "#18181b"
 /** The transient pasteboard textbox's fill while it's sitting on the dark
  *  canvas, not yet committed to any frame. */
 const PASTEBOARD_TEXT_FILL = "#f4f4f5"
@@ -1684,22 +1679,26 @@ export function useFabricCanvas(options: Options) {
               fontFamily?: string
               textAlign?: string
               fontSize?: number
+              fill?: string
             }
             const nextFontFamily = resolveTextFontFamily(element.fontFamily)
             const nextFontSize =
               resolveTextSize(element.role, element.fontSize, typeBaseSize, typeRatio) *
               sceneUnitsPerPt(frame.pageSize.width)
+            const nextFill = element.color ?? DEFAULT_TEXT_COLOR
             textChanged =
               textObject.text !== element.content ||
               textObject.fontFamily !== nextFontFamily ||
               textObject.textAlign !== element.align ||
-              Math.abs((textObject.fontSize ?? 0) - nextFontSize) >= 0.5
+              Math.abs((textObject.fontSize ?? 0) - nextFontSize) >= 0.5 ||
+              textObject.fill !== nextFill
             if (textChanged) {
               existing.set({
                 text: element.content,
                 fontFamily: nextFontFamily,
                 textAlign: element.align,
                 fontSize: nextFontSize,
+                fill: nextFill,
               })
             }
           }
@@ -1730,11 +1729,15 @@ export function useFabricCanvas(options: Options) {
               resolveTextSize(element.role, element.fontSize, typeBaseSize, typeRatio) *
               sceneUnitsPerPt(frame.pageSize.width),
             fontFamily: resolveTextFontFamily(element.fontFamily),
-            // Every frame is a white page — text committed here always needs
-            // a dark fill, unconditionally. (Was `#f4f4f5`, the *pasteboard's*
+            // The element's own color override when it has one (set via the
+            // sidebar's Color field), the frame's default ink black
+            // otherwise. Every frame is a white page, so that default always
+            // needs to be dark, unconditionally — it was hardcoded to this
+            // exact fill for every text element before `TextElement.color`
+            // existed. (Was `#f4f4f5` before that, the *pasteboard's*
             // white-on-dark color, copy-pasted from the pre-commit textbox
             // below — invisible against a white page.)
-            fill: FRAME_TEXT_FILL,
+            fill: element.color ?? DEFAULT_TEXT_COLOR,
             textAlign: element.align,
             lockRotation: true,
             lockSkewingX: true,

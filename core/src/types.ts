@@ -114,6 +114,17 @@ export interface TextElement extends BaseElement {
    * near-invisible 10pt scrap at the book's default base size.
    */
   fontSize?: number
+  /**
+   * Text fill, as a hex string (e.g. `'#18181b'`). Optional — undefined
+   * means "use the frame's default ink black" (`FRAME_TEXT_FILL` in
+   * apps/web's use-fabric-canvas.ts), the same fallback every text element
+   * effectively had before this field existed, so old projects don't need a
+   * migration. Chosen via the sidebar's Color field, which accepts RGB or
+   * CMYK input (see `core/src/color.ts`) as well as a raw hex value — this
+   * is a book layout tool used by photographers and print professionals,
+   * who think in those color spaces rather than hex.
+   */
+  color?: string
 }
 
 export type PageElement = ImageElement | TextElement
