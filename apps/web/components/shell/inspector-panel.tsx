@@ -232,16 +232,24 @@ function FrameSettings({ frameId }: { frameId: string }) {
   return (
     <>
       <Section title="Layout">
-        <StaticFieldBox label="Page size" value={frame.pageSize.name} />
-        <StaticFieldBox label="Position" value={`Page ${frame.position + 1}`} mono />
+        {/* Paper (HQ-0) puts 16px between these two boxed fields, not
+            `Section`'s own 4px title-gap — that spacing is fine for the
+            plain inline `Row`s every other section uses, but too tight
+            once a field grows a label-above-box shape like these. */}
+        <div className="flex flex-col gap-4 pt-3">
+          <StaticFieldBox label="Page size" value={frame.pageSize.name} />
+          <StaticFieldBox label="Position" value={`Page ${frame.position + 1}`} mono />
+        </div>
       </Section>
       <Separator />
       <Section title="Margins">
         <Hint>Millimetres as defaults</Hint>
-        <MarginField label="Top" value={margins.top} onChange={(v) => setMargin("top", v)} />
-        <MarginField label="Inner" value={margins.inner} onChange={(v) => setMargin("inner", v)} />
-        <MarginField label="Outer" value={margins.outer} onChange={(v) => setMargin("outer", v)} />
-        <MarginField label="Bottom" value={margins.bottom} onChange={(v) => setMargin("bottom", v)} />
+        <div className="flex flex-col gap-4 pt-3">
+          <MarginField label="Top" value={margins.top} onChange={(v) => setMargin("top", v)} />
+          <MarginField label="Inner" value={margins.inner} onChange={(v) => setMargin("inner", v)} />
+          <MarginField label="Outer" value={margins.outer} onChange={(v) => setMargin("outer", v)} />
+          <MarginField label="Bottom" value={margins.bottom} onChange={(v) => setMargin("bottom", v)} />
+        </div>
       </Section>
       <Separator />
       <Section title="Print">
