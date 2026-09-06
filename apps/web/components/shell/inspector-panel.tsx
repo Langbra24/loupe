@@ -721,9 +721,9 @@ function PercentField({
         step={1}
         min={0}
         max={100}
+        unit="%"
         onChange={(percent) => onChange(percent / 100)}
       />
-      <span className="text-xs text-muted-foreground">%</span>
     </label>
   )
 }
@@ -741,6 +741,14 @@ function PercentField({
  * focus) — `group-hover`/`group-focus-within` on the wrapper, rather than
  * sitting there permanently — so a column of these fields reads as plain
  * number inputs at rest, matching the design.
+ *
+ * `unit` (per the Paper reference, BS-0) renders a fixed suffix — `%` for
+ * `PercentField`'s X/Y/W/H fields — inside the same bordered box as the
+ * number, immediately after it, rather than as a separate `<span>` sitting
+ * outside the field. The border/background live on this wrapper now (not
+ * the `<input>` itself) so the number and its unit read as one value inside
+ * one box, matching "17%" in the reference instead of a box followed by a
+ * loose "%" off to its right.
  */
 function NumberField({
   value,
@@ -748,12 +756,14 @@ function NumberField({
   step,
   min,
   max,
+  unit,
 }: {
   value: number
   onChange: (value: number) => void
   step: number
   min?: number
   max?: number
+  unit?: string
 }) {
   const clamp = (next: number) => {
     let clamped = next
@@ -764,7 +774,7 @@ function NumberField({
   }
 
   return (
-    <div className="group relative">
+    <div className="group relative flex w-20 items-center rounded-md border bg-input/30 py-1 pr-5 pl-2 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
       <input
         type="number"
         step={step}
@@ -776,8 +786,9 @@ function NumberField({
           if (Number.isNaN(next)) return
           onChange(clamp(next))
         }}
-        className="w-20 rounded-md border bg-input/30 py-1 pr-5 pl-2 text-right text-xs text-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+        className="min-w-0 flex-1 bg-transparent text-right text-xs text-foreground outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
+      {unit ? <span className="pl-0.5 text-xs text-muted-foreground select-none">{unit}</span> : null}
       <div className="absolute inset-y-0 right-0.5 flex flex-col justify-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
         <button
           type="button"
