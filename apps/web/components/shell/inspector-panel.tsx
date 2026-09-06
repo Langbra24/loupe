@@ -214,7 +214,9 @@ function BookSettings() {
 
 function FrameSettings({ frameId }: { frameId: string }) {
   const frame = useEditorStore((state) => state.project.frames.find((f) => f.id === frameId))
+  const frameCount = useEditorStore((state) => state.project.frames.length)
   const updateFrameMargins = useEditorStore((state) => state.updateFrameMargins)
+  const reorderFrameById = useEditorStore((state) => state.reorderFrameById)
 
   if (!frame) return <Hint>This frame no longer exists.</Hint>
 
@@ -238,7 +240,11 @@ function FrameSettings({ frameId }: { frameId: string }) {
             once a field grows a label-above-box shape like these. */}
         <div className="flex flex-col gap-4 pt-3">
           <StaticFieldBox label="Page size" value={frame.pageSize.name} />
-          <StaticFieldBox label="Position" value={`Page ${frame.position + 1}`} mono />
+          <PositionSelect
+            position={frame.position}
+            frameCount={frameCount}
+            onChange={(next) => reorderFrameById(frame.position, next)}
+          />
         </div>
       </Section>
       <Separator />
@@ -862,6 +868,48 @@ function StaticFieldBox({ label, value, mono }: { label: string; value: string; 
           {value}
         </span>
       </div>
+    </div>
+  )
+}
+
+/**
+ * "Position" made functional (direct follow-up) — reorders the frame in the
+ * book's reading order via `reorderFrameById`, rather than the
+ * `StaticFieldBox` this used to be, which only displayed the current page
+ * number. This doesn't add a new mutation path: a frame's position in the
+ * canvas grid already *is* its position in the book's reading order (see
+ * CLAUDE.md), and dragging it there was the only way to change that. This
+ * select just exposes that same reorder as a sidebar control, for anyone
+ * who'd rather type/pick a destination page than drag one on the canvas.
+ * Options are every page 1..frameCount, so this is only ever a real move —
+ * never a to-a-nonexistent-page no-op.
+ */
+function PositionSelect({
+  position,
+  frameCount,
+  onChange,
+}: {
+  position: number
+  frameCount: number
+  onChange: (position: number) => void
+}) {
+  const pages = Array.from({ length: frameCount }, (_, index) => index)
+
+  return (
+    <div className="flex flex-col items-start gap-1.5 py-0.5 text-sm">
+      <span className="text-foreground">Position</span>
+      <Select value={position} onValueChange={(next) => onChange(next as number)}>
+        <SelectTrigger className="h-7.5 font-mono">
+          <SelectValue>{(current: number) => `Page ${current + 1}`}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {pages.map((page) => (
+            <SelectItem key={page} value={page} className="font-mono">
+              {`Page ${page + 1}`}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }
