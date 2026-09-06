@@ -59,15 +59,20 @@
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.552 0.016 285.938);
 
-    /* The canvas surface — black with a subtle dot grid (R22). Kept as its own
-     * tokens rather than repurposing `--background`/`--muted`, since those are
-     * still used across ordinary shell chrome (buttons, hover states) that
-     * must not turn pure black. `--canvas-dot` is deliberately low-contrast
-     * against `--canvas` — visible on inspection, not a distraction — while
-     * selection/frame-edge/insertion-indicator colors (drawn on the canvas by
-     * later units) are expected to use `--ring`/`--primary`, which stay
-     * light and are already tuned for contrast against a dark surface (R31). */
-    --canvas: oklch(0 0 0);
+    /* The canvas surface — Tailwind's zinc-900, from the same zinc scale
+     * this app's whole neutral palette is drawn from (`--background` is
+     * zinc-800; `--card`/`--popover`/`--sidebar` are also zinc-900) — a
+     * level darker than the shell chrome but not the near-black zinc-950
+     * this started at, and not pure black. Kept as its own token rather
+     * than repurposing `--background`/`--muted`, since those are still used
+     * across ordinary shell chrome (buttons, hover states) that must stay a
+     * step lighter than the canvas. `--canvas-dot` is deliberately
+     * low-contrast against `--canvas` — visible on inspection, not a
+     * distraction — while selection/frame-edge/insertion-indicator colors
+     * (drawn on the canvas by later units) are expected to use
+     * `--ring`/`--primary`, which stay light and are already tuned for
+     * contrast against a dark surface (R31). */
+    --canvas: oklch(0.21 0.006 285.885);
     --canvas-dot: oklch(1 0 0 / 8%);
 
     /* This app is dark-only (see above) — tell the browser so native
