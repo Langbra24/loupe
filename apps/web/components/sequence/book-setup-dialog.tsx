@@ -48,14 +48,14 @@ export function BookSetupDialog() {
 
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-xl border bg-card p-5 shadow-lg">
+      <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
         <h2 className="font-heading text-base font-medium">Set up your book</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Choose a page size and how many pages to start with. You can change
           this later.
         </p>
 
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 flex flex-col gap-4">
           <div>
             <span className="text-xs font-medium text-muted-foreground">Page size</span>
             <div className="mt-1.5 grid grid-cols-2 gap-1.5">
@@ -113,16 +113,22 @@ export function BookSetupDialog() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground" htmlFor="page-count">
-              Starting page count
-            </label>
-            <input
-              id="page-count"
-              type="number"
-              value={pageCount}
-              onChange={(e) => setPageCount(e.target.value)}
-              className="mt-1.5 h-8 w-24 rounded-lg border border-border bg-background px-2 text-sm"
-            />
+            {/* Label left, value right in a single bordered box (Paper
+                reference FL-0) — the same row shape as the inspector
+                panel's X/Y/W/H fields, not a stacked label-above-input
+                block. */}
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-sm text-muted-foreground" htmlFor="page-count">
+                Starting page count
+              </label>
+              <input
+                id="page-count"
+                type="number"
+                value={pageCount}
+                onChange={(e) => setPageCount(e.target.value)}
+                className="w-20 rounded-md border bg-input/30 px-2 py-1 text-right font-mono text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+            </div>
             {!countValid && (
               <p className="mt-1 text-xs text-destructive">Enter a whole number greater than zero.</p>
             )}
