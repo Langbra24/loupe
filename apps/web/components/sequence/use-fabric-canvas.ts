@@ -28,6 +28,16 @@ import { thumbnailUrl } from "@/lib/storage/assets"
  *  canvas, not yet committed to any frame. */
 const PASTEBOARD_TEXT_FILL = "#f4f4f5"
 
+/** The "add page before/after" buttons flanking a selected frame (direct
+ *  follow-up: "primary button" treatment) — Tailwind's zinc-950, the same
+ *  near-black the canvas surface itself briefly used before settling on
+ *  zinc-900 (see globals.css's `--canvas`), reused here since a solid black
+ *  is exactly the point for this one. `ADD_PAGE_BUTTON_HOVER_FILL` is one
+ *  step up the same scale (zinc-900) rather than an opacity fade, the usual
+ *  hover treatment for a solid-fill primary button. */
+const ADD_PAGE_BUTTON_FILL = "#09090b"
+const ADD_PAGE_BUTTON_HOVER_FILL = "#18181b"
+
 /**
  * A text element's selection border/corner color — the same blue as the
  * content-margin guide (`syncPrintOverlay` below), per direct user
@@ -731,11 +741,16 @@ export function useFabricCanvas(options: Options) {
         const gap = 16
         const centerY = layout.bounds.y + layout.bounds.height / 2
 
-        // White fill at 50% opacity with a solid black plus sign — the plus
-        // stays fully opaque (its own Rects have no `opacity` set) while only
-        // the background fades, so the icon itself never washes out. Grouped
-        // into one object so the tag/hover/click handling below only has to
-        // deal with a single target, the same as the plain-Rect version did.
+        // Solid black background with a white plus sign — a primary-button
+        // treatment (direct follow-up) rather than the previous white-at-50%-
+        // opacity/black-icon look, which read as a secondary, easy-to-miss
+        // affordance. Full opacity so it reads as a confident, deliberate
+        // action against either the white page or the dark canvas behind it;
+        // hover lightens the fill by one step (`ADD_PAGE_BUTTON_HOVER_FILL`,
+        // matching this app's zinc scale) instead of fading translucency, the
+        // usual primary-button hover treatment. Grouped into one object so
+        // the tag/hover/click handling below only has to deal with a single
+        // target.
         const makeButton = (side: "before" | "after", x: number) => {
           const bg = new fabric.Rect({
             width: size,
@@ -744,8 +759,7 @@ export function useFabricCanvas(options: Options) {
             originY: "center",
             rx: 8,
             ry: 8,
-            fill: "#ffffff",
-            opacity: 0.5,
+            fill: ADD_PAGE_BUTTON_FILL,
           })
           const barLength = size * 0.45
           const barThickness = 4
@@ -754,14 +768,14 @@ export function useFabricCanvas(options: Options) {
             height: barThickness,
             originX: "center",
             originY: "center",
-            fill: "#000000",
+            fill: "#ffffff",
           })
           const vBar = new fabric.Rect({
             width: barThickness,
             height: barLength,
             originX: "center",
             originY: "center",
-            fill: "#000000",
+            fill: "#ffffff",
           })
           const group = new fabric.Group([bg, hBar, vBar], {
             left: x,
@@ -778,11 +792,11 @@ export function useFabricCanvas(options: Options) {
           group.frameId = frameId
           group.side = side
           group.on("mouseover", () => {
-            bg.set({ opacity: 0.75 })
+            bg.set({ fill: ADD_PAGE_BUTTON_HOVER_FILL })
             canvasRef.current?.requestRenderAll()
           })
           group.on("mouseout", () => {
-            bg.set({ opacity: 0.5 })
+            bg.set({ fill: ADD_PAGE_BUTTON_FILL })
             canvasRef.current?.requestRenderAll()
           })
           return group
