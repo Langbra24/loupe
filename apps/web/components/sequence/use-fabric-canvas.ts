@@ -21,6 +21,7 @@ import {
   type FrameLayout,
 } from "@/components/sequence/frame-grid"
 import { BLEED_MM, DEFAULT_TEXT_COLOR } from "@/components/shell/inspector-panel"
+import { isTypingTarget } from "@/components/sequence/use-canvas-shortcuts"
 import { DEFAULT_TEXT_FONT, resolveTextFontFamily } from "@/lib/fonts"
 import { thumbnailUrl } from "@/lib/storage/assets"
 
@@ -429,6 +430,59 @@ export function useFabricCanvas(options: Options) {
     }
     window.addEventListener("keydown", onKeyDownDuringTextPlacement)
 
+    /**
+     * Holding Space shows the familiar "hand tool" grab cursor and lets a
+     * plain left-drag pan the canvas — not just the existing empty-canvas/
+     * middle-drag pan below. `skipTargetFind` (the same flag armed text
+     * placement above uses to make clicks pass straight through to empty
+     * canvas) is what actually makes this work: with it on, every object
+     * stops being hit-testable, so the `mouse:down` pan trigger's existing
+     * `!opt.target` check fires for a click anywhere, and Fabric's own
+     * object-selection/drag never engages to fight over the same drag.
+     * `spacePressed` (declared here, read by `mouse:down`/`mouse:up` inside
+     * the async IIFE below via closure) is only what decides whether the
+     * *drag* cursor reads "grabbing" instead of "grab" — the pan itself
+     * doesn't need it once `skipTargetFind` is on.
+     *
+     * Guarded against typing targets and an actively-edited text box (Space
+     * has to type a literal space there, not arm panning) and against an
+     * armed text placement (which already owns `skipTargetFind` for its own
+     * reason — space released mid-placement must not clear it out from
+     * under that gesture).
+     */
+    let spacePressed = false
+
+    const onSpaceKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || event.repeat || spacePressed) return
+      if (isTypingTarget(event.target)) return
+      if (placingTextRef.current) return
+      const target_canvas = canvasRef.current
+      if (!target_canvas) return
+      const active = target_canvas.getActiveObject() as PlacedTextbox | undefined
+      if (active?.isEditing) return
+
+      event.preventDefault() // Space's browser default is to scroll the page.
+      spacePressed = true
+      target_canvas.skipTargetFind = true
+      target_canvas.defaultCursor = "grab"
+      target_canvas.hoverCursor = "grab"
+      target_canvas.requestRenderAll()
+    }
+
+    const onSpaceKeyUp = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || !spacePressed) return
+      spacePressed = false
+      const target_canvas = canvasRef.current
+      if (!target_canvas) return
+      target_canvas.skipTargetFind = false
+      target_canvas.defaultCursor = "default"
+      target_canvas.hoverCursor = "move"
+      target_canvas.requestRenderAll()
+    }
+
+    window.addEventListener("keydown", onSpaceKeyDown)
+    window.addEventListener("keyup", onSpaceKeyUp)
+
     void (async () => {
       const fabric = await import("fabric")
       if (disposed || !canvasElementRef.current) return
@@ -694,6 +748,14 @@ export function useFabricCanvas(options: Options) {
           panning = true
           target.selection = false
           panFrom = { x: event.clientX, y: event.clientY }
+          // Space-held pan gets the "actively grabbing" cursor for the
+          // duration of the drag — `spacePressed` is `true` here exactly
+          // when this pan trigger fired because `skipTargetFind` made
+          // `opt.target` empty, not because the canvas was genuinely empty.
+          if (spacePressed) {
+            target.defaultCursor = "grabbing"
+            target.hoverCursor = "grabbing"
+          }
         }
       })
 
@@ -875,6 +937,13 @@ export function useFabricCanvas(options: Options) {
         target.selection = true
         clearInsertionIndicator()
         draggingRef.current = null
+        // Back to "ready to grab" rather than "grabbing" if Space is still
+        // held — only relevant when the drag that just ended was the
+        // space-triggered pan above, but harmless to set unconditionally.
+        if (spacePressed) {
+          target.defaultCursor = "grab"
+          target.hoverCursor = "grab"
+        }
 
         // A plain click on an already-placed text element — not a drag, not
         // a resize — enters editing immediately, cursor ready: one click to
@@ -1120,6 +1189,8 @@ export function useFabricCanvas(options: Options) {
       disposed = true
       setReady(false)
       window.removeEventListener("keydown", onKeyDownDuringTextPlacement)
+      window.removeEventListener("keydown", onSpaceKeyDown)
+      window.removeEventListener("keyup", onSpaceKeyUp)
       objects.clear()
       inFlight.clear()
       drawnFrames.clear()

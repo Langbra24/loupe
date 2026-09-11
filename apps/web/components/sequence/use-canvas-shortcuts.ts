@@ -56,7 +56,9 @@ export function useCanvasShortcuts({ enabled, zoomIn, zoomOut, resetZoom }: Opti
   return canIntercept
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
+/** Exported for use-fabric-canvas.ts's own window-level key listeners
+ *  (e.g. Space for the pan/hand cursor) — same guard, one definition. */
+export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   return (
     target.isContentEditable ||
