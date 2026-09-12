@@ -452,6 +452,24 @@ export function useFabricCanvas(options: Options) {
      */
     let spacePressed = false
 
+    /**
+     * Fabric only re-applies `defaultCursor`/`hoverCursor` to the DOM
+     * lazily, the next time it processes a `mouse:move` — a plain click
+     * with no drag movement in between never fires one, so setting just
+     * the properties left the cursor visibly stuck on whatever it showed
+     * before (reported directly: "hand is appearing but not changing state
+     * when clicking"). Setting `upperCanvasEl.style.cursor` directly makes
+     * every change here take effect immediately regardless of whether the
+     * pointer moves; the properties are still set too; so Fabric's own
+     * future cursor recalculations (its next real `mouse:move`) don't
+     * revert this to a stale value.
+     */
+    function setPanCursor(canvas: Canvas, cursor: string) {
+      canvas.defaultCursor = cursor
+      canvas.hoverCursor = cursor
+      canvas.upperCanvasEl.style.cursor = cursor
+    }
+
     const onSpaceKeyDown = (event: KeyboardEvent) => {
       if (event.code !== "Space" || event.repeat || spacePressed) return
       if (isTypingTarget(event.target)) return
@@ -464,8 +482,7 @@ export function useFabricCanvas(options: Options) {
       event.preventDefault() // Space's browser default is to scroll the page.
       spacePressed = true
       target_canvas.skipTargetFind = true
-      target_canvas.defaultCursor = "grab"
-      target_canvas.hoverCursor = "grab"
+      setPanCursor(target_canvas, "grab")
       target_canvas.requestRenderAll()
     }
 
@@ -477,6 +494,7 @@ export function useFabricCanvas(options: Options) {
       target_canvas.skipTargetFind = false
       target_canvas.defaultCursor = "default"
       target_canvas.hoverCursor = "move"
+      target_canvas.upperCanvasEl.style.cursor = "default"
       target_canvas.requestRenderAll()
     }
 
@@ -752,10 +770,7 @@ export function useFabricCanvas(options: Options) {
           // duration of the drag — `spacePressed` is `true` here exactly
           // when this pan trigger fired because `skipTargetFind` made
           // `opt.target` empty, not because the canvas was genuinely empty.
-          if (spacePressed) {
-            target.defaultCursor = "grabbing"
-            target.hoverCursor = "grabbing"
-          }
+          if (spacePressed) setPanCursor(target, "grabbing")
         }
       })
 
@@ -940,10 +955,7 @@ export function useFabricCanvas(options: Options) {
         // Back to "ready to grab" rather than "grabbing" if Space is still
         // held — only relevant when the drag that just ended was the
         // space-triggered pan above, but harmless to set unconditionally.
-        if (spacePressed) {
-          target.defaultCursor = "grab"
-          target.hoverCursor = "grab"
-        }
+        if (spacePressed) setPanCursor(target, "grab")
 
         // A plain click on an already-placed text element — not a drag, not
         // a resize — enters editing immediately, cursor ready: one click to
