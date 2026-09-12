@@ -1,22 +1,30 @@
 /**
- * Composes the prefilled GitHub issue URL the feedback control (KTD9, R23,
- * R24) opens on submit. Pure and side-effect free — the control itself is
- * responsible for actually opening the URL — which is what makes the
- * round-trip behavior here testable without a browser.
+ * Composes the body of the GitHub issue the feedback control (KTD9, R23,
+ * R24) files. Pure and side-effect free — actually calling GitHub's API is
+ * `app/api/feedback/route.ts`'s job — which is what makes the body-shape
+ * logic here testable without a network call.
  *
- * The real deployment target — matches `origin` in this checkout.
+ * Direct follow-up on R23/R24: this used to compose a `github.com/.../
+ * issues/new?...` URL for the browser to open, requiring the bookmaker to
+ * be signed into GitHub themselves. That's gone — the feedback control now
+ * POSTs to our own `/api/feedback` route, which files the issue server-side
+ * using a repo-scoped token (`GITHUB_FEEDBACK_TOKEN`), so submitting
+ * feedback needs no GitHub account at all. See that route for the actual
+ * API call and CLAUDE.md's "Hard rules" for why a backend exists here now.
  */
 export const GITHUB_REPO = "Langbra24/loupe"
+
+export const FEEDBACK_ISSUE_TITLE = "Feedback from the Loupe app"
 
 /**
  * Optional identity a bookmaker can attach to their feedback — both fields
  * are voluntary (R23's follow-up: "make it optional to provide their name
- * and email"). Folded into the issue body rather than sent anywhere else:
- * there is still no backend here, just more text in the same prefilled URL.
- * No email is ever sent by Loupe itself for this — a confirmation-email
- * flow would need a real backend beyond the Stripe-only one CLAUDE.md
- * allows, so email here is purely contact info the maintainer can read in
- * the filed issue and reply to by hand.
+ * and email"). Folded into the issue body rather than sent anywhere else —
+ * this is still the only place either value goes. No confirmation email is
+ * sent for a given email address: that's a distinct, bigger feature (an
+ * outbound mailer) than "file the issue for me," which is all this route
+ * does; email here is contact info the maintainer can read in the filed
+ * issue and reply to by hand.
  */
 export interface FeedbackContact {
   name?: string
@@ -25,10 +33,9 @@ export interface FeedbackContact {
 
 /** Enforced in the control's textarea itself (`maxLength`) with a live
  *  counter, not just here at compose time — KTD9's "never truncate silently"
- *  requirement. */
+ *  requirement. Also re-checked server-side in the API route, since a client
+ *  is never trusted to have actually enforced its own `maxLength`. */
 export const FEEDBACK_MAX_LENGTH = 2000
-
-const ISSUE_TITLE = "Feedback from the Loupe app"
 
 const BODY_HEADER =
   "Feedback submitted from within the Loupe app, via its bottom-left feedback control.\n\n---\n\n"
@@ -54,21 +61,4 @@ export function composeFeedbackBody(feedback: string, contact?: FeedbackContact)
   const contactBlock = lines.length > 0 ? `\n\n---\n${lines.join("\n")}` : ""
 
   return `${BODY_HEADER}${feedback}${contactBlock}${BODY_FOOTER}`
-}
-
-/**
- * Builds the `github.com/<repo>/issues/new?title=...&body=...` URL the
- * feedback control opens. `repo` defaults to {@link GITHUB_REPO} but is a
- * parameter so callers (and tests) aren't stuck depending on that ever
- * changing.
- */
-export function composeGitHubIssueUrl(
-  feedback: string,
-  contact?: FeedbackContact,
-  repo: string = GITHUB_REPO,
-): string {
-  const body = composeFeedbackBody(feedback, contact)
-  const title = encodeURIComponent(ISSUE_TITLE)
-  const encodedBody = encodeURIComponent(body)
-  return `https://github.com/${repo}/issues/new?title=${title}&body=${encodedBody}`
 }

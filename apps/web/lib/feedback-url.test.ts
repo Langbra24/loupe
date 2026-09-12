@@ -1,19 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { composeFeedbackBody, composeGitHubIssueUrl, FEEDBACK_MAX_LENGTH } from "@/lib/feedback-url"
-
-/** Pulls `title`/`body` back out of a composed URL without depending on the
- *  URL constructor's own query-parsing choices matching how they were built. */
-function decodeParams(url: string): { title: string; body: string } {
-  const query = url.split("?")[1] ?? ""
-  const params = new Map(
-    query.split("&").map((pair) => {
-      const [key, value] = pair.split("=")
-      return [key, decodeURIComponent(value ?? "")]
-    }),
-  )
-  return { title: params.get("title") ?? "", body: params.get("body") ?? "" }
-}
+import { composeFeedbackBody } from "@/lib/feedback-url"
 
 describe("composeFeedbackBody", () => {
   it("equals exactly the template plus the user's text", () => {
@@ -61,50 +48,13 @@ describe("composeFeedbackBody", () => {
     expect(body).toContain("Name: Jane Doe\n")
     expect(body).toContain("Email: jane@example.com\n")
   })
-})
 
-describe("composeGitHubIssueUrl", () => {
-  it("points at the given repo's issues/new endpoint", () => {
-    const url = composeGitHubIssueUrl("hello", undefined, "acme/example")
-    expect(url.startsWith("https://github.com/acme/example/issues/new?")).toBe(true)
-  })
-
-  it("round-trips feedback text containing &, #, and newlines", () => {
+  it("round-trips feedback text containing &, #, and newlines verbatim", () => {
+    // No URL/query-string encoding happens anywhere in this path anymore
+    // (the body goes straight into a JSON POST body) — this just confirms
+    // nothing here mangles characters that used to need percent-encoding.
     const feedback = "Line one & line two # with a hash\nand a newline\n\nand a blank line"
-    const url = composeGitHubIssueUrl(feedback)
-    const { body } = decodeParams(url)
-    expect(body).toBe(composeFeedbackBody(feedback))
-  })
-
-  it("round-trips an optional name/email into the composed body", () => {
-    const feedback = "The export button is confusing."
-    const contact = { name: "Jane Doe", email: "jane@example.com" }
-    const url = composeGitHubIssueUrl(feedback, contact)
-    const { body } = decodeParams(url)
-    expect(body).toBe(composeFeedbackBody(feedback, contact))
-    expect(body).toContain("Name: Jane Doe")
-    expect(body).toContain("Email: jane@example.com")
-  })
-
-  it("composes successfully at exactly the 2,000-character cap", () => {
-    const feedback = "x".repeat(FEEDBACK_MAX_LENGTH)
-    const url = composeGitHubIssueUrl(feedback)
-    const { body } = decodeParams(url)
-    expect(body).toBe(composeFeedbackBody(feedback))
-    expect(feedback).toHaveLength(FEEDBACK_MAX_LENGTH)
-  })
-
-  it("percent-encodes the static title", () => {
-    const url = composeGitHubIssueUrl("hi")
-    const { title } = decodeParams(url)
-    expect(title).toBe("Feedback from the Loupe app")
-  })
-
-  it("never includes anything beyond the template and the user's own text", () => {
-    const feedback = "just my feedback text"
-    const { body } = decodeParams(composeGitHubIssueUrl(feedback))
-    // Exact-equality, not substring-absence: pins the whole shape down rather
-    // than checking a few field names aren't present.
-    expect(body).toBe(composeFeedbackBody(feedback))
+    const body = composeFeedbackBody(feedback)
+    expect(body).toContain(feedback)
   })
 })
