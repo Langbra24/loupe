@@ -77,6 +77,7 @@ export function LightTable() {
   const selectElement = useEditorStore((state) => state.selectElement)
   const clearSelection = useEditorStore((state) => state.clearSelection)
   const updateElementBox = useEditorStore((state) => state.updateElementBox)
+  const moveElementToFrame = useEditorStore((state) => state.moveElementToFrame)
   const updateTextElement = useEditorStore((state) => state.updateTextElement)
   const applyImagePreset = useEditorStore((state) => state.applyImagePreset)
   const copySelectedFrame = useEditorStore((state) => state.copySelectedFrame)
@@ -120,6 +121,7 @@ export function LightTable() {
     onSelectFrame: (frameId) => (frameId ? selectFrame(frameId) : clearSelection()),
     onSelectElement: selectElement,
     onUpdateElementBox: updateElementBox,
+    onMoveElementToFrame: moveElementToFrame,
     onUpdateTextContent: (frameId, elementId, content) =>
       updateTextElement(frameId, elementId, { content }),
     onRemoveElement: removeElement,

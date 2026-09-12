@@ -190,6 +190,21 @@ interface EditorState {
   /** Bound to an element's normalized `Box` — the text sidebar's width field
    *  and the image sidebar's position/size fields both go through this. */
   updateElementBox: (frameId: string, elementId: string, patch: Partial<Box>) => void
+  /**
+   * An element already inside a frame was dragged across onto a *different*
+   * frame's bounds — reassigns it there instead of `updateElementBox`,
+   * which only ever recomputes the element's Box against whichever frame it
+   * already belongs to. Without this, dragging a photo from one page onto
+   * another moved it visually but left it structurally on the original
+   * page: the sidebar's "Centered"/"Full bleed" presets read `frameId` off
+   * `selection`, which stayed pointed at the old page, so clicking a preset
+   * re-centered the image on the page it used to live on, not the one it
+   * now visually sits on (direct bug report). `box` is the element's new
+   * normalized position/size, already computed against the *destination*
+   * frame's bounds by the caller — the same math `onUpdateElementBox`
+   * already does, just against a different frame's layout.
+   */
+  moveElementToFrame: (fromFrameId: string, toFrameId: string, elementId: string, box: Box) => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
   dismissError: () => void
@@ -909,6 +924,52 @@ export const useEditorStore = create<EditorState>((set, get) => {
           frame: { ...element.frame, ...patch },
         })),
       })),
+
+    moveElementToFrame: (fromFrameId, toFrameId, elementId, box) => {
+      const fromFrame = get().project.frames.find((f) => f.id === fromFrameId)
+      const element = fromFrame?.elements.find((e) => e.id === elementId)
+      if (!fromFrame || !element) return
+      const prevBox = element.frame
+
+      const selectionFor = (frameId: string): Selection => ({
+        kind: element.kind === "text" ? "text-element" : "image-element",
+        frameId,
+        elementId,
+      })
+
+      const doMove = () => {
+        updateProject((project) => ({
+          ...project,
+          frames: assignToFrame(
+            removeFromFrame(project.frames, fromFrameId, elementId),
+            toFrameId,
+            { ...element, frame: box },
+          ),
+        }))
+        set({ selection: selectionFor(toFrameId) })
+      }
+
+      doMove()
+
+      pushUndo({
+        do: doMove,
+        // Restores both which frame it belongs to and its exact prior Box
+        // there — a plain `removeFromFrame`/`assignToFrame` round-trip
+        // would put it back on the right page but at the destination
+        // frame's Box, not the position it actually had before the drag.
+        undo: () => {
+          updateProject((project) => ({
+            ...project,
+            frames: assignToFrame(
+              removeFromFrame(project.frames, toFrameId, elementId),
+              fromFrameId,
+              { ...element, frame: prevBox },
+            ),
+          }))
+          set({ selection: selectionFor(fromFrameId) })
+        },
+      })
+    },
 
     toggleLeftPanel: () => set((state) => ({ leftPanelOpen: !state.leftPanelOpen })),
     toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),

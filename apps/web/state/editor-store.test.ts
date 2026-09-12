@@ -108,6 +108,34 @@ describe("undo", () => {
     expect(useEditorStore.getState().project.frames.find((f) => f.id === frameId)?.elements).toEqual([])
   })
 
+  it("undoes moveElementToFrame, restoring the element to its original page and Box", () => {
+    const store = useEditorStore.getState()
+    const frameA = store.addFrame(A5_PORTRAIT)
+    const frameB = store.addFrame(A5_PORTRAIT)
+    const elementId = useEditorStore.getState().createTextElement(frameA, "hello")
+
+    const originalBox = useEditorStore
+      .getState()
+      .project.frames.find((f) => f.id === frameA)
+      ?.elements.find((e) => e.id === elementId)?.frame
+    if (!originalBox) throw new Error("expected the created element to have a Box")
+
+    useEditorStore.getState().moveElementToFrame(frameA, frameB, elementId, { x: 0.1, y: 0.1, width: 0.5, height: 0.5 })
+
+    const midway = useEditorStore.getState().project
+    expect(midway.frames.find((f) => f.id === frameA)?.elements).toEqual([])
+    expect(midway.frames.find((f) => f.id === frameB)?.elements).toHaveLength(1)
+    expect(useEditorStore.getState().selection).toEqual({ kind: "text-element", frameId: frameB, elementId })
+
+    useEditorStore.getState().undo()
+
+    const restored = useEditorStore.getState().project
+    expect(restored.frames.find((f) => f.id === frameB)?.elements).toEqual([])
+    const restoredElement = restored.frames.find((f) => f.id === frameA)?.elements.find((e) => e.id === elementId)
+    expect(restoredElement?.frame).toEqual(originalBox)
+    expect(useEditorStore.getState().selection).toEqual({ kind: "text-element", frameId: frameA, elementId })
+  })
+
   it("clears the stack on project load — a fresh load never reaches into the previous project's history", async () => {
     useEditorStore.getState().addFrame(A5_PORTRAIT)
     expect(useEditorStore.getState().undoStack.length).toBeGreaterThan(0)

@@ -195,6 +195,13 @@ interface Options {
    *  normalized `Box`, computed from the object's on-canvas position/size
    *  against the frame's current bounds. */
   onUpdateElementBox: (frameId: string, elementId: string, patch: Partial<Box>) => void
+  /** An element already inside a frame was dragged across onto a
+   *  *different* frame's bounds — reassigns it there. `box` is the new
+   *  normalized Box, computed against the destination frame's bounds (see
+   *  `onUpdateElementBox`'s doc comment for why that distinction matters:
+   *  without this, the element visually moved but stayed structurally on
+   *  its original page). */
+  onMoveElementToFrame: (fromFrameId: string, toFrameId: string, elementId: string, box: Box) => void
   /** An already-placed text element finished an in-place edit (double-click
    *  to re-enter, then blur/Escape/click-away to exit — Fabric's own
    *  triggers). Distinct from `onCreateText`, which is for a brand-new
@@ -243,6 +250,7 @@ export function useFabricCanvas(options: Options) {
     onSelectFrame,
     onSelectElement,
     onUpdateElementBox,
+    onMoveElementToFrame,
     onUpdateTextContent,
     onRemoveElement,
   } = options
@@ -365,6 +373,7 @@ export function useFabricCanvas(options: Options) {
     onSelectFrame,
     onSelectElement,
     onUpdateElementBox,
+    onMoveElementToFrame,
     onUpdateTextContent,
     onRemoveElement,
   })
@@ -393,6 +402,7 @@ export function useFabricCanvas(options: Options) {
       onSelectFrame,
       onSelectElement,
       onUpdateElementBox,
+      onMoveElementToFrame,
       onUpdateTextContent,
       onRemoveElement,
     }
@@ -1009,7 +1019,27 @@ export function useFabricCanvas(options: Options) {
         if (placed.elementId && placed.frameId) {
           const { frames: currentFrames, placements, assets } = latest.current
           const originY = frameGridOriginY(placements, assets)
-          const layout = layoutFrames(currentFrames, originY).find((l) => l.frameId === placed.frameId)
+          const layouts = layoutFrames(currentFrames, originY)
+
+          // Dragged onto a *different* frame's bounds? Reassign it there —
+          // computing the new Box against whichever frame it already
+          // belonged to (as this used to do unconditionally) left a
+          // cross-page drag looking like it worked while the element
+          // stayed structurally on its original page. That's what made the
+          // sidebar's "Centered"/"Full bleed" presets re-center the image
+          // on the page it used to live on rather than the one it now
+          // visually sits on (direct bug report) — those presets read
+          // `frameId` from `selection`, which `onMoveElementToFrame` below
+          // updates to the destination frame; `onUpdateElementBox` never
+          // touches selection at all. Falls back to the element's own
+          // frame when the drop lands outside every frame's bounds — there
+          // is no "eject back to the pasteboard" gesture for an element
+          // already inside a frame, so it simply stays on the page it was
+          // already on, same as before this fix.
+          const dropX = placed.left ?? 0
+          const dropY = placed.top ?? 0
+          const hitFrameId = frameAt(layouts, { x: dropX, y: dropY }) ?? placed.frameId
+          const layout = layouts.find((l) => l.frameId === hitFrameId)
           if (!layout || layout.bounds.width === 0 || layout.bounds.height === 0) return
 
           // Fabric reports position/size pre-scale; the object's actual
@@ -1018,13 +1048,18 @@ export function useFabricCanvas(options: Options) {
           // a move) persist correctly as a new normalized Box.
           const absWidth = (placed.width ?? 0) * (placed.scaleX ?? 1)
           const absHeight = (placed.height ?? 0) * (placed.scaleY ?? 1)
-
-          handlers.current.onUpdateElementBox(placed.frameId, placed.elementId, {
-            x: ((placed.left ?? 0) - layout.bounds.x) / layout.bounds.width,
-            y: ((placed.top ?? 0) - layout.bounds.y) / layout.bounds.height,
+          const box: Box = {
+            x: (dropX - layout.bounds.x) / layout.bounds.width,
+            y: (dropY - layout.bounds.y) / layout.bounds.height,
             width: absWidth / layout.bounds.width,
             height: absHeight / layout.bounds.height,
-          })
+          }
+
+          if (hitFrameId === placed.frameId) {
+            handlers.current.onUpdateElementBox(placed.frameId, placed.elementId, box)
+          } else {
+            handlers.current.onMoveElementToFrame(placed.frameId, hitFrameId, placed.elementId, box)
+          }
           return
         }
 
@@ -1735,6 +1770,18 @@ export function useFabricCanvas(options: Options) {
         const existing = live.get(element.id)
 
         if (existing) {
+          // This loop is keyed by element id alone, reused verbatim across a
+          // frame reassignment (`moveElementToFrame`) — without this, the
+          // cached object's `frameId` tag stays pointed at whichever frame
+          // it was first created under, forever. That went unnoticed before
+          // an element could ever change frames at all; now it can (a photo
+          // dragged from one page onto another), and a *second* interaction
+          // with the same object — say, repositioning it again within its
+          // new page — would read this stale tag as its "current" frame in
+          // `object:modified` below, sending that update to the wrong frame
+          // (a silent no-op, since the element no longer lives there).
+          existing.frameId = frame.id
+
           // Don't fight the object currently under the user's pointer.
           if (existing === draggingRef.current) continue
 
