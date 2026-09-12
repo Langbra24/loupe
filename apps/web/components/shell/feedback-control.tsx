@@ -54,28 +54,45 @@ export function FeedbackControl() {
     if (!canSubmit) return
     setSubmitting(true)
 
+    // `toastManager.promise` (the base/toast reference's own pattern for
+    // exactly this shape of work) shows the loading toast immediately and
+    // morphs it in place into the success/error one once the request
+    // settles, rather than this component juggling three separate
+    // `.add()` calls itself.
     try {
-      const response = await fetch("/api/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ feedback: text, contact: { name, email } }),
-      })
-      if (!response.ok) throw new Error(`feedback route returned ${response.status}`)
+      await toastManager.promise(
+        fetch("/api/feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ feedback: text, contact: { name, email } }),
+        }).then((response) => {
+          if (!response.ok) throw new Error(`feedback route returned ${response.status}`)
+          return response
+        }),
+        {
+          loading: { title: "Sending feedback…", type: "loading" },
+          success: {
+            title: "Feedback sent",
+            description: "Filed on GitHub. Thanks — will be reviewed in 2–3 business days.",
+            type: "success",
+          },
+          error: {
+            title: "Couldn't send feedback",
+            description: "Something went wrong on our end. Please try again in a moment.",
+            type: "error",
+          },
+        },
+      )
 
       setName("")
       setEmail("")
       setText("")
       setOpen(false)
-      toastManager.add({
-        title: "Feedback sent",
-        description: "Filed on GitHub. Thanks — will be reviewed in 2–3 business days.",
-      })
     } catch (error) {
+      // Already surfaced as the error toast above — swallowed here so the
+      // popover stays open with the draft intact for a retry, rather than
+      // an unhandled rejection.
       console.error("Failed to submit feedback:", error)
-      toastManager.add({
-        title: "Couldn't send feedback",
-        description: "Something went wrong on our end. Please try again in a moment.",
-      })
     } finally {
       setSubmitting(false)
     }
