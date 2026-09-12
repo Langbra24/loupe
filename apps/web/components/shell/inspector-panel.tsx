@@ -510,7 +510,12 @@ function AlignmentTabs({
 }) {
   return (
     <Tabs value={value} onValueChange={(next) => onChange(next as TextElement["align"])}>
-      <TabsList aria-label="Text alignment" className="gap-1">
+      {/* Per Paper (F0-0): the rail sits inside its own bordered track,
+          not floating directly on the sidebar background — the same
+          bg-input/30 + border treatment every other field box in this
+          file already uses, so this reads as one more field rather than
+          a one-off control. */}
+      <TabsList aria-label="Text alignment" className="gap-1 rounded-md border bg-input/30 p-0.5">
         <TabsIndicator />
         {ALIGNMENTS.map((align) => {
           const Icon = ALIGNMENT_ICONS[align]
