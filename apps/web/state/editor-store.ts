@@ -11,11 +11,14 @@ import {
   presetImageBox,
   removeFromFrame,
   reorderFrame,
+  spreadSideOf,
   updateElement,
   updateFrame,
   defaultFrameMargins,
+  type Asset,
   type BookSetup,
   type Box,
+  type CanvasPlacement,
   type Frame,
   type ImageElement,
   type ImagePreset,
@@ -107,6 +110,13 @@ interface EditorState {
   importPhotos: (files: readonly File[]) => Promise<void>
   movePlacement: (placementId: string, x: number, y: number) => void
   scalePlacement: (placementId: string, scale: number) => void
+  /** Deletes one or more pasteboard photographs outright, as a single
+   *  undoable step — Backspace/Delete on whatever's selected on the
+   *  pasteboard, one photograph or several shift-clicked together
+   *  (user-directed: "delete photos that are not on a page", then "I can't
+   *  multi-select and delete"). See the implementation below for why this
+   *  also drops each `Asset`, not just its `CanvasPlacement`. */
+  removePlacements: (placementIds: readonly string[]) => void
   moveToFrame: (placementId: string, frameId: string) => void
   /** Creates a text element on a frame — either a pasteboard text box (U6)
    *  finishing editing over a frame's bounds, or (the common case since the
@@ -124,6 +134,12 @@ interface EditorState {
    *  `frame.elements` on undo, the same convention `removeFrame` uses for
    *  restoring a whole frame's position. */
   removeElement: (frameId: string, elementId: string) => void
+
+  /** Renames the book — the layers panel's top-left field, made editable on
+   *  click (user-directed). Not pushed onto the undo stack: same as
+   *  `setupBook`'s `pageSize`/`pageCount`, this is a settings-style field a
+   *  user can just retype, not a canvas design mutation worth Ctrl+Z-ing. */
+  renameProject: (name: string) => void
 
   addFrame: (pageSize: PageSize) => string
   removeFrame: (frameId: string) => void
@@ -312,6 +328,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
       command.do()
     },
 
+    renameProject: (name) => updateProject((project) => ({ ...project, name })),
+
     importPhotos: async (files) => {
       if (files.length === 0) return
       set({ importProgress: { done: 0, total: files.length }, lastError: null })
@@ -373,6 +391,73 @@ export const useEditorStore = create<EditorState>((set, get) => {
           ),
         },
       })),
+
+    /**
+     * Also drops each `Asset` from `project.assets`, not just its
+     * `CanvasPlacement` — a pasteboard placement is the only thing
+     * referencing an asset on this side of the book (once a photograph
+     * joins a frame, `moveToFrame` already removes its placement), so with
+     * the placement gone the asset would otherwise sit in `project.assets`
+     * forever: invisible, unreachable, and still counted as "known" by
+     * `deleteOrphanedBlobs` (lib/storage/project.ts), which would keep its
+     * IndexedDB blobs alive too.
+     *
+     * Takes an array and removes them all as one undoable step rather than
+     * one call per id — shift-clicking several pasteboard photographs
+     * (Fabric's own multi-select) is a normal gesture, and Backspace on
+     * that selection should feel like one delete, restorable with one
+     * Ctrl+Z, not `placementIds.length` separate history entries.
+     *
+     * The blobs themselves are not deleted synchronously here — this only
+     * touches in-memory `Project` state, same as `removeFrame`/
+     * `removeElement`. `deleteOrphanedBlobs` already sweeps any asset id no
+     * longer present in `project.assets` on the *next* load, which is what
+     * keeps this safely undoable: undo only has to restore the `Asset`/
+     * `CanvasPlacement` records, never resurrect an already-deleted blob.
+     */
+    removePlacements: (placementIds) => {
+      const state = get()
+      const idSet = new Set(placementIds)
+
+      // Collected in ascending array-index order (the loop below runs in
+      // that order), which is what lets undo below splice each one back in
+      // using its original index directly, unadjusted — every earlier
+      // restoration in the loop is for an item that was originally before
+      // the current one too, so it's already back in place by the time the
+      // current one's original index is used.
+      const removedPlacements: { index: number; placement: CanvasPlacement }[] = []
+      state.project.canvas.placements.forEach((placement, index) => {
+        if (idSet.has(placement.id)) removedPlacements.push({ index, placement })
+      })
+      if (removedPlacements.length === 0) return
+
+      const assetIdSet = new Set(removedPlacements.map(({ placement }) => placement.assetId))
+      const removedAssets: { index: number; asset: Asset }[] = []
+      state.project.assets.forEach((asset, index) => {
+        if (assetIdSet.has(asset.id)) removedAssets.push({ index, asset })
+      })
+
+      const doRemove = () =>
+        updateProject((project) => ({
+          ...project,
+          canvas: { placements: project.canvas.placements.filter((p) => !idSet.has(p.id)) },
+          assets: project.assets.filter((a) => !assetIdSet.has(a.id)),
+        }))
+
+      doRemove()
+
+      pushUndo({
+        do: doRemove,
+        undo: () =>
+          updateProject((project) => {
+            const placements = [...project.canvas.placements]
+            for (const { index, placement } of removedPlacements) placements.splice(index, 0, placement)
+            const assets = [...project.assets]
+            for (const { index, asset } of removedAssets) assets.splice(index, 0, asset)
+            return { ...project, assets, canvas: { placements } }
+          }),
+      })
+    },
 
     /**
      * A photograph dragged off the pasteboard and dropped onto a frame joins
@@ -883,10 +968,15 @@ export const useEditorStore = create<EditorState>((set, get) => {
       const prevBox = prevElement.frame
 
       const margins = frame.margins ?? defaultFrameMargins(frame.pageSize)
-      const nextBox = presetImageBox(preset, frame.pageSize, margins, BLEED_MM)
-      // full-bleed is meant to crop-to-fill the page; centered/left-half are
-      // meant to show the whole image without distortion — see the `fit`
-      // honoring in use-fabric-canvas.ts's syncFrameElements.
+      // Only `two-page-spread` reads this (see `presetImageBox`'s doc
+      // comment) — harmless to always compute since it's cheap and every
+      // other preset simply ignores it.
+      const spreadSide = spreadSideOf(get().project.frames, frameId)
+      const nextBox = presetImageBox(preset, frame.pageSize, margins, BLEED_MM, spreadSide)
+      // full-bleed is meant to crop-to-fill the page; centered/left-half/
+      // two-page-spread are meant to show the whole image without
+      // distortion — see the `fit` honoring in use-fabric-canvas.ts's
+      // syncFrameElements.
       const nextFit: ImageElement["fit"] = preset === "full-bleed" ? "cover" : "contain"
       const prevFit = prevElement.kind === "image" ? prevElement.fit : undefined
 

@@ -305,10 +305,18 @@ export function useUndoShortcut({ enabled, undo, redo }: UndoShortcutOptions): v
  *  decide what Backspace/Delete should remove — the caller passes this
  *  derived shape rather than the raw `Selection` union from `@loupe/core`,
  *  the same pattern `isFrameSelected`/`selectedFrameId` used before this
- *  hook covered elements too. */
+ *  hook covered elements too. `"placement"` is one or more pasteboard
+ *  photographs that haven't been dropped onto a frame yet — an array, not a
+ *  single id, since shift-clicking several is a normal gesture (Fabric's
+ *  own multi-select) and should delete all of them in one step, not just
+ *  whichever was clicked last. Pasteboard placements have no `Selection`
+ *  variant of their own (see `onSelectPlacement` in use-fabric-canvas.ts),
+ *  so the caller tracks them separately from the store's `selection` and
+ *  folds them in here. */
 export type DeletableSelection =
   | { kind: "frame"; frameId: string }
   | { kind: "element"; frameId: string; elementId: string }
+  | { kind: "placement"; placementIds: readonly string[] }
   | null
 
 export interface DeleteSelectionShortcutOptions {
@@ -323,14 +331,23 @@ export interface DeleteSelectionShortcutOptions {
   isTextEditing: () => boolean
   removeFrame: (frameId: string) => void
   removeElement: (frameId: string, elementId: string) => void
+  /** Deletes one or more pasteboard photographs outright, as a single
+   *  undoable step (user-directed: "delete photos that are not on a page",
+   *  then "I can't multi-select and delete" once shift-click multi-select
+   *  turned out to only ever remove the last-clicked one) — see
+   *  `removePlacements` in editor-store.ts for why this also drops the
+   *  underlying `Asset`s. */
+  removePlacements: (placementIds: readonly string[]) => void
 }
 
 /**
  * Backspace/Delete removes whatever is currently selected (user-directed):
  * the page itself when a frame is selected — same `removeFrame` action the
- * right-click menu's "Delete page" item calls — or the element when an image
- * or text element is selected, via `removeElement`. Either path lands one
- * undoable step, restorable via the existing undo stack.
+ * right-click menu's "Delete page" item calls — the element when an image or
+ * text element is selected, via `removeElement` — or the photograph(s)
+ * outright when one or more pasteboard placements are selected, via
+ * `removePlacements`. Every path lands one undoable step, restorable via the
+ * existing undo stack.
  *
  * Guarded by `isTypingTarget` for the obvious reason: Backspace is the most
  * common key there is in a text field, and must never delete anything just
@@ -344,6 +361,7 @@ export function useDeleteSelectionShortcut({
   isTextEditing,
   removeFrame,
   removeElement,
+  removePlacements,
 }: DeleteSelectionShortcutOptions): void {
   useEffect(() => {
     if (!enabled) return
@@ -357,12 +375,14 @@ export function useDeleteSelectionShortcut({
       event.preventDefault()
       if (selection.kind === "frame") {
         removeFrame(selection.frameId)
-      } else {
+      } else if (selection.kind === "element") {
         removeElement(selection.frameId, selection.elementId)
+      } else {
+        removePlacements(selection.placementIds)
       }
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [enabled, selection, isTextEditing, removeFrame, removeElement])
+  }, [enabled, selection, isTextEditing, removeFrame, removeElement, removePlacements])
 }

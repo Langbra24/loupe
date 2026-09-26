@@ -149,6 +149,74 @@ export function insertFrame(frames: readonly Frame[], index: number, frame: Fram
   return next
 }
 
+/**
+ * One row of the book, grouped for layout purposes: either a solo frame
+ * (a cover, or a trailing frame with no partner left over) or a spread — two
+ * facing frames meant to sit visually together, à la InDesign, so an image
+ * can span the gutter between them (`ImagePreset`'s `'two-page-spread'`
+ * below).
+ *
+ * Purely derived, like `Spread`/`toSpreads` already are for the (currently
+ * unused) `Page` model — nothing stores this grouping, it's recomputed from
+ * `Frame.position` order and `Frame.isCover` every time it's needed, so a
+ * reorder or a newly-marked cover always regroups correctly with no
+ * migration step. Distinct from `Spread`: that type pairs `Page`s for the
+ * committed-book concept nothing currently populates; this pairs `Frame`s,
+ * the pages actually in progress on the canvas.
+ */
+export type FrameGroup = { kind: 'solo'; frame: Frame } | { kind: 'spread'; left: Frame; right: Frame }
+
+/**
+ * Groups frames (already in reading order) into the rows they lay out as:
+ * a cover frame is always solo — it interrupts pairing rather than joining
+ * one, even mid-sequence, since a cover marked partway through a book (an
+ * unusual but not-forbidden use of the flag) still shouldn't drag a
+ * neighbor into a spread with it. Every other frame pairs with the next one
+ * in sequence; an odd frame out (an unpaired frame left over before a cover
+ * or at the very end) is solo too, not silently dropped.
+ */
+export function groupFramesIntoSpreads(frames: readonly Frame[]): FrameGroup[] {
+  const groups: FrameGroup[] = []
+  let pending: Frame | null = null
+
+  for (const frame of frames) {
+    if (frame.isCover) {
+      if (pending) {
+        groups.push({ kind: 'solo', frame: pending })
+        pending = null
+      }
+      groups.push({ kind: 'solo', frame })
+      continue
+    }
+
+    if (pending) {
+      groups.push({ kind: 'spread', left: pending, right: frame })
+      pending = null
+    } else {
+      pending = frame
+    }
+  }
+
+  if (pending) groups.push({ kind: 'solo', frame: pending })
+
+  return groups
+}
+
+/**
+ * Which half of a spread `frameId` sits in, if any — `null` for a solo frame
+ * (a cover, an unpaired trailing frame, or an id not present at all). Used
+ * by the `'two-page-spread'` image preset (`presetImageBox` below) to know
+ * which direction to span the gutter.
+ */
+export function spreadSideOf(frames: readonly Frame[], frameId: string): 'left' | 'right' | null {
+  for (const group of groupFramesIntoSpreads(frames)) {
+    if (group.kind !== 'spread') continue
+    if (group.left.id === frameId) return 'left'
+    if (group.right.id === frameId) return 'right'
+  }
+  return null
+}
+
 /** A frame's rectangle on the pasteboard, for hit-testing. Kept separate from
  *  `Frame` itself because where a frame sits on the canvas is a rendering
  *  concern for a later unit — this module only needs the id and the rectangle. */
@@ -228,24 +296,39 @@ export function refitElementsForPageSize(
  * - `left-half`: inset by the same margins, but only occupies the page's
  *   left half — its right edge sits exactly on the page's horizontal
  *   midpoint, for a diptych-style layout across a spread.
+ * - `two-page-spread`: inset by the *outer* margin only, on the true outer
+ *   edge of whichever half of a spread this frame is — its far edge
+ *   crosses straight through the gutter with no inset at all, into the
+ *   facing frame, so a single image visually spans both pages of an actual
+ *   `FrameGroup` spread (`groupFramesIntoSpreads`). Requires knowing which
+ *   half this frame is (`spreadSideOf`) — falls back to `centered`'s box
+ *   when the frame has no partner (a cover, or an unpaired trailing frame),
+ *   since there's nothing to span into.
  */
-export type ImagePreset = 'full-bleed' | 'centered' | 'left-half'
+export type ImagePreset = 'full-bleed' | 'centered' | 'left-half' | 'two-page-spread'
 
 /**
  * Compute the normalized `Box` for one of the fixed image presets.
  *
- * All three presets are expressed in the same 0..1-relative-to-page space
- * `ImageElement.frame` already uses — `full-bleed`'s box legitimately extends
- * outside 0..1 (negative x/y, width/height over 1), since bleed is by
- * definition outside the trim edge. Nothing about `Box` forbids that; it is
+ * All three original presets are expressed in the same 0..1-relative-to-page
+ * space `ImageElement.frame` already uses — `full-bleed`'s box legitimately
+ * extends outside 0..1 (negative x/y, width/height over 1), since bleed is
+ * by definition outside the trim edge. `two-page-spread` extends outside
+ * 0..1 for the same reason a spread crosses the gutter: `spreadSide`
+ * decides which direction. Nothing about `Box` forbids any of this; it is
  * only ever clamped at render/export time by whatever draws it, not by the
  * type itself.
+ *
+ * `spreadSide` is only consulted for `'two-page-spread'` — every other
+ * preset ignores it, so callers that don't yet know a frame's spread side
+ * (or are applying a different preset) can simply omit it.
  */
 export function presetImageBox(
   preset: ImagePreset,
   pageSize: PageSize,
   margins: Margins,
   bleedMm: number,
+  spreadSide: 'left' | 'right' | null = null,
 ): Box {
   const bleedX = bleedMm / pageSize.width
   const bleedY = bleedMm / pageSize.height
@@ -264,7 +347,24 @@ export function presetImageBox(
     return { x: left, y: top, width: 1 - left - right, height }
   }
 
-  // left-half: same left inset and content height, right edge pinned to the
-  // page's horizontal midpoint rather than the outer margin.
-  return { x: left, y: top, width: 0.5 - left, height }
+  if (preset === 'left-half') {
+    // Same left inset and content height, right edge pinned to the page's
+    // horizontal midpoint rather than the outer margin.
+    return { x: left, y: top, width: 0.5 - left, height }
+  }
+
+  // two-page-spread, no partner to span into — the closest sensible
+  // fallback is the same box `centered` produces.
+  if (!spreadSide) {
+    return { x: left, y: top, width: 1 - left - right, height }
+  }
+
+  // Spans from this half's outer edge (`right`, the margin away from the
+  // spine — reused for both halves under the assumption, true for every
+  // frame `framesForBookSetup` creates, that both pages of a spread share
+  // the same page size and margins) all the way to the facing page's outer
+  // edge, crossing the gutter itself with zero inset.
+  const spanWidth = 2 * (1 - right)
+  const x = spreadSide === 'left' ? right : -(1 - right)
+  return { x, y: top, width: spanWidth, height }
 }

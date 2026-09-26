@@ -1,28 +1,23 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
-import { Popover } from "@base-ui/react/popover"
+import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon } from "lucide-react"
 import {
   checkPageCount,
-  cmykToHex,
-  hexToRgb,
-  isValidHex,
   presetImageBox,
   resolveTextSize,
-  rgbToCmyk,
-  rgbToHex,
   defaultFrameMargins,
-  type CmykColor,
+  spreadSideOf,
   type ImageElement,
   type ImagePreset,
   type Margins,
-  type RgbColor,
   type Selection,
   type TextElement,
   type TypeRole,
 } from "@loupe/core"
 
+import { ColorField } from "@/components/shell/color-picker"
+import { NumberField } from "@/components/shell/number-field"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -58,9 +53,14 @@ const ALIGNMENTS: TextElement["align"][] = ["left", "center", "right"]
  * the sidebar buttons below and the canvas menu always agree on what each
  * preset does.
  */
+// Order matters here (not in light-table.tsx's copy, a plain vertical menu
+// list) — `Object.keys()` insertion order drives the 2x2 button grid below,
+// and this one is row-major: Full bleed/Centered on top, Two-page spread/
+// Left half underneath (direct follow-up, Paper node 1G2-0).
 const IMAGE_PRESET_LABELS: Record<ImagePreset, string> = {
   "full-bleed": "Full bleed",
   centered: "Centered",
+  "two-page-spread": "Two-page spread",
   "left-half": "Left half",
 }
 
@@ -362,13 +362,20 @@ function TextElementSettings({ frameId, elementId }: { frameId: string; elementI
 /* ------------------------------------------------------------------ */
 
 function ImageElementSettings({ frameId, elementId }: { frameId: string; elementId: string }) {
-  const frame = useEditorStore((state) => state.project.frames.find((f) => f.id === frameId))
+  const frames = useEditorStore((state) => state.project.frames)
+  const frame = frames.find((f) => f.id === frameId)
   const element = frame?.elements.find((e): e is ImageElement => e.id === elementId && e.kind === "image")
   const updateImageFit = useEditorStore((state) => state.updateImageFit)
   const updateElementBox = useEditorStore((state) => state.updateElementBox)
   const applyImagePreset = useEditorStore((state) => state.applyImagePreset)
 
   if (!frame || !element) return <Hint>This element no longer exists.</Hint>
+
+  // Which side of a spread this frame is (or `null` for a cover/unpaired
+  // frame) — only `two-page-spread` cares (see `presetImageBox` in core),
+  // but computing it once here keeps both the active-preset check and the
+  // click handler agreeing on the same answer.
+  const spreadSide = spreadSideOf(frames, frameId)
 
   // Which preset (if any) the element's current Box/fit already matches —
   // drives the "active" state on the preset buttons below. Recomputed from
@@ -379,7 +386,7 @@ function ImageElementSettings({ frameId, elementId }: { frameId: string; element
   // clicked last."
   const margins = frame.margins ?? defaultFrameMargins(frame.pageSize)
   const activePreset = (Object.keys(IMAGE_PRESET_LABELS) as ImagePreset[]).find((preset) => {
-    const box = presetImageBox(preset, frame.pageSize, margins, BLEED_MM)
+    const box = presetImageBox(preset, frame.pageSize, margins, BLEED_MM, spreadSide)
     const expectedFit = preset === "full-bleed" ? "cover" : "contain"
     const EPSILON = 0.001
     return (
@@ -394,7 +401,14 @@ function ImageElementSettings({ frameId, elementId }: { frameId: string; element
   return (
     <>
       <Section title="Image">
-        <Row label="Name" value={element.name} />
+        {/* Not `Row` (direct follow-up, Paper node 1G2-0): this field's
+            label reads full-brightness, not the muted tone every other
+            `Row` label in this sidebar uses — a one-off for this field
+            specifically, so `Row`'s other nine call sites stay untouched. */}
+        <div className="flex items-center justify-between gap-3 py-0.5 text-sm">
+          <span className="text-foreground">Name</span>
+          <span className="truncate text-xs text-foreground">{element.name}</span>
+        </div>
       </Section>
       <Separator />
       <Section title="Fit">
@@ -406,14 +420,19 @@ function ImageElementSettings({ frameId, elementId }: { frameId: string; element
       </Section>
       <Separator />
       <Section title="Layout preset">
-        <div className="grid grid-cols-3 gap-1.5">
+        {/* 2x2, not 3+1 (direct follow-up, Paper node 1G2-0) — four presets
+            read as one balanced block this way instead of a lopsided row
+            of three with the fourth stranded alone underneath. Explicit
+            `h-7` (28px) keeps every button the same height regardless of
+            whether its label wraps. */}
+        <div className="grid grid-cols-2 gap-1.5">
           {(Object.keys(IMAGE_PRESET_LABELS) as ImagePreset[]).map((preset) => (
             <button
               key={preset}
               type="button"
               onClick={() => applyImagePreset(frameId, elementId, preset)}
               className={cn(
-                "rounded-md border px-1.5 py-1.5 text-center text-[0.7rem] leading-tight font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                "flex h-7 items-center justify-center rounded-md border px-1.5 text-center text-[0.7rem] leading-tight font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
                 preset === activePreset
                   ? "border-primary bg-primary text-primary-foreground"
                   : "bg-input/30 text-foreground hover:bg-input/60 focus-visible:border-ring",
@@ -594,135 +613,6 @@ function FontFamilySelect({
   )
 }
 
-/** Which color space the swatch popover's channel inputs are currently
- *  expressed in. Doesn't change what's stored — `TextElement.color` is
- *  always a hex string; this only picks which fields the user edits it
- *  through (R: photographers and print professionals think in RGB or CMYK,
- *  not hex). */
-type ColorInputMode = "rgb" | "cmyk"
-
-/**
- * The text sidebar's Color field (R23 follow-up). A swatch + hex trigger,
- * matching the reference (Paper node 1Y-0)'s row styling but built from this
- * project's own input tokens (`bg-input/30`, `border`) rather than the
- * reference's literal oklch/hex values, same as every other field in this
- * file. Opens a popover with a live swatch, a raw hex field for a quick
- * paste, and an RGB/CMYK tab switch over the same value — CMYK exists
- * because this is a print layout tool, and CMYK is how a print professional
- * actually thinks about ink, not a screen's RGB.
- */
-function ColorField({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
-  const [mode, setMode] = useState<ColorInputMode>("rgb")
-  const [hexDraft, setHexDraft] = useState(value)
-  const [lastCommittedValue, setLastCommittedValue] = useState(value)
-
-  // The hex field is free text while it's being typed (an in-progress "#18"
-  // shouldn't be rejected or reformatted mid-keystroke) — only commit
-  // upstream once it's a genuinely valid hex. When `value` changes from
-  // elsewhere (RGB/CMYK fields, or a different element being selected), the
-  // draft needs to follow it — same "adjust state during render" pattern
-  // `InspectorPanel` above uses for `displayed`/`selection`, not an effect,
-  // since this is a pure response to a prop change rather than a side effect
-  // on an external system.
-  if (value !== lastCommittedValue) {
-    setLastCommittedValue(value)
-    setHexDraft(value)
-  }
-
-  const rgb = hexToRgb(value)
-  const cmyk = rgbToCmyk(rgb)
-
-  const commitHex = (next: string) => {
-    setHexDraft(next)
-    if (isValidHex(next)) onChange(next.startsWith("#") ? next : `#${next}`)
-  }
-  const setRgbChannel = (patch: Partial<RgbColor>) => onChange(rgbToHex({ ...rgb, ...patch }))
-  const setCmykChannel = (patch: Partial<CmykColor>) => onChange(cmykToHex({ ...cmyk, ...patch }))
-
-  return (
-    <Popover.Root>
-      <Popover.Trigger
-        render={
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 rounded-md border bg-input/30 py-1 pr-2 pl-1 text-sm text-foreground transition-colors outline-none data-popup-open:border-ring focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <span
-              className="size-4 shrink-0 rounded-xs border border-white/10"
-              style={{ backgroundColor: value }}
-            />
-            <span className="flex-1 truncate text-right font-mono text-xs tracking-wider text-foreground">
-              {value}
-            </span>
-          </button>
-        }
-      />
-      <Popover.Portal>
-        <Popover.Positioner side="bottom" align="start" sideOffset={8}>
-          <Popover.Popup className="z-50 w-56 origin-(--transform-origin) rounded-xl border bg-popover p-3 text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
-            <div className="flex items-center gap-2 pb-3">
-              <span
-                className="size-8 shrink-0 rounded-md border border-white/10"
-                style={{ backgroundColor: value }}
-              />
-              <input
-                type="text"
-                value={hexDraft}
-                onChange={(event) => commitHex(event.target.value)}
-                spellCheck={false}
-                className="w-full rounded-md border bg-input/30 px-2 py-1 font-mono text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              />
-            </div>
-            <Tabs value={mode} onValueChange={(next) => setMode(next as ColorInputMode)}>
-              <TabsList aria-label="Color input mode" className="mb-3 gap-1">
-                <TabsIndicator />
-                <TabsTab value="rgb">RGB</TabsTab>
-                <TabsTab value="cmyk">CMYK</TabsTab>
-              </TabsList>
-            </Tabs>
-            {mode === "rgb" ? (
-              <div className="flex flex-col gap-1.5">
-                <ColorChannelField label="R" value={rgb.r} max={255} onChange={(r) => setRgbChannel({ r })} />
-                <ColorChannelField label="G" value={rgb.g} max={255} onChange={(g) => setRgbChannel({ g })} />
-                <ColorChannelField label="B" value={rgb.b} max={255} onChange={(b) => setRgbChannel({ b })} />
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                <ColorChannelField label="C" value={cmyk.c} max={100} onChange={(c) => setCmykChannel({ c })} />
-                <ColorChannelField label="M" value={cmyk.m} max={100} onChange={(m) => setCmykChannel({ m })} />
-                <ColorChannelField label="Y" value={cmyk.y} max={100} onChange={(y) => setCmykChannel({ y })} />
-                <ColorChannelField label="K" value={cmyk.k} max={100} onChange={(k) => setCmykChannel({ k })} />
-              </div>
-            )}
-          </Popover.Popup>
-        </Popover.Positioner>
-      </Popover.Portal>
-    </Popover.Root>
-  )
-}
-
-/** One RGB (0-255) or CMYK (0-100%) channel in the Color field's popover —
- *  reuses `NumberField`'s stepper styling so these read as the same kind of
- *  control as the margin/position fields elsewhere in this sidebar. */
-function ColorChannelField({
-  label,
-  value,
-  max,
-  onChange,
-}: {
-  label: string
-  value: number
-  max: number
-  onChange: (value: number) => void
-}) {
-  return (
-    <label className="flex items-center justify-between gap-3 text-sm">
-      <span className="w-4 text-xs font-medium text-muted-foreground">{label}</span>
-      <NumberField value={value} step={1} min={0} max={max} onChange={onChange} />
-    </label>
-  )
-}
-
 function PercentField({
   label,
   value,
@@ -744,91 +634,6 @@ function PercentField({
         onChange={(percent) => onChange(percent / 100)}
       />
     </label>
-  )
-}
-
-/**
- * A number input with its own custom up/down chevron steppers, replacing
- * the browser's native spinner (removed app-wide in globals.css) — the
- * point of that removal was never "no way to step at all," just "not the
- * browser's own unstyled one." Each chevron has a real hover state (the
- * shared `--accent` token, now distinct from `--background` — see the fix
- * note in globals.css) and is `tabIndex={-1}` so Tab still moves between
- * fields, not through the steppers.
- *
- * The chevrons themselves only show up on hover (or while the field has
- * focus) — `group-hover`/`group-focus-within` on the wrapper, rather than
- * sitting there permanently — so a column of these fields reads as plain
- * number inputs at rest, matching the design.
- *
- * `unit` (per the Paper reference, BS-0) renders a fixed suffix — `%` for
- * `PercentField`'s X/Y/W/H fields — inside the same bordered box as the
- * number, immediately after it, rather than as a separate `<span>` sitting
- * outside the field. The border/background live on this wrapper now (not
- * the `<input>` itself) so the number and its unit read as one value inside
- * one box, matching "17%" in the reference instead of a box followed by a
- * loose "%" off to its right.
- */
-function NumberField({
-  value,
-  onChange,
-  step,
-  min,
-  max,
-  unit,
-}: {
-  value: number
-  onChange: (value: number) => void
-  step: number
-  min?: number
-  max?: number
-  unit?: string
-}) {
-  const clamp = (next: number) => {
-    let clamped = next
-    if (min !== undefined) clamped = Math.max(min, clamped)
-    if (max !== undefined) clamped = Math.min(max, clamped)
-    // Floating point: 24.6 + 0.1 shouldn't drift to 24.700000000000003.
-    return Math.round(clamped * 100) / 100
-  }
-
-  return (
-    <div className="group relative flex w-20 items-center rounded-md border bg-input/30 py-1 pr-5 pl-2 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
-      <input
-        type="number"
-        step={step}
-        min={min}
-        max={max}
-        value={value}
-        onChange={(event) => {
-          const next = event.target.valueAsNumber
-          if (Number.isNaN(next)) return
-          onChange(clamp(next))
-        }}
-        className="min-w-0 flex-1 bg-transparent text-right text-xs text-foreground outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-      />
-      {unit ? <span className="pl-0.5 text-xs text-muted-foreground select-none">{unit}</span> : null}
-      <div className="absolute inset-y-0 right-0.5 flex flex-col justify-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-label="Increase"
-          onClick={() => onChange(clamp(value + step))}
-          className="flex items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          <ChevronUpIcon className="size-2.5" />
-        </button>
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-label="Decrease"
-          onClick={() => onChange(clamp(value - step))}
-          className="flex items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          <ChevronDownIcon className="size-2.5" />
-        </button>
-      </div>
-    </div>
   )
 }
 

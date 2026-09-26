@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { BookOpenIcon } from "@phosphor-icons/react"
 import { defaultFrameMargins, type Frame, type Margins } from "@loupe/core"
 
@@ -31,7 +32,7 @@ export function LayersPanel() {
   return (
     <aside className="flex h-full w-60 flex-col border-r bg-background">
       <div className="flex h-10 shrink-0 items-center px-3">
-        <span className="truncate text-sm font-medium">{project.name}</span>
+        <ProjectNameField name={project.name} />
       </div>
 
       <PanelViewSwitcher view={view} onChange={setView} />
@@ -40,6 +41,71 @@ export function LayersPanel() {
         <div className="px-2 pb-3">{view === "canvas" ? <CanvasOverview /> : <FrameOverviewList />}</div>
       </ScrollArea>
     </aside>
+  )
+}
+
+/**
+ * The book's name (user-directed: "wrap it in an input when clicked on").
+ * Plain text at rest, swapping to a real `<input>` — focused and selected —
+ * the instant it's clicked, so the pointer position doubles as a text
+ * cursor rather than requiring a second click to place one.
+ *
+ * `draft` is local, uncommitted state — `renameProject` (and the debounced
+ * IndexedDB write behind it) only fires on blur/Enter, not per keystroke,
+ * the same "don't round-trip through the store on every character" reason
+ * `ColorField`'s hex draft works this way. Escape reverts to `project.name`
+ * without committing, standard cancel-an-edit behavior.
+ *
+ * Falls back to the prior name if committed empty/whitespace-only — an
+ * invisible, blank sidebar header is worse than just refusing the edit, and
+ * there's no separate "untitled" placeholder state for a book that already
+ * has a name to fall back to.
+ */
+function ProjectNameField({ name }: { name: string }) {
+  const renameProject = useEditorStore((state) => state.renameProject)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(name)
+
+  const commit = () => {
+    const trimmed = draft.trim()
+    if (trimmed && trimmed !== name) renameProject(trimmed)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <input
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault()
+            commit()
+          } else if (event.key === "Escape") {
+            event.preventDefault()
+            setDraft(name)
+            setEditing(false)
+          }
+        }}
+        autoFocus
+        onFocus={(event) => event.currentTarget.select()}
+        className="w-full truncate rounded-sm bg-transparent text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      />
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setDraft(name)
+        setEditing(true)
+      }}
+      className="w-full truncate rounded-sm text-left text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+    >
+      {name}
+    </button>
   )
 }
 

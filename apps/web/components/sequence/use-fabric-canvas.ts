@@ -17,8 +17,10 @@ import {
   FRAME_DISPLAY_WIDTH,
   frameGridOriginY,
   layoutFrames,
+  layoutSpreadBoxes,
   nearestFrameIndex,
   type FrameLayout,
+  type SpreadBoxLayout,
 } from "@/components/sequence/frame-grid"
 import { BLEED_MM, DEFAULT_TEXT_COLOR } from "@/components/shell/inspector-panel"
 import { isTypingTarget } from "@/components/sequence/use-canvas-shortcuts"
@@ -94,12 +96,18 @@ export const MAX_ZOOM = 8
 /** Padding around the arrangement when fitting it to the viewport. */
 const FIT_PADDING = 80
 
-/** The dot grid's resting tile size in `.canvas-dot-grid` (globals.css),
- *  un-zoomed. Panning/zooming the canvas scales and offsets this by the same
- *  viewport transform Fabric applies to placed objects — see `syncDotGrid`
- *  below — so the background moves with the content instead of sitting fixed
- *  underneath it. */
-const DOT_GRID_SIZE = 24
+/**
+ * The dot grid's tile size in `.canvas-dot-grid` (globals.css) — fixed in
+ * screen pixels, deliberately not scaled by zoom (direct follow-up,
+ * user-directed: "I don't want the density to necessarily change"). It
+ * used to be — see `syncDotGrid` below — which meant the tile shrank to a
+ * sub-pixel size at the low end of the zoom range (`MIN_ZOOM` is 0.05, so
+ * 24px became ~1px), and a 1px radial-gradient dot rendered at a ~1px tile
+ * just antialiases into a flat tint instead of visible dots — the reported
+ * "canvas turns charcoal blue-gray when zoomed way out" bug. 32 (up from
+ * 24) reads as the "fair amount of space between dots" asked for.
+ */
+const DOT_GRID_SIZE = 32
 
 /**
  * A Fabric object carrying the placement it represents.
@@ -191,6 +199,24 @@ interface Options {
   /** An image or text element already inside a frame was selected on canvas —
    *  the frame-content counterpart to `onSelectFrame`. */
   onSelectElement: (frameId: string, elementId: string) => void
+  /**
+   * The active Fabric object(s) changed to (or away from) pasteboard
+   * photographs — `PlacedObject`s with no `frameId`. Distinct from
+   * `onSelectFrame`/`onSelectElement`: a pasteboard placement has no
+   * sidebar variant of its own (selecting one still clears the frame
+   * selection via `onSelectFrame(null)`, same as before), but the caller
+   * still needs to know *which* placement(s) are active so Backspace/Delete
+   * can remove them (`useDeleteSelectionShortcut`'s `"placement"` case).
+   *
+   * An array, not a single id — shift-clicking several pasteboard
+   * photographs makes Fabric's own multi-select create an `ActiveSelection`
+   * wrapping all of them, which has no `placementId` of its own (only each
+   * individual object inside it does). Reporting every id in that
+   * selection, not just a single one, is what makes "shift-select several
+   * photographs, then Backspace" delete all of them at once instead of
+   * only ever the most recently clicked one.
+   */
+  onSelectPlacement: (placementIds: string[]) => void
   /** A frame element was dragged and/or resized; `patch` is its new
    *  normalized `Box`, computed from the object's on-canvas position/size
    *  against the frame's current bounds. */
@@ -249,6 +275,7 @@ export function useFabricCanvas(options: Options) {
     onCreateText,
     onSelectFrame,
     onSelectElement,
+    onSelectPlacement,
     onUpdateElementBox,
     onMoveElementToFrame,
     onUpdateTextContent,
@@ -271,6 +298,13 @@ export function useFabricCanvas(options: Options) {
    *  dev-mode-style tag that just sits there rather than needing a click to
    *  reveal. */
   const coverBadgesRef = useRef(new Map<string, FabricObject>())
+  /** One solid rect behind each spread's two frames — visually separates a
+   *  pair of facing pages from the rest of the canvas (user-directed), same
+   *  gray/border tokens as the rest of the app's surfaces, no shadow. Keyed
+   *  by the spread's left frame id (`layoutSpreadBoxes`), which is what
+   *  makes it stable across reorders — a spread is always identified by
+   *  whichever frame currently occupies its left half. */
+  const spreadBoxesRef = useRef(new Map<string, FabricObject>())
   /** The low-opacity "add a paired page" buttons beside the *selected* frame
    *  only — there is never more than one pair on screen at a time. */
   const pageButtonsRef = useRef<{ left: FabricObject; right: FabricObject; frameId: string } | null>(null)
@@ -372,6 +406,7 @@ export function useFabricCanvas(options: Options) {
     onCreateText,
     onSelectFrame,
     onSelectElement,
+    onSelectPlacement,
     onUpdateElementBox,
     onMoveElementToFrame,
     onUpdateTextContent,
@@ -401,6 +436,7 @@ export function useFabricCanvas(options: Options) {
       onCreateText,
       onSelectFrame,
       onSelectElement,
+      onSelectPlacement,
       onUpdateElementBox,
       onMoveElementToFrame,
       onUpdateTextContent,
@@ -535,20 +571,31 @@ export function useFabricCanvas(options: Options) {
 
       /**
        * Keeps the dot-grid background (`.canvas-dot-grid` on `containerRef`)
-       * locked to the same viewport transform Fabric applies to placed
-       * objects, so the dots pan and zoom with the content instead of
-       * sitting fixed underneath it. `viewportTransform` is `[zoomX, 0, 0,
-       * zoomY, panX, panY]` for the pan/zoom this canvas actually does
-       * (uniform scale, no rotation/skew) — `background-size` takes the
-       * zoom, `background-position` takes the pan.
+       * panning with the canvas's content — `background-position` takes
+       * `panX`/`panY` straight from Fabric's `viewportTransform` (`[zoomX,
+       * 0, 0, zoomY, panX, panY]` for the pan/zoom this canvas actually
+       * does; those two entries are already a screen-pixel translation, not
+       * a world-unit one, so no further conversion is needed), so the dots
+       * stay visually anchored to the canvas as it's dragged.
+       *
+       * `background-size` deliberately does *not* read `zoomX`/`zoomY`
+       * (direct follow-up, user-directed — was `DOT_GRID_SIZE * zoomX`):
+       * scaling the tile with zoom meant it shrank to a sub-pixel size at
+       * the low end of `MIN_ZOOM` (24 * 0.05 ≈ 1px), and a 1px
+       * radial-gradient dot rendered at a ~1px tile just antialiases into a
+       * flat tint — the reported "canvas turns charcoal blue-gray when
+       * zoomed way out" bug — and ballooned to a sparse ~190px tile at
+       * `MAX_ZOOM`, reading as the spacing "changing" while zooming.
+       * `DOT_GRID_SIZE` alone, fixed, keeps the dot density constant on
+       * screen at every zoom level.
        */
       function syncDotGrid() {
         const container = containerRef.current
         const target = canvasRef.current
         if (!container || !target) return
 
-        const [zoomX, , , zoomY, panX, panY] = target.viewportTransform
-        container.style.backgroundSize = `${DOT_GRID_SIZE * zoomX}px ${DOT_GRID_SIZE * zoomY}px`
+        const [, , , , panX, panY] = target.viewportTransform
+        container.style.backgroundSize = `${DOT_GRID_SIZE}px ${DOT_GRID_SIZE}px`
         container.style.backgroundPosition = `${panX}px ${panY}px`
       }
       canvas.on("after:render", syncDotGrid)
@@ -897,18 +944,38 @@ export function useFabricCanvas(options: Options) {
       }
       syncAddPageButtonsRef.current = syncAddPageButtons
 
+      /**
+       * Every pasteboard placement id in the current selection. A single
+       * clicked photograph is a `PlacedObject` with its own `placementId`;
+       * shift-clicking several wraps them in an `ActiveSelection`, which
+       * has no `placementId` of its own — its members do, reachable via
+       * `getObjects()` — so that case is read out separately.
+       */
+      const collectPlacementIds = (active: FabricObject | undefined): string[] => {
+        if (active instanceof fabric.ActiveSelection) {
+          return active
+            .getObjects()
+            .map((object) => (object as PlacedObject).placementId)
+            .filter((id): id is string => Boolean(id))
+        }
+        const placementId = (active as PlacedObject | undefined)?.placementId
+        return placementId ? [placementId] : []
+      }
+
       const notifyFrameSelection = () => {
         const active = canvasRef.current?.getActiveObject() as
-          | (PlacedFrame & Partial<PlacedElement>)
+          | (PlacedFrame & Partial<PlacedElement> & Partial<PlacedObject>)
           | undefined
 
         if (active?.elementId && active.frameId) {
           handlers.current.onSelectElement(active.frameId, active.elementId)
+          handlers.current.onSelectPlacement([])
           syncAddPageButtons(null)
           return
         }
 
         handlers.current.onSelectFrame(active?.frameId ?? null)
+        handlers.current.onSelectPlacement(collectPlacementIds(active))
         syncAddPageButtons(active?.frameId ?? null)
       }
       canvas.on("selection:created", notifyFrameSelection)
@@ -916,6 +983,7 @@ export function useFabricCanvas(options: Options) {
       canvas.on("selection:cleared", () => {
         if (suppressSelectionClearRef.current) return
         handlers.current.onSelectFrame(null)
+        handlers.current.onSelectPlacement([])
         syncAddPageButtons(null)
       })
 
@@ -1231,6 +1299,7 @@ export function useFabricCanvas(options: Options) {
     const elementsInFlight = elementsPendingRef.current
     const drawnOverlays = overlaysRef.current
     const drawnCoverBadges = coverBadgesRef.current
+    const drawnSpreadBoxes = spreadBoxesRef.current
 
     return () => {
       disposed = true
@@ -1245,6 +1314,7 @@ export function useFabricCanvas(options: Options) {
       elementsInFlight.clear()
       drawnOverlays.clear()
       drawnCoverBadges.clear()
+      drawnSpreadBoxes.clear()
       pageButtonsRef.current = null
       draggingRef.current = null
       indicatorRef.current = null
@@ -1421,9 +1491,12 @@ export function useFabricCanvas(options: Options) {
     const originY = frameGridOriginY(currentPlacements, pool)
     const layouts = layoutFrames(currentFrames, originY)
     const layoutById = new Map(layouts.map((layout) => [layout.frameId, layout]))
+    const spreadBoxes = layoutSpreadBoxes(currentFrames, originY)
+    const spreadBoxById = new Map(spreadBoxes.map((box) => [box.frameId, box]))
     const live = framesRef.current
     const liveOverlays = overlaysRef.current
     const coverBadges = coverBadgesRef.current
+    const liveSpreadBoxes = spreadBoxesRef.current
     const frameById = new Map(currentFrames.map((frame) => [frame.id, frame]))
 
     // Remove frame objects whose frame no longer exists.
@@ -1443,6 +1516,16 @@ export function useFabricCanvas(options: Options) {
       if (!layoutById.has(frameId)) {
         canvas.remove(badge)
         coverBadges.delete(frameId)
+      }
+    }
+    // Keyed by spread, not by frame: a frame id can still exist in
+    // `layoutById` (it didn't disappear) while no longer anchoring a
+    // spread's left half — reordered into a solo row, say, or its former
+    // partner left the book. Either way the box it used to own is stale.
+    for (const [frameId, box] of liveSpreadBoxes) {
+      if (!spreadBoxById.has(frameId)) {
+        canvas.remove(box)
+        liveSpreadBoxes.delete(frameId)
       }
     }
 
@@ -1568,6 +1651,64 @@ export function useFabricCanvas(options: Options) {
       })
       canvas.add(badge)
       coverBadges.set(frame.id, badge)
+    }
+
+    /**
+     * The solid rect behind a spread's two frames (user-directed: "each of
+     * these paired pages in a nice section... box to visually separate
+     * from the canvas. Same styling using our grays and border colors. No
+     * shadows."). `fill`/`stroke` are the same `oklch` values behind this
+     * app's `--muted`/`--border` tokens (globals.css) — Fabric can't read
+     * CSS custom properties, so they're spelled out here, same reasoning
+     * as `syncPrintOverlay`'s colors above. `--muted` specifically: "one
+     * step lighter than `--canvas`" per that token's own doc comment,
+     * which is exactly what reads as a shelf the pages sit on rather than
+     * a second, competing background.
+     *
+     * Explicitly `sendObjectToBack` every sync, new box or repositioned
+     * existing one alike — add-order alone isn't enough. A frame whose
+     * `Rect` already existed from a prior sync (repositioned via `.set`,
+     * never re-added) keeps whatever stacking position it was originally
+     * added at, which can predate this box entirely — e.g. the very first
+     * page in a book, drawn long before it ever paired into a spread. Left
+     * to add-order, that frame would stay stuck behind a box added after it
+     * instead of on top of one added before it.
+     */
+    function syncSpreadBox(fabric: typeof import("fabric"), box: SpreadBoxLayout) {
+      if (!canvas) return
+
+      const existing = liveSpreadBoxes.get(box.frameId)
+      const rectProps = {
+        left: box.bounds.x + box.bounds.width / 2,
+        top: box.bounds.y + box.bounds.height / 2,
+        width: box.bounds.width,
+        height: box.bounds.height,
+      }
+
+      if (existing) {
+        existing.set(rectProps)
+        canvas.sendObjectToBack(existing)
+        return
+      }
+
+      const rect = new fabric.Rect({
+        ...rectProps,
+        originX: "center",
+        originY: "center",
+        fill: "#27272a",
+        stroke: "rgba(255, 255, 255, 0.1)",
+        strokeWidth: 1,
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+      })
+      canvas.add(rect)
+      canvas.sendObjectToBack(rect)
+      liveSpreadBoxes.set(box.frameId, rect)
+    }
+
+    for (const box of spreadBoxes) {
+      syncSpreadBox(fabric, box)
     }
 
     for (const layout of layouts) {

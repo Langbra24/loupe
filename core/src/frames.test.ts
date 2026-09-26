@@ -5,11 +5,13 @@ import {
   createFrame,
   frameAt,
   framesForBookSetup,
+  groupFramesIntoSpreads,
   insertFrame,
   presetImageBox,
   refitElementsForPageSize,
   removeFromFrame,
   reorderFrame,
+  spreadSideOf,
   updateElement,
   updateFrame,
   type FrameBounds,
@@ -317,5 +319,106 @@ describe("presetImageBox", () => {
     expect(box.x + box.width).toBeCloseTo(0.5)
     expect(box.y).toBeCloseTo(margins.top / A5.height)
     expect(box.y + box.height).toBeCloseTo(1 - margins.bottom / A5.height)
+  })
+
+  it("falls back to centered's box for two-page-spread with no partner", () => {
+    const spread = presetImageBox("two-page-spread", A5, margins, bleedMm, null)
+    const centered = presetImageBox("centered", A5, margins, bleedMm)
+    expect(spread).toEqual(centered)
+  })
+
+  it("spans a left frame's box from its outer margin across the gutter into the facing page", () => {
+    const box = presetImageBox("two-page-spread", A5, margins, bleedMm, "left")
+    const outer = margins.outer / A5.width
+
+    expect(box.x).toBeCloseTo(outer)
+    // Reaches all the way to the facing page's own outer margin, one full
+    // page width plus this page's remaining width past its own outer edge.
+    expect(box.x + box.width).toBeCloseTo(2 - outer)
+    expect(box.y).toBeCloseTo(margins.top / A5.height)
+    expect(box.y + box.height).toBeCloseTo(1 - margins.bottom / A5.height)
+  })
+
+  it("spans a right frame's box backward across the gutter into the facing page", () => {
+    const box = presetImageBox("two-page-spread", A5, margins, bleedMm, "right")
+    const outer = margins.outer / A5.width
+
+    // Local origin is this (right) frame's own top-left, so the span starts
+    // at a negative x — one full page width back, minus its own outer inset.
+    expect(box.x).toBeCloseTo(-(1 - outer))
+    expect(box.x + box.width).toBeCloseTo(1 - outer)
+  })
+
+  it("mirrors left and right spans to the same total width", () => {
+    const left = presetImageBox("two-page-spread", A5, margins, bleedMm, "left")
+    const right = presetImageBox("two-page-spread", A5, margins, bleedMm, "right")
+    expect(left.width).toBeCloseTo(right.width)
+  })
+})
+
+describe("groupFramesIntoSpreads", () => {
+  it("returns an empty array for zero frames", () => {
+    expect(groupFramesIntoSpreads([])).toEqual([])
+  })
+
+  it("pairs frames sequentially into spreads", () => {
+    const frames = [frame("f0", 0), frame("f1", 1), frame("f2", 2), frame("f3", 3)]
+    const groups = groupFramesIntoSpreads(frames)
+
+    expect(groups).toEqual([
+      { kind: "spread", left: frames[0], right: frames[1] },
+      { kind: "spread", left: frames[2], right: frames[3] },
+    ])
+  })
+
+  it("leaves a trailing odd frame solo", () => {
+    const frames = [frame("f0", 0), frame("f1", 1), frame("f2", 2)]
+    const groups = groupFramesIntoSpreads(frames)
+
+    expect(groups).toEqual([
+      { kind: "spread", left: frames[0], right: frames[1] },
+      { kind: "solo", frame: frames[2] },
+    ])
+  })
+
+  it("isolates a cover frame onto its own row, interrupting pairing", () => {
+    const cover = { ...frame("cover", 0), isCover: true }
+    const frames = [cover, frame("f1", 1), frame("f2", 2)]
+    const groups = groupFramesIntoSpreads(frames)
+
+    expect(groups).toEqual([
+      { kind: "solo", frame: cover },
+      { kind: "spread", left: frames[1], right: frames[2] },
+    ])
+  })
+
+  it("solos a pending frame left dangling right before a mid-sequence cover", () => {
+    const cover = { ...frame("cover", 2), isCover: true }
+    const frames = [frame("f0", 0), frame("f1", 1), cover, frame("f3", 3)]
+    const groups = groupFramesIntoSpreads(frames)
+
+    expect(groups).toEqual([
+      { kind: "spread", left: frames[0], right: frames[1] },
+      { kind: "solo", frame: cover },
+      { kind: "solo", frame: frames[3] },
+    ])
+  })
+})
+
+describe("spreadSideOf", () => {
+  it("returns null for a solo frame", () => {
+    const cover = { ...frame("cover", 0), isCover: true }
+    const frames = [cover, frame("f1", 1)]
+    expect(spreadSideOf(frames, cover.id)).toBeNull()
+  })
+
+  it("returns null for an id not present", () => {
+    expect(spreadSideOf([frame("f0", 0), frame("f1", 1)], "missing")).toBeNull()
+  })
+
+  it("identifies each half of a spread", () => {
+    const frames = [frame("f0", 0), frame("f1", 1)]
+    expect(spreadSideOf(frames, "f0")).toBe("left")
+    expect(spreadSideOf(frames, "f1")).toBe("right")
   })
 })

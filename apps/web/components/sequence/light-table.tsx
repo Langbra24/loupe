@@ -52,6 +52,7 @@ const IMAGE_PRESET_LABELS: Record<ImagePreset, string> = {
   "full-bleed": "Full bleed",
   centered: "Centered",
   "left-half": "Left half",
+  "two-page-spread": "Two-page spread",
 }
 
 /**
@@ -87,9 +88,18 @@ export function LightTable() {
   const setFrameCover = useEditorStore((state) => state.setFrameCover)
   const removeFrame = useEditorStore((state) => state.removeFrame)
   const removeElement = useEditorStore((state) => state.removeElement)
+  const removePlacements = useEditorStore((state) => state.removePlacements)
   const selection = useEditorStore((state) => state.selection)
   const undo = useEditorStore((state) => state.undo)
   const redo = useEditorStore((state) => state.redo)
+
+  // Selected pasteboard photographs (not yet on a page) have no `Selection`
+  // variant of their own — see `onSelectPlacement`'s doc comment in
+  // use-fabric-canvas.ts — so they're tracked here rather than read off the
+  // store, the same way `imageMenu`/`frameMenu` below are. An array, not a
+  // single id: shift-clicking several is Fabric's own multi-select, and
+  // Backspace on that selection should delete all of them at once.
+  const [selectedPlacementIds, setSelectedPlacementIds] = useState<string[]>([])
 
   // Right-click promotion into an Edit lived here; Edit is gone from the data
   // model (see core/src/frames.ts) and its replacement — dropping a photo
@@ -120,6 +130,7 @@ export function LightTable() {
     onCreateText: createTextElement,
     onSelectFrame: (frameId) => (frameId ? selectFrame(frameId) : clearSelection()),
     onSelectElement: selectElement,
+    onSelectPlacement: setSelectedPlacementIds,
     onUpdateElementBox: updateElementBox,
     onMoveElementToFrame: moveElementToFrame,
     onUpdateTextContent: (frameId, elementId, content) =>
@@ -136,21 +147,28 @@ export function LightTable() {
   // right after it (user-directed).
   useCopyPasteShortcut({ enabled: true, copySelectedFrame, pasteFrame })
   // Backspace/Delete removes whatever is currently selected — a page (same
-  // action as the right-click menu's "Delete page") or an image/text element
-  // — but never while `isTextEditing` says a text element is actively being
-  // typed into (see that hook's doc comment).
+  // action as the right-click menu's "Delete page"), an image/text element,
+  // or one or more pasteboard photographs that haven't been dropped onto a
+  // page yet — but never while `isTextEditing` says a text element is
+  // actively being typed into (see that hook's doc comment).
   const deletableSelection: DeletableSelection =
     selection?.kind === "frame"
       ? { kind: "frame", frameId: selection.frameId }
       : selection?.kind === "text-element" || selection?.kind === "image-element"
         ? { kind: "element", frameId: selection.frameId, elementId: selection.elementId }
-        : null
+        : selectedPlacementIds.length > 0
+          ? { kind: "placement", placementIds: selectedPlacementIds }
+          : null
   useDeleteSelectionShortcut({
     enabled: true,
     selection: deletableSelection,
     isTextEditing,
     removeFrame,
     removeElement,
+    removePlacements: (placementIds) => {
+      removePlacements(placementIds)
+      setSelectedPlacementIds([])
+    },
   })
 
   return (

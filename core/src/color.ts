@@ -26,6 +26,17 @@ export interface CmykColor {
   k: number
 }
 
+/** Hue in degrees (0-360), saturation/value as 0-100 percentages — the space
+ *  the saturation/value square + hue slider color picker (the text sidebar's
+ *  `ColorField`) actually manipulates. Kept distinct from `RgbColor` for the
+ *  same reason `CmykColor` is: it's a different way of *choosing* the same
+ *  underlying hex, not a second stored representation. */
+export interface HsvColor {
+  h: number
+  s: number
+  v: number
+}
+
 export function clampByte(value: number): number {
   return Math.min(255, Math.max(0, Math.round(value)))
 }
@@ -89,4 +100,64 @@ export function hexToCmyk(hex: string): CmykColor {
 
 export function cmykToHex(cmyk: CmykColor): string {
   return rgbToHex(cmykToRgb(cmyk))
+}
+
+function clampHue(value: number): number {
+  const wrapped = value % 360
+  return wrapped < 0 ? wrapped + 360 : wrapped
+}
+
+/** Standard RGB<->HSV conversion, same uncalibrated-arithmetic spirit as the
+ *  CMYK functions above — no color management, just the math a picker needs
+ *  to let someone drag a saturation/value square and a hue slider. */
+export function rgbToHsv({ r, g, b }: RgbColor): HsvColor {
+  const rf = clampByte(r) / 255
+  const gf = clampByte(g) / 255
+  const bf = clampByte(b) / 255
+  const max = Math.max(rf, gf, bf)
+  const min = Math.min(rf, gf, bf)
+  const delta = max - min
+
+  let h = 0
+  if (delta !== 0) {
+    if (max === rf) h = 60 * (((gf - bf) / delta) % 6)
+    else if (max === gf) h = 60 * ((bf - rf) / delta + 2)
+    else h = 60 * ((rf - gf) / delta + 4)
+  }
+
+  const s = max === 0 ? 0 : delta / max
+  return { h: clampHue(h), s: clampPercent(s * 100), v: clampPercent(max * 100) }
+}
+
+export function hsvToRgb({ h, s, v }: HsvColor): RgbColor {
+  const hf = clampHue(h)
+  const sf = clampPercent(s) / 100
+  const vf = clampPercent(v) / 100
+
+  const c = vf * sf
+  const x = c * (1 - Math.abs(((hf / 60) % 2) - 1))
+  const m = vf - c
+
+  const [rp, gp, bp] =
+    hf < 60
+      ? [c, x, 0]
+      : hf < 120
+        ? [x, c, 0]
+        : hf < 180
+          ? [0, c, x]
+          : hf < 240
+            ? [0, x, c]
+            : hf < 300
+              ? [x, 0, c]
+              : [c, 0, x]
+
+  return { r: clampByte((rp + m) * 255), g: clampByte((gp + m) * 255), b: clampByte((bp + m) * 255) }
+}
+
+export function hexToHsv(hex: string): HsvColor {
+  return rgbToHsv(hexToRgb(hex))
+}
+
+export function hsvToHex(hsv: HsvColor): string {
+  return rgbToHex(hsvToRgb(hsv))
 }

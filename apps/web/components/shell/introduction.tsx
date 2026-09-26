@@ -3,14 +3,8 @@
 import { BookOpenIcon, XIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
+import { stagger } from "@/lib/utils"
 import { useEditorStore } from "@/state/editor-store"
-
-/** Inline `--n` for one `.intro-section` (see globals.css) — the stagger
- *  index that spaces each section's entrance delay apart. CSS custom
- *  properties aren't part of React's `CSSProperties` type, hence the cast. */
-function stagger(n: number): React.CSSProperties {
-  return { "--n": n } as React.CSSProperties
-}
 
 /**
  * The empty-canvas introduction (R25).
@@ -28,7 +22,7 @@ function stagger(n: number): React.CSSProperties {
  * emptiness could never express — hence the separate `introductionDismissed`
  * flag rather than deriving visibility from `project` alone.
  *
- * Content is split into four `.intro-section` pieces (what it is, who built
+ * Content is split into four `.stagger-section` pieces (what it is, who built
  * it, why it exists, then the button) that cascade in on mount — see the
  * entrance-animation comment in globals.css. Splitting the copy this way
  * isn't just for the animation: it's also why the copy below stays terse —
@@ -61,7 +55,7 @@ export function Introduction() {
           <XIcon />
         </Button>
 
-        <div className="intro-section flex flex-col gap-1.5" style={stagger(0)}>
+        <div className="stagger-section flex flex-col gap-1.5" style={stagger(0)}>
           <h1 className="font-heading text-lg font-medium">Loupe</h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
             A browser-based tool for sequencing, designing, and print-imposing a photobook or
@@ -69,18 +63,18 @@ export function Introduction() {
           </p>
         </div>
 
-        <p className="intro-section text-sm leading-relaxed text-muted-foreground" style={stagger(1)}>
+        <p className="stagger-section text-sm leading-relaxed text-muted-foreground" style={stagger(1)}>
           Built in the open by <em className="text-foreground">Brandon Lang</em>.
         </p>
 
-        <p className="intro-section text-sm leading-relaxed text-muted-foreground" style={stagger(2)}>
+        <p className="stagger-section text-sm leading-relaxed text-muted-foreground" style={stagger(2)}>
           It&apos;s early, and it&apos;ll keep changing shape based on what people actually
           building books with it need. Import some photographs to get started, and use the
           feedback control in this corner any time something feels wrong, missing, or confusing —
           that&apos;s how this gets built.
         </p>
 
-        <Button onClick={dismissIntroduction} className="intro-section self-start" style={stagger(3)}>
+        <Button onClick={dismissIntroduction} className="stagger-section self-start" style={stagger(3)}>
           Get started
         </Button>
       </div>

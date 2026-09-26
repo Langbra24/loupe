@@ -6,7 +6,7 @@ import { Popover } from "@base-ui/react/popover"
 
 import { Button } from "@/components/ui/button"
 import { useToastManager } from "@/components/ui/toast"
-import { cn } from "@/lib/utils"
+import { cn, stagger } from "@/lib/utils"
 import { FEEDBACK_MAX_LENGTH } from "@/lib/feedback-url"
 
 /**
@@ -39,6 +39,12 @@ import { FEEDBACK_MAX_LENGTH } from "@/lib/feedback-url"
  * simply impossible rather than silently truncated later. The API route
  * re-checks it server-side too, since a client's own `maxLength` is never
  * trusted.
+ *
+ * The popover's fields cascade in via `.stagger-section` (globals.css) on
+ * open — the same reveal the onboarding intro dialog and the export dialog
+ * use, applied here at direct user request: title/description, the name/
+ * email row, the textarea, then the counter/submit row each land on their
+ * own delay rather than popping in together.
  */
 export function FeedbackControl() {
   const [open, setOpen] = useState(false)
@@ -111,15 +117,17 @@ export function FeedbackControl() {
       <Popover.Portal>
         <Popover.Positioner side="top" align="start" sideOffset={8}>
           <Popover.Popup className="z-50 w-80 origin-(--transform-origin) rounded-xl border bg-popover p-3 text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
-            <Popover.Title className="text-sm font-medium">Send feedback</Popover.Title>
-            <Popover.Description className="pt-0.5 pb-2 text-xs text-muted-foreground">
-              Filed as a GitHub issue — no account needed.
-            </Popover.Description>
+            <div className="stagger-section" style={stagger(0)}>
+              <Popover.Title className="text-sm font-medium">Send feedback</Popover.Title>
+              <Popover.Description className="pt-0.5 pb-2 text-xs text-muted-foreground">
+                Filed as a GitHub issue — no account needed.
+              </Popover.Description>
+            </div>
 
             {/* Both optional (R23) — folded into the issue body on submit,
                 not sent anywhere on their own. Stacked, not side by side
                 (user-directed). */}
-            <div className="flex flex-col gap-2 pb-2">
+            <div className="stagger-section flex flex-col gap-2 pb-2" style={stagger(1)}>
               <input
                 type="text"
                 value={name}
@@ -145,10 +153,11 @@ export function FeedbackControl() {
               placeholder="What's wrong, missing, or confusing?"
               rows={5}
               disabled={submitting}
-              className="w-full resize-none rounded-lg border bg-background p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+              className="stagger-section w-full resize-none rounded-lg border bg-background p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+              style={stagger(2)}
             />
 
-            <div className="flex items-center justify-between pt-2">
+            <div className="stagger-section flex items-center justify-between pt-2" style={stagger(3)}>
               <span
                 className={cn(
                   "text-xs tabular-nums text-muted-foreground",
