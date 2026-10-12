@@ -14,6 +14,14 @@
     "start": "npm run start --workspace=web",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "format": "npm run format --workspaces --if-present"
+    "format": "npm run format --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && node --test \"scripts/verify/**/*.test.mjs\"",
+    "verify": "npm run typecheck && npm run lint && npm test && npm run build",
+    "screenshot": "npm run build && node scripts/verify/screenshot.mjs",
+    "e2e": "npm run build && node scripts/verify/e2e-export.mjs"
+  },
+  "devDependencies": {
+    "pdf-lib": "^1.17.1",
+    "playwright": "1.56.1"
   }
 }

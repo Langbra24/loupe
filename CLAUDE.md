@@ -89,8 +89,23 @@ npm run dev          # apps/web dev server
 npm run build        # apps/web production build
 npm run typecheck    # all workspaces
 npm run lint         # all workspaces
-npm test --workspace=@loupe/core   # Vitest
+npm test             # all workspaces (Vitest) + verifier self-tests
+npm run verify       # typecheck + lint + test + build — the baseline "done" gate
+npm run screenshot   # build, then save desktop PNGs to screenshots/ (gitignored)
+                     #   scenes: intro, shell, book — `npm run screenshot -- shell`
+npm run e2e          # build, import fixture photos, export a PDF, check page count
+                     #   is a multiple of 4 and trim size matches (pdf-lib)
 ```
+
+Verifiers live in `scripts/verify/` and drive the real production build with Playwright (pinned to 1.56.1 to match the cloud image's Chromium; locally run `npx playwright install chromium` once). `npm run e2e` **fails until PDF export exists** — the top-nav Export button is still inert; its header comment states the contract export must meet. Set `LOUPE_URL=http://localhost:3000` to point a verifier at an already-running server.
+
+## Cloud sessions
+
+- **Read `PROGRESS.md` first, update it last.** `PLAN.md` holds the phase checklist; tick items only when their "done when" condition is verified.
+- One GitHub issue per session, on its own branch, ending in a PR. The issue's "done when" line is the goal — run the command it names and quote the result in the PR.
+- Only take issues labelled `cloud-ok`. `local-only` issues need Paper.design or real API keys.
+- **Paper.design is local-only. Cloud sessions never touch it** — no Paper MCP calls, no token sync. Change tokens in `globals.css` and leave the Paper mirror for a local session.
+- `gh` works for repo-scoped REST only (issues, labels, PRs). GraphQL is blocked, so cloud sessions cannot move cards on the Project board.
 
 Core purity gates (both must return nothing):
 
