@@ -1,8 +1,9 @@
 "use client"
 
-import { ArrowSquareOutIcon, ExportIcon } from "@phosphor-icons/react"
+import { ArrowSquareOutIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
+import { ExportDialog } from "@/components/shell/export-dialog"
 
 /**
  * Fixed app chrome. This never moves, hides, or reflows between modes — it is
@@ -19,11 +20,9 @@ export function TopNav() {
           <ArrowSquareOutIcon data-icon="inline-start" />
           Share
         </Button>
-        {/* Eventually the $5 / $15 payment gate. Inert in the shell. */}
-        <Button size="sm">
-          <ExportIcon data-icon="inline-start" />
-          Export
-        </Button>
+        {/* Eventually the $5 / $15 payment gate. Renders the book and
+            downloads it directly for now — see export-dialog.tsx. */}
+        <ExportDialog />
       </div>
     </header>
   )

@@ -5,16 +5,90 @@ import type { Canvas, FabricImage, FabricObject, TPointerEventInfo } from "fabri
 import {
   boundingBoxOf,
   frameAt,
-  vandeGraafMargins,
+  defaultFrameMargins,
+  resolveTextSize,
   type Asset,
   type Box,
   type CanvasPlacement,
   type Frame,
 } from "@loupe/core"
 
-import { frameGridOriginY, layoutFrames, nearestFrameIndex, type FrameLayout } from "@/components/sequence/frame-grid"
-import { BLEED_MM } from "@/components/shell/inspector-panel"
+import {
+  FRAME_DISPLAY_WIDTH,
+  frameGridOriginY,
+  layoutFrames,
+  layoutSpreadBoxes,
+  nearestFrameIndex,
+  type FrameLayout,
+  type SpreadBoxLayout,
+} from "@/components/sequence/frame-grid"
+import { BLEED_MM, DEFAULT_TEXT_COLOR } from "@/components/shell/inspector-panel"
+import { isTypingTarget } from "@/components/sequence/use-canvas-shortcuts"
+import { DEFAULT_TEXT_FONT, resolveTextFontFamily } from "@/lib/fonts"
 import { thumbnailUrl } from "@/lib/storage/assets"
+
+/** The transient pasteboard textbox's fill while it's sitting on the dark
+ *  canvas, not yet committed to any frame. */
+const PASTEBOARD_TEXT_FILL = "#f4f4f5"
+
+/** The "add page before/after" buttons flanking a selected frame (direct
+ *  follow-up: "primary button" treatment) — Tailwind's zinc-950, the same
+ *  near-black the canvas surface itself briefly used before settling on
+ *  zinc-900 (see globals.css's `--canvas`), reused here since a solid black
+ *  is exactly the point for this one. `ADD_PAGE_BUTTON_HOVER_FILL` is one
+ *  step up the same scale (zinc-900) rather than an opacity fade, the usual
+ *  hover treatment for a solid-fill primary button. */
+const ADD_PAGE_BUTTON_FILL = "#09090b"
+const ADD_PAGE_BUTTON_HOVER_FILL = "#18181b"
+
+/**
+ * A text element's selection border/corner color — the same blue as the
+ * content-margin guide (`syncPrintOverlay` below), per direct user
+ * feedback: Fabric's own default selection tint reads as a barely-visible
+ * near-white against a frame's white page, effectively invisible right
+ * where it matters most. Frame-owned image elements already get their own
+ * deliberate selection color (`#6366f1`, set where their Fabric object is
+ * created below) — text gets its own rather than reusing that one, matching
+ * the specific blue the user pointed at rather than the nearest existing
+ * one.
+ *
+ * Applied as both `borderColor` and `editingBorderColor`, not just the
+ * former: `IText`'s editing machinery swaps `borderColor` to
+ * `editingBorderColor` the moment editing starts and restores it from a
+ * snapshot on exit (see Fabric's `ITextBehavior`), so a freshly placed box —
+ * which enters editing immediately, per `armTextTool` — would otherwise
+ * show Fabric's own near-invisible default the whole time it's actually
+ * being typed into, the exact moment this needs to be visible most.
+ */
+const TEXT_SELECTION_COLOR = "#18a0fb"
+
+/** Width a plain click (not a click-and-drag) gives a new text box —
+ *  dragging instead sizes it explicitly, see `armTextTool`. */
+const DEFAULT_TEXTBOX_WIDTH = 320
+
+/** Screen pixels of pointer movement, converted to the canvas's own scene
+ *  units by the current zoom, below which a text-placement gesture counts as
+ *  a click rather than a drag. Fixed in screen space rather than scene space
+ *  so the same gesture (a few pixels of unintentional hand tremor) reads the
+ *  same at any zoom level, instead of a deep zoom-out turning ordinary clicks
+ *  into accidental drags. */
+const TEXT_PLACEMENT_CLICK_THRESHOLD_PX = 6
+
+/** Real-world millimetres per point (1pt = 1/72in, 1in = 25.4mm). */
+const MM_PER_PT = 25.4 / 72
+
+/**
+ * Scene units per point of type, for one frame. A frame always renders at
+ * `FRAME_DISPLAY_WIDTH` scene units wide regardless of its real millimetre
+ * page size (`frameRectAt` in frame-grid.ts) — an A4 frame and an A5 frame
+ * both draw 1200 units wide, just at different real-world scales — so
+ * converting a role's point size (`sizeForRole`, itself derived from the
+ * project's `typeBaseSize`/`typeRatio`) into scene units has to go through
+ * *this* frame's own mm-to-unit ratio, not a fixed constant.
+ */
+function sceneUnitsPerPt(pageWidthMm: number): number {
+  return (FRAME_DISPLAY_WIDTH / pageWidthMm) * MM_PER_PT
+}
 
 export const MIN_ZOOM = 0.05
 export const MAX_ZOOM = 8
@@ -22,12 +96,18 @@ export const MAX_ZOOM = 8
 /** Padding around the arrangement when fitting it to the viewport. */
 const FIT_PADDING = 80
 
-/** The dot grid's resting tile size in `.canvas-dot-grid` (globals.css),
- *  un-zoomed. Panning/zooming the canvas scales and offsets this by the same
- *  viewport transform Fabric applies to placed objects — see `syncDotGrid`
- *  below — so the background moves with the content instead of sitting fixed
- *  underneath it. */
-const DOT_GRID_SIZE = 24
+/**
+ * The dot grid's tile size in `.canvas-dot-grid` (globals.css) — fixed in
+ * screen pixels, deliberately not scaled by zoom (direct follow-up,
+ * user-directed: "I don't want the density to necessarily change"). It
+ * used to be — see `syncDotGrid` below — which meant the tile shrank to a
+ * sub-pixel size at the low end of the zoom range (`MIN_ZOOM` is 0.05, so
+ * 24px became ~1px), and a 1px radial-gradient dot rendered at a ~1px tile
+ * just antialiases into a flat tint instead of visible dots — the reported
+ * "canvas turns charcoal blue-gray when zoomed way out" bug. 32 (up from
+ * 24) reads as the "fair amount of space between dots" asked for.
+ */
+const DOT_GRID_SIZE = 32
 
 /**
  * A Fabric object carrying the placement it represents.
@@ -69,6 +149,13 @@ interface Options {
   placements: readonly CanvasPlacement[]
   assets: readonly Asset[]
   frames: readonly Frame[]
+  /** The project's type scale (R13's Book-level settings) — threaded through
+   *  so a frame text element's rendered `fontSize` can be derived from its
+   *  `role` via `sizeForRole`, the same computation the sidebar's read-only
+   *  "Size" row already shows. Without these, the canvas has no way to know
+   *  what "10pt" means in scene units. */
+  typeBaseSize: number
+  typeRatio: number
   onMove: (placementId: string, x: number, y: number) => void
   onScale: (placementId: string, scale: number) => void
   onContextMenu: (placementId: string, viewportX: number, viewportY: number) => void
@@ -92,11 +179,16 @@ interface Options {
    *  it joins that frame's elements and leaves the pasteboard. */
   onDropOnFrame: (placementId: string, frameId: string) => void
   /**
-   * A text box created via `T` finished editing while its center sat over a
-   * frame's bounds — it becomes that frame's text element. See the
-   * `text:editing:exited` handler below for what happens when it doesn't.
+   * Creates a text element on a frame — called either immediately by
+   * `placeTextbox` when the text tool's click/drag lands on a frame (the
+   * common case), or by `text:editing:exited` when a pasteboard textbox that
+   * started on empty canvas finishes editing while its center sat over a
+   * frame's bounds. See that handler for what happens when it doesn't.
+   * `box` is the element's normalized position/size within the frame,
+   * derived from wherever the user actually clicked/dragged — omitted falls
+   * back to the full-bleed default. Returns the new element's id.
    */
-  onCreateText: (frameId: string, content: string) => void
+  onCreateText: (frameId: string, content: string, box?: Box) => string
   /**
    * The active Fabric object changed to (or away from) a frame — drives the
    * contextual sidebar (U7). `null` when nothing selected is a frame: a
@@ -107,15 +199,45 @@ interface Options {
   /** An image or text element already inside a frame was selected on canvas —
    *  the frame-content counterpart to `onSelectFrame`. */
   onSelectElement: (frameId: string, elementId: string) => void
+  /**
+   * The active Fabric object(s) changed to (or away from) pasteboard
+   * photographs — `PlacedObject`s with no `frameId`. Distinct from
+   * `onSelectFrame`/`onSelectElement`: a pasteboard placement has no
+   * sidebar variant of its own (selecting one still clears the frame
+   * selection via `onSelectFrame(null)`, same as before), but the caller
+   * still needs to know *which* placement(s) are active so Backspace/Delete
+   * can remove them (`useDeleteSelectionShortcut`'s `"placement"` case).
+   *
+   * An array, not a single id — shift-clicking several pasteboard
+   * photographs makes Fabric's own multi-select create an `ActiveSelection`
+   * wrapping all of them, which has no `placementId` of its own (only each
+   * individual object inside it does). Reporting every id in that
+   * selection, not just a single one, is what makes "shift-select several
+   * photographs, then Backspace" delete all of them at once instead of
+   * only ever the most recently clicked one.
+   */
+  onSelectPlacement: (placementIds: string[]) => void
   /** A frame element was dragged and/or resized; `patch` is its new
    *  normalized `Box`, computed from the object's on-canvas position/size
    *  against the frame's current bounds. */
   onUpdateElementBox: (frameId: string, elementId: string, patch: Partial<Box>) => void
+  /** An element already inside a frame was dragged across onto a
+   *  *different* frame's bounds — reassigns it there. `box` is the new
+   *  normalized Box, computed against the destination frame's bounds (see
+   *  `onUpdateElementBox`'s doc comment for why that distinction matters:
+   *  without this, the element visually moved but stayed structurally on
+   *  its original page). */
+  onMoveElementToFrame: (fromFrameId: string, toFrameId: string, elementId: string, box: Box) => void
   /** An already-placed text element finished an in-place edit (double-click
    *  to re-enter, then blur/Escape/click-away to exit — Fabric's own
    *  triggers). Distinct from `onCreateText`, which is for a brand-new
    *  pasteboard textbox landing on a frame for the first time. */
   onUpdateTextContent: (frameId: string, elementId: string, content: string) => void
+  /** Removes an element outright — used when a text element (freshly placed
+   *  directly on a frame, or an existing one cleared out during a re-edit)
+   *  finishes editing with empty content, so it doesn't linger as an
+   *  invisible full-bleed element nobody can see to delete. */
+  onRemoveElement: (frameId: string, elementId: string) => void
 }
 
 /** A Fabric `Textbox` created via the `T` shortcut, mid- or post-edit. There
@@ -139,6 +261,8 @@ export function useFabricCanvas(options: Options) {
     placements,
     assets,
     frames,
+    typeBaseSize,
+    typeRatio,
     onMove,
     onScale,
     onContextMenu,
@@ -151,8 +275,11 @@ export function useFabricCanvas(options: Options) {
     onCreateText,
     onSelectFrame,
     onSelectElement,
+    onSelectPlacement,
     onUpdateElementBox,
+    onMoveElementToFrame,
     onUpdateTextContent,
+    onRemoveElement,
   } = options
 
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -171,6 +298,13 @@ export function useFabricCanvas(options: Options) {
    *  dev-mode-style tag that just sits there rather than needing a click to
    *  reveal. */
   const coverBadgesRef = useRef(new Map<string, FabricObject>())
+  /** One solid rect behind each spread's two frames — visually separates a
+   *  pair of facing pages from the rest of the canvas (user-directed), same
+   *  gray/border tokens as the rest of the app's surfaces, no shadow. Keyed
+   *  by the spread's left frame id (`layoutSpreadBoxes`), which is what
+   *  makes it stable across reorders — a spread is always identified by
+   *  whichever frame currently occupies its left half. */
+  const spreadBoxesRef = useRef(new Map<string, FabricObject>())
   /** The low-opacity "add a paired page" buttons beside the *selected* frame
    *  only — there is never more than one pair on screen at a time. */
   const pageButtonsRef = useRef<{ left: FabricObject; right: FabricObject; frameId: string } | null>(null)
@@ -180,6 +314,18 @@ export function useFabricCanvas(options: Options) {
    *  layout shifts — e.g. right after one of the buttons themselves inserts
    *  a page — without both being defined in the same closure. */
   const syncAddPageButtonsRef = useRef<(frameId: string | null) => void>(() => undefined)
+  /** Whether the text tool is armed (`T` pressed, or the Add text button
+   *  clicked) and waiting for the click/drag that decides where the new text
+   *  box lands — see `armTextTool`'s doc comment. Read from the `mouse:down`/
+   *  `mouse:up` handlers below, which is why this is a ref rather than React
+   *  state: those fire well outside React's render cycle. */
+  const placingTextRef = useRef(false)
+  /** Scene point captured on `mouse:down` while `placingTextRef` is armed —
+   *  `null` whenever a placement gesture isn't currently in progress. Compared
+   *  against the `mouse:up` point to tell a plain click (place a
+   *  default-width box there) from a click-and-drag (size the box to the
+   *  drag). */
+  const textPlacementStartRef = useRef<{ x: number; y: number } | null>(null)
 
   /** Keep a frame's print guides drawn above its own contents — called after
    *  `syncFrameElements` adds a new image/text object, since those are added
@@ -212,6 +358,34 @@ export function useFabricCanvas(options: Options) {
    */
   const draggingRef = useRef<FabricObject | null>(null)
 
+  /**
+   * Suppresses the `selection:cleared` handler below while a photo or text
+   * box is mid-commit into a frame (dropped, or finished editing over one).
+   * Both paths swap out the pasteboard Fabric object for a new frame-owned
+   * one, and `canvas.remove()` on an object still wired into the active
+   * selection fires its own `selection:cleared` — without this, that
+   * teardown-of-the-old-object noise reads as a genuine user deselection and
+   * clobbers the very "this is now selected" store write the commit is
+   * trying to make (`onCreateText`, `onDropOnFrame` -> `moveToFrame`), right
+   * back to book-level settings, undoing the whole point of the commit.
+   * Set true right before the object that's about to be swapped away is
+   * removed, and cleared once the swap is fully resolved — synchronously for
+   * a text box (`text:editing:exited` removes it immediately), across a
+   * render cycle for a photo (`syncObjects` removes the old placement object
+   * later, once the store reflects it joined a frame).
+   */
+  const suppressSelectionClearRef = useRef(false)
+
+  /** The id of a `TextElement` `placeTextbox` just created directly on a
+   *  frame (empty content, not yet rendered) — checked by `syncFrameElements`
+   *  when it creates that element's Fabric object for the first time, so it
+   *  can call `.enterEditing()` on it immediately. `placeTextbox` has no
+   *  Fabric object to call that on itself: the element only exists in the
+   *  store at that point, one render behind. Cleared the moment it's
+   *  consumed, so a later, unrelated element landing with this same id
+   *  never re-triggers editing. */
+  const pendingAutoEditElementIdRef = useRef<string | null>(null)
+
   const [zoom, setZoom] = useState(1)
   const [ready, setReady] = useState(false)
 
@@ -232,15 +406,13 @@ export function useFabricCanvas(options: Options) {
     onCreateText,
     onSelectFrame,
     onSelectElement,
+    onSelectPlacement,
     onUpdateElementBox,
+    onMoveElementToFrame,
     onUpdateTextContent,
+    onRemoveElement,
   })
-  const latest = useRef({ placements, assets, frames })
-
-  /** Set by the create-canvas effect once the Fabric module has loaded, so
-   *  `createTextbox` (called from outside that effect, by the keyboard
-   *  shortcut) can construct a `fabric.Textbox` without importing it again. */
-  const fabricRef = useRef<typeof import("fabric") | null>(null)
+  const latest = useRef({ placements, assets, frames, typeBaseSize, typeRatio })
 
   /** Set once `fitToView` is defined below; read by the first-frame effect so
    *  that effect does not depend on the callback's identity. */
@@ -264,20 +436,120 @@ export function useFabricCanvas(options: Options) {
       onCreateText,
       onSelectFrame,
       onSelectElement,
+      onSelectPlacement,
       onUpdateElementBox,
+      onMoveElementToFrame,
       onUpdateTextContent,
+      onRemoveElement,
     }
-    latest.current = { placements, assets, frames }
+    latest.current = { placements, assets, frames, typeBaseSize, typeRatio }
   })
 
   useEffect(() => {
     let disposed = false
     let canvas: Canvas | null = null
 
+    /** Cancels an in-progress text placement (Escape, right-click, or the
+     *  gesture completing) without creating anything, and restores normal
+     *  canvas interaction. Declared here (outside the async IIFE below) so
+     *  both the mouse handlers inside it and the Escape listener below —
+     *  which needs to exist, and get cleaned up, independent of whether the
+     *  Fabric module has finished loading — can reach it. */
+    function disarmTextPlacement() {
+      placingTextRef.current = false
+      textPlacementStartRef.current = null
+      const target_canvas = canvasRef.current
+      if (!target_canvas) return
+      target_canvas.selection = true
+      target_canvas.skipTargetFind = false
+      target_canvas.defaultCursor = "default"
+      target_canvas.hoverCursor = "move"
+      target_canvas.requestRenderAll()
+    }
+
+    /* Escape cancels an armed text placement without creating anything — the
+       same "changed my mind" escape hatch a right-click gives it in the
+       mouse:down handler below. Window-level (not a Fabric canvas event)
+       since the tool can be armed with focus anywhere. */
+    const onKeyDownDuringTextPlacement = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && placingTextRef.current) disarmTextPlacement()
+    }
+    window.addEventListener("keydown", onKeyDownDuringTextPlacement)
+
+    /**
+     * Holding Space shows the familiar "hand tool" grab cursor and lets a
+     * plain left-drag pan the canvas — not just the existing empty-canvas/
+     * middle-drag pan below. `skipTargetFind` (the same flag armed text
+     * placement above uses to make clicks pass straight through to empty
+     * canvas) is what actually makes this work: with it on, every object
+     * stops being hit-testable, so the `mouse:down` pan trigger's existing
+     * `!opt.target` check fires for a click anywhere, and Fabric's own
+     * object-selection/drag never engages to fight over the same drag.
+     * `spacePressed` (declared here, read by `mouse:down`/`mouse:up` inside
+     * the async IIFE below via closure) is only what decides whether the
+     * *drag* cursor reads "grabbing" instead of "grab" — the pan itself
+     * doesn't need it once `skipTargetFind` is on.
+     *
+     * Guarded against typing targets and an actively-edited text box (Space
+     * has to type a literal space there, not arm panning) and against an
+     * armed text placement (which already owns `skipTargetFind` for its own
+     * reason — space released mid-placement must not clear it out from
+     * under that gesture).
+     */
+    let spacePressed = false
+
+    /**
+     * Fabric only re-applies `defaultCursor`/`hoverCursor` to the DOM
+     * lazily, the next time it processes a `mouse:move` — a plain click
+     * with no drag movement in between never fires one, so setting just
+     * the properties left the cursor visibly stuck on whatever it showed
+     * before (reported directly: "hand is appearing but not changing state
+     * when clicking"). Setting `upperCanvasEl.style.cursor` directly makes
+     * every change here take effect immediately regardless of whether the
+     * pointer moves; the properties are still set too; so Fabric's own
+     * future cursor recalculations (its next real `mouse:move`) don't
+     * revert this to a stale value.
+     */
+    function setPanCursor(canvas: Canvas, cursor: string) {
+      canvas.defaultCursor = cursor
+      canvas.hoverCursor = cursor
+      canvas.upperCanvasEl.style.cursor = cursor
+    }
+
+    const onSpaceKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || event.repeat || spacePressed) return
+      if (isTypingTarget(event.target)) return
+      if (placingTextRef.current) return
+      const target_canvas = canvasRef.current
+      if (!target_canvas) return
+      const active = target_canvas.getActiveObject() as PlacedTextbox | undefined
+      if (active?.isEditing) return
+
+      event.preventDefault() // Space's browser default is to scroll the page.
+      spacePressed = true
+      target_canvas.skipTargetFind = true
+      setPanCursor(target_canvas, "grab")
+      target_canvas.requestRenderAll()
+    }
+
+    const onSpaceKeyUp = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || !spacePressed) return
+      spacePressed = false
+      const target_canvas = canvasRef.current
+      if (!target_canvas) return
+      target_canvas.skipTargetFind = false
+      target_canvas.defaultCursor = "default"
+      target_canvas.hoverCursor = "move"
+      target_canvas.upperCanvasEl.style.cursor = "default"
+      target_canvas.requestRenderAll()
+    }
+
+    window.addEventListener("keydown", onSpaceKeyDown)
+    window.addEventListener("keyup", onSpaceKeyUp)
+
     void (async () => {
       const fabric = await import("fabric")
       if (disposed || !canvasElementRef.current) return
-      fabricRef.current = fabric
 
       canvas = new fabric.Canvas(canvasElementRef.current, {
         backgroundColor: "transparent",
@@ -299,20 +571,31 @@ export function useFabricCanvas(options: Options) {
 
       /**
        * Keeps the dot-grid background (`.canvas-dot-grid` on `containerRef`)
-       * locked to the same viewport transform Fabric applies to placed
-       * objects, so the dots pan and zoom with the content instead of
-       * sitting fixed underneath it. `viewportTransform` is `[zoomX, 0, 0,
-       * zoomY, panX, panY]` for the pan/zoom this canvas actually does
-       * (uniform scale, no rotation/skew) — `background-size` takes the
-       * zoom, `background-position` takes the pan.
+       * panning with the canvas's content — `background-position` takes
+       * `panX`/`panY` straight from Fabric's `viewportTransform` (`[zoomX,
+       * 0, 0, zoomY, panX, panY]` for the pan/zoom this canvas actually
+       * does; those two entries are already a screen-pixel translation, not
+       * a world-unit one, so no further conversion is needed), so the dots
+       * stay visually anchored to the canvas as it's dragged.
+       *
+       * `background-size` deliberately does *not* read `zoomX`/`zoomY`
+       * (direct follow-up, user-directed — was `DOT_GRID_SIZE * zoomX`):
+       * scaling the tile with zoom meant it shrank to a sub-pixel size at
+       * the low end of `MIN_ZOOM` (24 * 0.05 ≈ 1px), and a 1px
+       * radial-gradient dot rendered at a ~1px tile just antialiases into a
+       * flat tint — the reported "canvas turns charcoal blue-gray when
+       * zoomed way out" bug — and ballooned to a sparse ~190px tile at
+       * `MAX_ZOOM`, reading as the spacing "changing" while zooming.
+       * `DOT_GRID_SIZE` alone, fixed, keeps the dot density constant on
+       * screen at every zoom level.
        */
       function syncDotGrid() {
         const container = containerRef.current
         const target = canvasRef.current
         if (!container || !target) return
 
-        const [zoomX, , , zoomY, panX, panY] = target.viewportTransform
-        container.style.backgroundSize = `${DOT_GRID_SIZE * zoomX}px ${DOT_GRID_SIZE * zoomY}px`
+        const [, , , , panX, panY] = target.viewportTransform
+        container.style.backgroundSize = `${DOT_GRID_SIZE}px ${DOT_GRID_SIZE}px`
         container.style.backgroundPosition = `${panX}px ${panY}px`
       }
       canvas.on("after:render", syncDotGrid)
@@ -375,6 +658,83 @@ export function useFabricCanvas(options: Options) {
         target_canvas?.requestRenderAll()
       }
 
+      /**
+       * Places a new text box (user-directed, see `armTextTool`'s doc
+       * comment for why this is a separate step from arming the tool).
+       *
+       * Landing on a frame commits it as a real `TextElement` immediately,
+       * with empty content — not deferred until editing ends. Per direct
+       * user feedback: the sidebar showing nothing for a text box that's
+       * plainly sitting there, selected, being typed into, read as the same
+       * "did this even work?" confusion the click-to-place rework was
+       * supposed to fix, just moved one step later. `syncFrameElements`
+       * renders the committed element on its next pass; `pendingAutoEditElementIdRef`
+       * (checked there) is how this function reaches into that later,
+       * separate render to enter editing on *that* object once it exists —
+       * there's nothing to call `.enterEditing()` on yet at this point, only
+       * a store write.
+       *
+       * A click that misses every frame keeps the old deferred-commit
+       * behavior (U6's documented judgment call for "text created off any
+       * frame"): a loose, unsaved Fabric object, hit-tested again in
+       * `text:editing:exited` once editing ends, since there's no frame to
+       * commit into yet and the sidebar has nothing coherent to show for a
+       * pasteboard doodle outside the book model.
+       */
+      function placeTextbox(center: { x: number; y: number }, width: number) {
+        const target_canvas = canvasRef.current
+        if (!target_canvas) return
+
+        const { frames: currentFrames, placements, assets: pool } = latest.current
+        const originY = frameGridOriginY(placements, pool)
+        const layouts = layoutFrames(currentFrames, originY)
+        const hitFrameId = frameAt(layouts, center)
+
+        if (hitFrameId) {
+          const layout = layouts.find((l) => l.frameId === hitFrameId)
+          // Wherever the user actually clicked/dragged, converted to the
+          // frame's normalized coordinates — not the full-bleed default
+          // `createTextElement` falls back to when this is omitted. Per
+          // direct user feedback: a box that always snapped to the top-left
+          // of the page regardless of where you clicked read as broken,
+          // once committing-on-click (rather than on edit-exit) made that
+          // snap instant instead of a barely-noticed jump after the fact.
+          // Height is nominal — Fabric grows a Textbox's rendered height
+          // from its content regardless of the stored Box, so there's
+          // nothing for this value to visibly get right or wrong.
+          const box = layout
+            ? {
+                x: clamp01((center.x - width / 2 - layout.bounds.x) / layout.bounds.width),
+                y: clamp01((center.y - layout.bounds.y) / layout.bounds.height),
+                width: clamp01(width / layout.bounds.width),
+                height: 0.08,
+              }
+            : undefined
+          pendingAutoEditElementIdRef.current = handlers.current.onCreateText(hitFrameId, "", box)
+          return
+        }
+
+        const textbox = new fabric.Textbox("", {
+          left: center.x,
+          top: center.y,
+          originX: "center",
+          originY: "center",
+          width,
+          fontSize: 32,
+          fontFamily: resolveTextFontFamily(DEFAULT_TEXT_FONT),
+          fill: PASTEBOARD_TEXT_FILL,
+          textAlign: "left",
+          borderColor: TEXT_SELECTION_COLOR,
+          cornerColor: TEXT_SELECTION_COLOR,
+          editingBorderColor: TEXT_SELECTION_COLOR,
+        })
+
+        target_canvas.add(textbox)
+        target_canvas.setActiveObject(textbox)
+        textbox.enterEditing()
+        target_canvas.requestRenderAll()
+      }
+
       /* Zoom: keep the point under the cursor fixed. */
       canvas.on("mouse:wheel", (opt: TPointerEventInfo<WheelEvent>) => {
         const target = canvasRef.current
@@ -400,6 +760,21 @@ export function useFabricCanvas(options: Options) {
         const event = opt.e as MouseEvent
         const isMiddle = event.button === 1
         const isRight = event.button === 2
+
+        // The text tool is armed (`T`, or the Add text button) and waiting
+        // for the click/drag that places it — this click is that gesture,
+        // not a normal selection/pan/context-menu click, so it's handled
+        // entirely here and never falls through to the logic below.
+        // Right-click cancels instead of placing, the same "changed my mind"
+        // escape hatch Escape gives it elsewhere.
+        if (placingTextRef.current) {
+          if (isRight) {
+            disarmTextPlacement()
+          } else {
+            textPlacementStartRef.current = { x: opt.scenePoint.x, y: opt.scenePoint.y }
+          }
+          return
+        }
 
         if (isRight) {
           const placed = opt.target as (PlacedObject & Partial<PlacedElement>) | undefined
@@ -448,6 +823,11 @@ export function useFabricCanvas(options: Options) {
           panning = true
           target.selection = false
           panFrom = { x: event.clientX, y: event.clientY }
+          // Space-held pan gets the "actively grabbing" cursor for the
+          // duration of the drag — `spacePressed` is `true` here exactly
+          // when this pan trigger fired because `skipTargetFind` made
+          // `opt.target` empty, not because the canvas was genuinely empty.
+          if (spacePressed) setPanCursor(target, "grabbing")
         }
       })
 
@@ -495,11 +875,16 @@ export function useFabricCanvas(options: Options) {
         const gap = 16
         const centerY = layout.bounds.y + layout.bounds.height / 2
 
-        // White fill at 50% opacity with a solid black plus sign — the plus
-        // stays fully opaque (its own Rects have no `opacity` set) while only
-        // the background fades, so the icon itself never washes out. Grouped
-        // into one object so the tag/hover/click handling below only has to
-        // deal with a single target, the same as the plain-Rect version did.
+        // Solid black background with a white plus sign — a primary-button
+        // treatment (direct follow-up) rather than the previous white-at-50%-
+        // opacity/black-icon look, which read as a secondary, easy-to-miss
+        // affordance. Full opacity so it reads as a confident, deliberate
+        // action against either the white page or the dark canvas behind it;
+        // hover lightens the fill by one step (`ADD_PAGE_BUTTON_HOVER_FILL`,
+        // matching this app's zinc scale) instead of fading translucency, the
+        // usual primary-button hover treatment. Grouped into one object so
+        // the tag/hover/click handling below only has to deal with a single
+        // target.
         const makeButton = (side: "before" | "after", x: number) => {
           const bg = new fabric.Rect({
             width: size,
@@ -508,8 +893,7 @@ export function useFabricCanvas(options: Options) {
             originY: "center",
             rx: 8,
             ry: 8,
-            fill: "#ffffff",
-            opacity: 0.5,
+            fill: ADD_PAGE_BUTTON_FILL,
           })
           const barLength = size * 0.45
           const barThickness = 4
@@ -518,14 +902,14 @@ export function useFabricCanvas(options: Options) {
             height: barThickness,
             originX: "center",
             originY: "center",
-            fill: "#000000",
+            fill: "#ffffff",
           })
           const vBar = new fabric.Rect({
             width: barThickness,
             height: barLength,
             originX: "center",
             originY: "center",
-            fill: "#000000",
+            fill: "#ffffff",
           })
           const group = new fabric.Group([bg, hBar, vBar], {
             left: x,
@@ -542,11 +926,11 @@ export function useFabricCanvas(options: Options) {
           group.frameId = frameId
           group.side = side
           group.on("mouseover", () => {
-            bg.set({ opacity: 0.75 })
+            bg.set({ fill: ADD_PAGE_BUTTON_HOVER_FILL })
             canvasRef.current?.requestRenderAll()
           })
           group.on("mouseout", () => {
-            bg.set({ opacity: 0.5 })
+            bg.set({ fill: ADD_PAGE_BUTTON_FILL })
             canvasRef.current?.requestRenderAll()
           })
           return group
@@ -560,24 +944,46 @@ export function useFabricCanvas(options: Options) {
       }
       syncAddPageButtonsRef.current = syncAddPageButtons
 
+      /**
+       * Every pasteboard placement id in the current selection. A single
+       * clicked photograph is a `PlacedObject` with its own `placementId`;
+       * shift-clicking several wraps them in an `ActiveSelection`, which
+       * has no `placementId` of its own — its members do, reachable via
+       * `getObjects()` — so that case is read out separately.
+       */
+      const collectPlacementIds = (active: FabricObject | undefined): string[] => {
+        if (active instanceof fabric.ActiveSelection) {
+          return active
+            .getObjects()
+            .map((object) => (object as PlacedObject).placementId)
+            .filter((id): id is string => Boolean(id))
+        }
+        const placementId = (active as PlacedObject | undefined)?.placementId
+        return placementId ? [placementId] : []
+      }
+
       const notifyFrameSelection = () => {
         const active = canvasRef.current?.getActiveObject() as
-          | (PlacedFrame & Partial<PlacedElement>)
+          | (PlacedFrame & Partial<PlacedElement> & Partial<PlacedObject>)
           | undefined
 
         if (active?.elementId && active.frameId) {
           handlers.current.onSelectElement(active.frameId, active.elementId)
+          handlers.current.onSelectPlacement([])
           syncAddPageButtons(null)
           return
         }
 
         handlers.current.onSelectFrame(active?.frameId ?? null)
+        handlers.current.onSelectPlacement(collectPlacementIds(active))
         syncAddPageButtons(active?.frameId ?? null)
       }
       canvas.on("selection:created", notifyFrameSelection)
       canvas.on("selection:updated", notifyFrameSelection)
       canvas.on("selection:cleared", () => {
+        if (suppressSelectionClearRef.current) return
         handlers.current.onSelectFrame(null)
+        handlers.current.onSelectPlacement([])
         syncAddPageButtons(null)
       })
 
@@ -595,13 +1001,55 @@ export function useFabricCanvas(options: Options) {
         panFrom = { x: event.clientX, y: event.clientY }
       })
 
-      canvas.on("mouse:up", () => {
+      canvas.on("mouse:up", (opt) => {
         const target = canvasRef.current
         if (!target) return
+
+        // Completes a text-placement gesture armed by `armTextTool` — a
+        // plain click places a default-width box centered there; a
+        // click-and-drag sizes it to the drag instead. `textPlacementStartRef`
+        // being null (armed, but no mousedown landed on the canvas — e.g. the
+        // button was clicked again, or focus was elsewhere) means there is
+        // nothing to place; this mouseup is unrelated to the gesture.
+        if (placingTextRef.current) {
+          const start = textPlacementStartRef.current
+          if (start) {
+            const end = { x: opt.scenePoint.x, y: opt.scenePoint.y }
+            const dragWidth = Math.abs(end.x - start.x)
+            const clickThreshold = TEXT_PLACEMENT_CLICK_THRESHOLD_PX / target.getZoom()
+            const dragged = dragWidth > clickThreshold
+            const center = dragged ? { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 } : start
+            const width = dragged ? Math.max(60, dragWidth) : DEFAULT_TEXTBOX_WIDTH
+            placeTextbox(center, width)
+          }
+          disarmTextPlacement()
+          return
+        }
+
         panning = false
         target.selection = true
         clearInsertionIndicator()
         draggingRef.current = null
+        // Back to "ready to grab" rather than "grabbing" if Space is still
+        // held — only relevant when the drag that just ended was the
+        // space-triggered pan above, but harmless to set unconditionally.
+        if (spacePressed) setPanCursor(target, "grab")
+
+        // A plain click on an already-placed text element — not a drag, not
+        // a resize — enters editing immediately, cursor ready: one click to
+        // select *and* start typing, rather than needing Fabric's own
+        // built-in double-click. Fabric always attaches a `transform` to
+        // this event for a transformable target, armed but not yet acted on
+        // — `actionPerformed` is the field that actually distinguishes "the
+        // pointer moved enough to drag/resize" from a click that never left
+        // its starting corner, so checking `opt.transform` alone would treat
+        // every click as a drag and never enter editing at all.
+        const clicked = opt.target as (Partial<PlacedElement> & { isEditing?: boolean; enterEditing?: () => void }) | undefined
+        const transform = opt.transform as { actionPerformed?: boolean } | null | undefined
+        if (!transform?.actionPerformed && clicked?.elementKind === "text" && !clicked.isEditing) {
+          clicked.enterEditing?.()
+          target.requestRenderAll()
+        }
       })
 
       /* While a frame is mid-drag, show which grid slot it would land in.
@@ -639,7 +1087,27 @@ export function useFabricCanvas(options: Options) {
         if (placed.elementId && placed.frameId) {
           const { frames: currentFrames, placements, assets } = latest.current
           const originY = frameGridOriginY(placements, assets)
-          const layout = layoutFrames(currentFrames, originY).find((l) => l.frameId === placed.frameId)
+          const layouts = layoutFrames(currentFrames, originY)
+
+          // Dragged onto a *different* frame's bounds? Reassign it there —
+          // computing the new Box against whichever frame it already
+          // belonged to (as this used to do unconditionally) left a
+          // cross-page drag looking like it worked while the element
+          // stayed structurally on its original page. That's what made the
+          // sidebar's "Centered"/"Full bleed" presets re-center the image
+          // on the page it used to live on rather than the one it now
+          // visually sits on (direct bug report) — those presets read
+          // `frameId` from `selection`, which `onMoveElementToFrame` below
+          // updates to the destination frame; `onUpdateElementBox` never
+          // touches selection at all. Falls back to the element's own
+          // frame when the drop lands outside every frame's bounds — there
+          // is no "eject back to the pasteboard" gesture for an element
+          // already inside a frame, so it simply stays on the page it was
+          // already on, same as before this fix.
+          const dropX = placed.left ?? 0
+          const dropY = placed.top ?? 0
+          const hitFrameId = frameAt(layouts, { x: dropX, y: dropY }) ?? placed.frameId
+          const layout = layouts.find((l) => l.frameId === hitFrameId)
           if (!layout || layout.bounds.width === 0 || layout.bounds.height === 0) return
 
           // Fabric reports position/size pre-scale; the object's actual
@@ -648,13 +1116,18 @@ export function useFabricCanvas(options: Options) {
           // a move) persist correctly as a new normalized Box.
           const absWidth = (placed.width ?? 0) * (placed.scaleX ?? 1)
           const absHeight = (placed.height ?? 0) * (placed.scaleY ?? 1)
-
-          handlers.current.onUpdateElementBox(placed.frameId, placed.elementId, {
-            x: ((placed.left ?? 0) - layout.bounds.x) / layout.bounds.width,
-            y: ((placed.top ?? 0) - layout.bounds.y) / layout.bounds.height,
+          const box: Box = {
+            x: (dropX - layout.bounds.x) / layout.bounds.width,
+            y: (dropY - layout.bounds.y) / layout.bounds.height,
             width: absWidth / layout.bounds.width,
             height: absHeight / layout.bounds.height,
-          })
+          }
+
+          if (hitFrameId === placed.frameId) {
+            handlers.current.onUpdateElementBox(placed.frameId, placed.elementId, box)
+          } else {
+            handlers.current.onMoveElementToFrame(placed.frameId, hitFrameId, placed.elementId, box)
+          }
           return
         }
 
@@ -672,6 +1145,12 @@ export function useFabricCanvas(options: Options) {
           const hitFrameId = frameAt(layouts, { x: dropX, y: dropY })
 
           if (hitFrameId) {
+            // See `suppressSelectionClearRef`'s doc comment: the old
+            // placement object doesn't disappear until `syncObjects` next
+            // runs (a later render, once `placements` reflects the move),
+            // so the suppression window has to span that gap too — cleared
+            // there, not here, once that removal actually happens.
+            suppressSelectionClearRef.current = true
             handlers.current.onDropOnFrame(placed.placementId, hitFrameId)
             return
           }
@@ -756,9 +1235,20 @@ export function useFabricCanvas(options: Options) {
         // Re-editing an already-placed frame text element (double-click,
         // Fabric's own built-in trigger) commits its content in place —
         // distinct from a fresh pasteboard textbox landing on a frame for
-        // the first time, which is everything below this branch.
+        // the first time, which is everything below this branch. Since
+        // `placeTextbox` now commits directly onto a frame immediately, with
+        // empty content, this branch is also what a *brand-new* box hits if
+        // the user clicks away without ever typing — empty content is
+        // discarded there rather than saved, the same "nobody wants an empty
+        // caption box left behind" rule the miss-a-frame branch below
+        // already applies, so this doesn't leave an invisible full-bleed
+        // element sitting in the frame.
         if (textbox.elementId && textbox.frameId) {
-          handlers.current.onUpdateTextContent(textbox.frameId, textbox.elementId, content)
+          if (content.length === 0) {
+            handlers.current.onRemoveElement(textbox.frameId, textbox.elementId)
+          } else {
+            handlers.current.onUpdateTextContent(textbox.frameId, textbox.elementId, content)
+          }
           return
         }
 
@@ -775,8 +1265,25 @@ export function useFabricCanvas(options: Options) {
 
         if (!hitFrameId) return
 
-        handlers.current.onCreateText(hitFrameId, content)
+        const layout = layouts.find((l) => l.frameId === hitFrameId)
+        const center = { x: textbox.left ?? 0, y: textbox.top ?? 0 }
+        const width = (textbox.width ?? 0) * (textbox.scaleX ?? 1)
+        const box = layout
+          ? {
+              x: clamp01((center.x - width / 2 - layout.bounds.x) / layout.bounds.width),
+              y: clamp01((center.y - layout.bounds.y) / layout.bounds.height),
+              width: clamp01(width / layout.bounds.width),
+              height: 0.08,
+            }
+          : undefined
+
+        // See `suppressSelectionClearRef`'s doc comment: removing this
+        // textbox fires `selection:cleared`, which would otherwise clobber
+        // `onCreateText`'s selection write back to book-level settings.
+        suppressSelectionClearRef.current = true
         target_canvas.remove(textbox)
+        handlers.current.onCreateText(hitFrameId, content, box)
+        suppressSelectionClearRef.current = false
         target_canvas.requestRenderAll()
       })
 
@@ -792,10 +1299,14 @@ export function useFabricCanvas(options: Options) {
     const elementsInFlight = elementsPendingRef.current
     const drawnOverlays = overlaysRef.current
     const drawnCoverBadges = coverBadgesRef.current
+    const drawnSpreadBoxes = spreadBoxesRef.current
 
     return () => {
       disposed = true
       setReady(false)
+      window.removeEventListener("keydown", onKeyDownDuringTextPlacement)
+      window.removeEventListener("keydown", onSpaceKeyDown)
+      window.removeEventListener("keyup", onSpaceKeyUp)
       objects.clear()
       inFlight.clear()
       drawnFrames.clear()
@@ -803,9 +1314,12 @@ export function useFabricCanvas(options: Options) {
       elementsInFlight.clear()
       drawnOverlays.clear()
       drawnCoverBadges.clear()
+      drawnSpreadBoxes.clear()
       pageButtonsRef.current = null
       draggingRef.current = null
       indicatorRef.current = null
+      placingTextRef.current = false
+      textPlacementStartRef.current = null
       const target = canvasRef.current
       canvasRef.current = null
       void target?.dispose()
@@ -862,6 +1376,12 @@ export function useFabricCanvas(options: Options) {
         live.delete(placementId)
       }
     }
+    // See `suppressSelectionClearRef`'s doc comment: this is the other end
+    // of the window `object:modified`'s frame-drop branch opens — the old
+    // placement object it dropped is exactly one of the ones just removed
+    // above, so the suppression can safely lift now that the removal (and
+    // whatever `selection:cleared` noise it made) has actually happened.
+    suppressSelectionClearRef.current = false
 
     // Add objects for placements not yet drawn. Existing objects are left
     // alone — the canvas owns their position while mounted.
@@ -971,9 +1491,12 @@ export function useFabricCanvas(options: Options) {
     const originY = frameGridOriginY(currentPlacements, pool)
     const layouts = layoutFrames(currentFrames, originY)
     const layoutById = new Map(layouts.map((layout) => [layout.frameId, layout]))
+    const spreadBoxes = layoutSpreadBoxes(currentFrames, originY)
+    const spreadBoxById = new Map(spreadBoxes.map((box) => [box.frameId, box]))
     const live = framesRef.current
     const liveOverlays = overlaysRef.current
     const coverBadges = coverBadgesRef.current
+    const liveSpreadBoxes = spreadBoxesRef.current
     const frameById = new Map(currentFrames.map((frame) => [frame.id, frame]))
 
     // Remove frame objects whose frame no longer exists.
@@ -995,6 +1518,16 @@ export function useFabricCanvas(options: Options) {
         coverBadges.delete(frameId)
       }
     }
+    // Keyed by spread, not by frame: a frame id can still exist in
+    // `layoutById` (it didn't disappear) while no longer anchoring a
+    // spread's left half — reordered into a solo row, say, or its former
+    // partner left the book. Either way the box it used to own is stale.
+    for (const [frameId, box] of liveSpreadBoxes) {
+      if (!spreadBoxById.has(frameId)) {
+        canvas.remove(box)
+        liveSpreadBoxes.delete(frameId)
+      }
+    }
 
     /**
      * Draw or reposition a frame's bleed edge and content-margin guides —
@@ -1009,7 +1542,7 @@ export function useFabricCanvas(options: Options) {
     function syncPrintOverlay(fabric: typeof import("fabric"), layout: FrameLayout, frame: Frame | undefined) {
       if (!frame || !canvas) return
 
-      const margins = frame.margins ?? vandeGraafMargins(frame.pageSize)
+      const margins = frame.margins ?? defaultFrameMargins(frame.pageSize)
       const bounds = layout.bounds
       const bleedX = (BLEED_MM / frame.pageSize.width) * bounds.width
       const bleedY = (BLEED_MM / frame.pageSize.height) * bounds.height
@@ -1111,13 +1644,71 @@ export function useFabricCanvas(options: Options) {
         originY: "bottom",
         scaleX: size / 24,
         scaleY: size / 24,
-        fill: "#f5b400",
+        fill: "#18a0fb",
         selectable: false,
         evented: false,
         excludeFromExport: true,
       })
       canvas.add(badge)
       coverBadges.set(frame.id, badge)
+    }
+
+    /**
+     * The solid rect behind a spread's two frames (user-directed: "each of
+     * these paired pages in a nice section... box to visually separate
+     * from the canvas. Same styling using our grays and border colors. No
+     * shadows."). `fill`/`stroke` are the same `oklch` values behind this
+     * app's `--muted`/`--border` tokens (globals.css) — Fabric can't read
+     * CSS custom properties, so they're spelled out here, same reasoning
+     * as `syncPrintOverlay`'s colors above. `--muted` specifically: "one
+     * step lighter than `--canvas`" per that token's own doc comment,
+     * which is exactly what reads as a shelf the pages sit on rather than
+     * a second, competing background.
+     *
+     * Explicitly `sendObjectToBack` every sync, new box or repositioned
+     * existing one alike — add-order alone isn't enough. A frame whose
+     * `Rect` already existed from a prior sync (repositioned via `.set`,
+     * never re-added) keeps whatever stacking position it was originally
+     * added at, which can predate this box entirely — e.g. the very first
+     * page in a book, drawn long before it ever paired into a spread. Left
+     * to add-order, that frame would stay stuck behind a box added after it
+     * instead of on top of one added before it.
+     */
+    function syncSpreadBox(fabric: typeof import("fabric"), box: SpreadBoxLayout) {
+      if (!canvas) return
+
+      const existing = liveSpreadBoxes.get(box.frameId)
+      const rectProps = {
+        left: box.bounds.x + box.bounds.width / 2,
+        top: box.bounds.y + box.bounds.height / 2,
+        width: box.bounds.width,
+        height: box.bounds.height,
+      }
+
+      if (existing) {
+        existing.set(rectProps)
+        canvas.sendObjectToBack(existing)
+        return
+      }
+
+      const rect = new fabric.Rect({
+        ...rectProps,
+        originX: "center",
+        originY: "center",
+        fill: "#27272a",
+        stroke: "rgba(255, 255, 255, 0.1)",
+        strokeWidth: 1,
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+      })
+      canvas.add(rect)
+      canvas.sendObjectToBack(rect)
+      liveSpreadBoxes.set(box.frameId, rect)
+    }
+
+    for (const box of spreadBoxes) {
+      syncSpreadBox(fabric, box)
     }
 
     for (const layout of layouts) {
@@ -1205,6 +1796,41 @@ export function useFabricCanvas(options: Options) {
   /* ---------------------------------------------------------------- */
 
   /**
+   * How an image element's Fabric object should be positioned/scaled to
+   * honor `ImageElement.fit` inside its absolute on-canvas Box. See the
+   * doc comment on `syncFrameElements` below for why `'cover'` stretches
+   * rather than crops.
+   */
+  function imageFitTransform(
+    fit: "cover" | "contain" | undefined,
+    naturalWidth: number,
+    naturalHeight: number,
+    absLeft: number,
+    absTop: number,
+    absWidth: number,
+    absHeight: number,
+  ): { left: number; top: number; scaleX: number; scaleY: number } {
+    if (fit === "contain" && naturalWidth > 0 && naturalHeight > 0) {
+      const scale = Math.min(absWidth / naturalWidth, absHeight / naturalHeight)
+      const renderedWidth = naturalWidth * scale
+      const renderedHeight = naturalHeight * scale
+      return {
+        left: absLeft + (absWidth - renderedWidth) / 2,
+        top: absTop + (absHeight - renderedHeight) / 2,
+        scaleX: scale,
+        scaleY: scale,
+      }
+    }
+
+    return {
+      left: absLeft,
+      top: absTop,
+      scaleX: naturalWidth ? absWidth / naturalWidth : 1,
+      scaleY: naturalHeight ? absHeight / naturalHeight : 1,
+    }
+  }
+
+  /**
    * Draw every frame's own elements (images and text already inside a
    * frame — not pasteboard photographs or a fresh `T` textbox) at their
    * absolute on-canvas position, derived from the frame's current laid-out
@@ -1223,22 +1849,36 @@ export function useFabricCanvas(options: Options) {
    * how frame-drag/reorder hit-testing works throughout this file — a
    * larger change than tonight's scope.
    *
-   * Second known limitation: an image element's `fit` (`'cover'`/`'contain'`)
-   * is not honored here — every image stretches to exactly fill its `Box`,
-   * the same way scaleX/scaleY are computed for any other resize. True
-   * cover/contain needs a clip region independent of the object's own scale
-   * (Fabric's `clipPath`, or separate `cropX`/`cropY` bookkeeping), which is
-   * real scope, not a one-line fix. Full-bleed elements (the only shape
-   * `moveToFrame`/`createTextElement` produce today) look correct regardless,
-   * since a box that exactly matches the image's own aspect ratio stretches
-   * and crops identically.
+   * `fit: 'contain'` is honored below via `imageFitTransform` — a single
+   * uniform scale, centered within the Box on whichever axis has slack, so
+   * the whole image stays visible without distortion (the "hold Shift while
+   * scaling" behavior "Centered"/"Left half" presets need).
+   *
+   * `fit: 'cover'` (and the legacy-undefined default) still stretches
+   * independently to exactly fill the Box, rather than true crop-to-fill.
+   * True cover would need a `clipPath` sized to the Box while the image
+   * itself scales uniformly past it — but the object's own selection handles
+   * bound its *own* width/height, not the clip region, so a cover-fitted
+   * image's handles would no longer match what's visible, and
+   * `object:modified` (which reads `width * scaleX` back into a new Box)
+   * would compute the wrong size the moment someone resizes it. That's a
+   * bigger change to drag/resize semantics than this fix's scope. The
+   * stretch fallback is safe specifically for `'cover'` because a full-bleed
+   * Box's aspect ratio is usually close to the frame's own, so crop and
+   * stretch look nearly identical there.
    */
   const syncFrameElements = useCallback(async () => {
     const canvas = canvasRef.current
     if (!canvas) return
 
     const fabric = await import("fabric")
-    const { frames: currentFrames, placements: currentPlacements, assets: pool } = latest.current
+    const {
+      frames: currentFrames,
+      placements: currentPlacements,
+      assets: pool,
+      typeBaseSize,
+      typeRatio,
+    } = latest.current
     const originY = frameGridOriginY(currentPlacements, pool)
     const layoutByFrameId = new Map(layoutFrames(currentFrames, originY).map((l) => [l.frameId, l]))
     const live = elementsRef.current
@@ -1271,21 +1911,86 @@ export function useFabricCanvas(options: Options) {
         const existing = live.get(element.id)
 
         if (existing) {
+          // This loop is keyed by element id alone, reused verbatim across a
+          // frame reassignment (`moveElementToFrame`) — without this, the
+          // cached object's `frameId` tag stays pointed at whichever frame
+          // it was first created under, forever. That went unnoticed before
+          // an element could ever change frames at all; now it can (a photo
+          // dragged from one page onto another), and a *second* interaction
+          // with the same object — say, repositioning it again within its
+          // new page — would read this stale tag as its "current" frame in
+          // `object:modified` below, sending that update to the wrong frame
+          // (a silent no-op, since the element no longer lives there).
+          existing.frameId = frame.id
+
           // Don't fight the object currently under the user's pointer.
           if (existing === draggingRef.current) continue
 
-          const dx = Math.abs((existing.left ?? 0) - absLeft)
-          const dy = Math.abs((existing.top ?? 0) - absTop)
-          const dw = Math.abs((existing.width ?? 0) * (existing.scaleX ?? 1) - absWidth)
-          const dh = Math.abs((existing.height ?? 0) * (existing.scaleY ?? 1) - absHeight)
-          if (dx < 0.5 && dy < 0.5 && dw < 0.5 && dh < 0.5) continue
+          const target =
+            element.kind === "image"
+              ? imageFitTransform(
+                  element.fit,
+                  existing.width ?? 0,
+                  existing.height ?? 0,
+                  absLeft,
+                  absTop,
+                  absWidth,
+                  absHeight,
+                )
+              : {
+                  left: absLeft,
+                  top: absTop,
+                  scaleX: existing.width ? absWidth / existing.width : 1,
+                  scaleY: existing.height ? absHeight / existing.height : 1,
+                }
 
-          existing.set({
-            left: absLeft,
-            top: absTop,
-            scaleX: existing.width ? absWidth / existing.width : 1,
-            scaleY: existing.height ? absHeight / existing.height : 1,
-          })
+          const dx = Math.abs((existing.left ?? 0) - target.left)
+          const dy = Math.abs((existing.top ?? 0) - target.top)
+          const dw = Math.abs((existing.width ?? 0) * ((existing.scaleX ?? 1) - target.scaleX))
+          const dh = Math.abs((existing.height ?? 0) * ((existing.scaleY ?? 1) - target.scaleY))
+          const geometryChanged = dx >= 0.5 || dy >= 0.5 || dw >= 0.5 || dh >= 0.5
+
+          // Text content/font/alignment edited via the *sidebar* (its own
+          // textarea, Role/Alignment selects, the new font-family picker)
+          // never touch this object directly — only Fabric's own in-canvas
+          // double-click-to-edit does, through its own text-editing events.
+          // Without this check, a sidebar edit updates the store but the
+          // canvas keeps showing the old text/font/alignment until something
+          // else happens to touch this object.
+          let textChanged = false
+          if (element.kind === "text") {
+            const textObject = existing as unknown as {
+              text?: string
+              fontFamily?: string
+              textAlign?: string
+              fontSize?: number
+              fill?: string
+            }
+            const nextFontFamily = resolveTextFontFamily(element.fontFamily)
+            const nextFontSize =
+              resolveTextSize(element.role, element.fontSize, typeBaseSize, typeRatio) *
+              sceneUnitsPerPt(frame.pageSize.width)
+            const nextFill = element.color ?? DEFAULT_TEXT_COLOR
+            textChanged =
+              textObject.text !== element.content ||
+              textObject.fontFamily !== nextFontFamily ||
+              textObject.textAlign !== element.align ||
+              Math.abs((textObject.fontSize ?? 0) - nextFontSize) >= 0.5 ||
+              textObject.fill !== nextFill
+            if (textChanged) {
+              existing.set({
+                text: element.content,
+                fontFamily: nextFontFamily,
+                textAlign: element.align,
+                fontSize: nextFontSize,
+                fill: nextFill,
+              })
+            }
+          }
+
+          if (!geometryChanged && !textChanged) continue
+
+          existing.set(target)
           existing.setCoords()
           continue
         }
@@ -1299,16 +2004,32 @@ export function useFabricCanvas(options: Options) {
             originX: "left",
             originY: "top",
             width: Math.max(absWidth, 20),
-            // No typographic scale is threaded into this hook — a role-aware
-            // size (title/subtitle/body/caption) is a follow-up; this reads
-            // as a sensible default sized off the box itself, not a promise
-            // that it matches the sidebar's type scale yet.
-            fontSize: Math.max(absHeight * 0.5, 14),
-            fill: "#f4f4f5",
+            // The element's own `fontSize` override when it has one,
+            // role-aware scale size otherwise — converted from points into
+            // this frame's own scene units; see `sceneUnitsPerPt`'s doc
+            // comment on why that conversion has to be per-frame rather than
+            // a fixed constant. Matches the sidebar's Size field, which
+            // shows the same `resolveTextSize` value in points.
+            fontSize:
+              resolveTextSize(element.role, element.fontSize, typeBaseSize, typeRatio) *
+              sceneUnitsPerPt(frame.pageSize.width),
+            fontFamily: resolveTextFontFamily(element.fontFamily),
+            // The element's own color override when it has one (set via the
+            // sidebar's Color field), the frame's default ink black
+            // otherwise. Every frame is a white page, so that default always
+            // needs to be dark, unconditionally — it was hardcoded to this
+            // exact fill for every text element before `TextElement.color`
+            // existed. (Was `#f4f4f5` before that, the *pasteboard's*
+            // white-on-dark color, copy-pasted from the pre-commit textbox
+            // below — invisible against a white page.)
+            fill: element.color ?? DEFAULT_TEXT_COLOR,
             textAlign: element.align,
             lockRotation: true,
             lockSkewingX: true,
             lockSkewingY: true,
+            borderColor: TEXT_SELECTION_COLOR,
+            cornerColor: TEXT_SELECTION_COLOR,
+            editingBorderColor: TEXT_SELECTION_COLOR,
           }) as unknown as PlacedElement
           textbox.frameId = frame.id
           textbox.elementId = element.id
@@ -1318,6 +2039,16 @@ export function useFabricCanvas(options: Options) {
           canvas.add(textbox)
           live.set(element.id, textbox)
           bringOverlayToFront(canvas, frame.id)
+
+          // This is the element `placeTextbox` just created directly on
+          // this frame, rendered here for the first time — enter editing on
+          // it now, the same immediate cursor-ready state a click used to
+          // get before that element existed anywhere but the store.
+          if (pendingAutoEditElementIdRef.current === element.id) {
+            pendingAutoEditElementIdRef.current = null
+            canvas.setActiveObject(textbox)
+            ;(textbox as unknown as { enterEditing: () => void }).enterEditing()
+          }
           continue
         }
 
@@ -1340,13 +2071,23 @@ export function useFabricCanvas(options: Options) {
             const image: FabricImage = await fabricModule.FabricImage.fromURL(url)
             if (!canvasRef.current) return
 
+            const transform = imageFitTransform(
+              element.fit,
+              image.width ?? 0,
+              image.height ?? 0,
+              absLeft,
+              absTop,
+              absWidth,
+              absHeight,
+            )
+
             image.set({
-              left: absLeft,
-              top: absTop,
+              left: transform.left,
+              top: transform.top,
               originX: "left",
               originY: "top",
-              scaleX: image.width ? absWidth / image.width : 1,
-              scaleY: image.height ? absHeight / image.height : 1,
+              scaleX: transform.scaleX,
+              scaleY: transform.scaleY,
               borderColor: "#6366f1",
               cornerColor: "#6366f1",
               cornerSize: 8,
@@ -1519,39 +2260,53 @@ export function useFabricCanvas(options: Options) {
   }, [])
 
   /**
-   * `T` (no modifier): create a `Textbox` centered in the current viewport
-   * and immediately enter editing (KTD5) — never at the pointer position,
-   * per the plan's committed decision.
+   * `T` (no modifier), or the toolbar's Add text button: arms the text tool
+   * rather than creating a text box outright — the next click (or
+   * click-and-drag) on the canvas is what decides where it lands and how
+   * wide it starts, handled by the `mouse:down`/`mouse:up` pair set up in
+   * the create-canvas effect above (see `placeTextbox`/`disarmTextPlacement`
+   * there). `canvas.skipTargetFind` is set so that click hits the bare
+   * canvas regardless of what's underneath — a photograph, a frame, an
+   * existing text element — none of which should get selected or dragged by
+   * a click that's actually about placing new text.
+   *
+   * This replaces the previous behavior (create-and-edit a box centered in
+   * the viewport, immediately) per direct user feedback: reported twice,
+   * for both the button and the `T` key, as text landing somewhere
+   * unexpected and effectively vanishing — clicking to "place" the
+   * already-created, still-empty box instead read as clicking away from it,
+   * which exits editing and discards it as empty content. Superseds this
+   * hook's earlier documented decision to never place at the pointer.
    */
-  const createTextbox = useCallback(() => {
+  const armTextTool = useCallback(() => {
     const canvas = canvasRef.current
-    const fabric = fabricRef.current
-    if (!canvas || !fabric) return
+    if (!canvas) return
     if (isTextEditing()) return
+    if (placingTextRef.current) return
 
-    const centre = canvas.getVpCenter()
-    const textbox = new fabric.Textbox("", {
-      left: centre.x,
-      top: centre.y,
-      originX: "center",
-      originY: "center",
-      width: 320,
-      fontSize: 32,
-      fill: "#f4f4f5",
-      textAlign: "left",
-    })
-
-    canvas.add(textbox)
-    canvas.setActiveObject(textbox)
-    textbox.enterEditing()
+    placingTextRef.current = true
+    canvas.discardActiveObject()
+    canvas.selection = false
+    canvas.skipTargetFind = true
+    canvas.defaultCursor = "text"
+    canvas.hoverCursor = "text"
     canvas.requestRenderAll()
   }, [isTextEditing])
 
   const controls: CanvasControls = { zoom, ready, zoomIn, zoomOut, resetZoom, fitToView }
 
-  return { containerRef, canvasElementRef, controls, createTextbox, isTextEditing }
+  return { containerRef, canvasElementRef, controls, armTextTool, isTextEditing }
 }
 
 function clampZoom(value: number): number {
   return Math.min(Math.max(value, MIN_ZOOM), MAX_ZOOM)
+}
+
+/** Clamps a normalized `Box` coordinate/dimension to `[0, 1]` — used when
+ *  converting a click/drag's scene position into a frame's normalized
+ *  coordinates, so a gesture that starts or ends outside the frame's own
+ *  bounds (dragging past its edge) doesn't produce a Box that hangs off the
+ *  page. */
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value))
 }

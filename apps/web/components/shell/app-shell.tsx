@@ -10,6 +10,7 @@ import { Introduction, IntroductionReopenButton } from "@/components/shell/intro
 import { LayersPanel } from "@/components/shell/layers-panel"
 import { TopNav } from "@/components/shell/top-nav"
 import { useFrameKeyboardShortcuts } from "@/components/sequence/use-canvas-shortcuts"
+import { ToastProvider, ToastViewport } from "@/components/ui/toast"
 import { registerSaveFlush } from "@/lib/storage/project"
 import { useEditorStore } from "@/state/editor-store"
 
@@ -55,40 +56,46 @@ export function AppShell() {
   })
 
   return (
-    <div className="flex h-svh flex-col overflow-hidden">
-      <TopNav />
+    <ToastProvider>
+      <div className="flex h-svh flex-col overflow-hidden">
+        <TopNav />
 
-      <div
-        className="relative grid min-h-0 flex-1 transition-[grid-template-columns] duration-200 ease-out"
-        style={{
-          gridTemplateColumns: [
-            leftPanelOpen ? LEFT_PANEL_WIDTH : "0rem",
-            "minmax(0, 1fr)",
-            rightPanelOpen ? RIGHT_PANEL_WIDTH : "0rem",
-          ].join(" "),
-        }}
-      >
-        <div className="min-w-0 overflow-hidden">
-          <LayersPanel />
-        </div>
+        <div
+          className="relative grid min-h-0 flex-1 transition-[grid-template-columns] duration-200 ease-out"
+          style={{
+            gridTemplateColumns: [
+              leftPanelOpen ? LEFT_PANEL_WIDTH : "0rem",
+              "minmax(0, 1fr)",
+              rightPanelOpen ? RIGHT_PANEL_WIDTH : "0rem",
+            ].join(" "),
+          }}
+        >
+          <div className="min-w-0 overflow-hidden">
+            <LayersPanel />
+          </div>
 
-        <CanvasRegion />
+          <CanvasRegion />
 
-        <div className="min-w-0 overflow-hidden">
-          <InspectorPanel />
-        </div>
+          <div className="min-w-0 overflow-hidden">
+            <InspectorPanel />
+          </div>
 
-        <Introduction />
-        <ErrorBanner />
+          <Introduction />
+          <ErrorBanner />
 
-        {/* Bottom-left: feedback and the introduction's reopen control sit
-            together (R23, R32) — see error-banner.tsx for why it moved up
-            to bottom-16 rather than sharing this exact spot. */}
-        <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2">
-          <IntroductionReopenButton />
-          <FeedbackControl />
+          {/* Bottom-left: feedback and the introduction's reopen control sit
+              together (R23, R32) — see error-banner.tsx for why it moved up
+              to bottom-16 rather than sharing this exact spot. */}
+          <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2">
+            <IntroductionReopenButton />
+            <FeedbackControl />
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Rendered once, globally, for the whole shell — a toast reads as
+          coming from the app, not from whatever trigger created it. */}
+      <ToastViewport />
+    </ToastProvider>
   )
 }

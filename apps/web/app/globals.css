@@ -28,9 +28,17 @@
     --primary-foreground: oklch(0.21 0.006 285.885);
     --secondary: oklch(0.274 0.006 286.033);
     --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.274 0.006 286.033);
+    /* `--muted`/`--accent` used to share `--background`'s exact value (a
+     * leftover from promoting the old `--muted` value into `--background`
+     * above, without giving `--muted` a new one afterward) — every
+     * `hover:bg-muted`/`hover:bg-accent` state (ghost buttons, menu items,
+     * the tab switcher) was consequently invisible against a `bg-background`
+     * surface, not broken CSS, just literally the same color as its own
+     * background. Bumped a step lighter so hover/active states actually
+     * read. */
+    --muted: oklch(0.32 0.006 286.033);
     --muted-foreground: oklch(0.705 0.015 286.067);
-    --accent: oklch(0.274 0.006 286.033);
+    --accent: oklch(0.32 0.006 286.033);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);
@@ -51,16 +59,28 @@
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.552 0.016 285.938);
 
-    /* The canvas surface — black with a subtle dot grid (R22). Kept as its own
-     * tokens rather than repurposing `--background`/`--muted`, since those are
-     * still used across ordinary shell chrome (buttons, hover states) that
-     * must not turn pure black. `--canvas-dot` is deliberately low-contrast
-     * against `--canvas` — visible on inspection, not a distraction — while
-     * selection/frame-edge/insertion-indicator colors (drawn on the canvas by
-     * later units) are expected to use `--ring`/`--primary`, which stay
-     * light and are already tuned for contrast against a dark surface (R31). */
-    --canvas: oklch(0 0 0);
+    /* The canvas surface — Tailwind's zinc-900, from the same zinc scale
+     * this app's whole neutral palette is drawn from (`--background` is
+     * zinc-800; `--card`/`--popover`/`--sidebar` are also zinc-900) — a
+     * level darker than the shell chrome but not the near-black zinc-950
+     * this started at, and not pure black. Kept as its own token rather
+     * than repurposing `--background`/`--muted`, since those are still used
+     * across ordinary shell chrome (buttons, hover states) that must stay a
+     * step lighter than the canvas. `--canvas-dot` is deliberately
+     * low-contrast against `--canvas` — visible on inspection, not a
+     * distraction — while selection/frame-edge/insertion-indicator colors
+     * (drawn on the canvas by later units) are expected to use
+     * `--ring`/`--primary`, which stay light and are already tuned for
+     * contrast against a dark surface (R31). */
+    --canvas: oklch(0.21 0.006 285.885);
     --canvas-dot: oklch(1 0 0 / 8%);
+
+    /* This app is dark-only (see above) — tell the browser so native
+     * chrome that CSS can't fully restyle (the `<select>` popup list,
+     * scrollbars, the number-input spinner buttons removed below) renders
+     * in a dark theme instead of the OS's light default, which would
+     * otherwise flash a stark white popup over this palette. */
+    color-scheme: dark;
 }
 
 @theme inline {
@@ -125,13 +145,141 @@
 
 /**
  * The canvas's dot grid (R22). A flat radial-gradient tile rather than an SVG
- * background so it scales cheaply — KTD6 has this tied to the canvas's own
- * zoom transform once that lands (a later unit sets `background-size` and
- * `background-position` from the same viewport transform Fabric applies to
- * placed objects); the fixed 24px tile here is the un-zoomed resting state.
+ * background so it scales cheaply. `use-fabric-canvas.ts`'s `syncDotGrid`
+ * keeps `background-position` panning with the canvas's content (so the
+ * dots stay anchored to it while dragging) but deliberately leaves
+ * `background-size` alone — fixed at this same 32px, not tied to zoom —
+ * direct follow-up (user-directed): scaling the tile with zoom used to
+ * shrink it to a sub-pixel size at low zoom, which antialiased into a flat
+ * tint instead of visible dots. 32px (up from 24px) is the "fair amount of
+ * space between dots" that was asked for; this rule's value is only the
+ * very first paint's resting state before that effect runs once, and must
+ * be kept in sync with `DOT_GRID_SIZE` there by hand.
  */
 .canvas-dot-grid {
   background-color: var(--canvas);
   background-image: radial-gradient(circle, var(--canvas-dot) 1px, transparent 1px);
-  background-size: 24px 24px;
+  background-size: 32px 32px;
+}
+
+/**
+ * Kill native number-input spinner chevrons everywhere in the app (sidebar
+ * feedback item #1) — the browser's default up/down stepper doesn't match
+ * the custom field styling the inspector panel and margin fields use, and
+ * there's no reason to keep it since every numeric field here is a small,
+ * hand-styled box rather than a plain OS-rendered one. `-moz-appearance`
+ * covers Firefox (which ignores the pseudo-elements below); the two
+ * `::-webkit-*-spin-button` rules cover Chrome/Safari/Edge.
+ */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/**
+ * The left panel's Canvas/Book tab rail (`TabsIndicator` in ui/tabs.tsx).
+ * Base UI writes the active tab's measured position/size onto the indicator
+ * element as `--active-tab-*` custom properties; this turns the horizontal
+ * one into a `transform`, per the animations skill's "transform only, never
+ * left/width" rule, and gates the transition behind reduced-motion. Height
+ * and width come straight from the variables with no transition, since they
+ * don't change between this switcher's two equal-width tabs.
+ */
+.tabs-indicator-rail {
+  top: var(--active-tab-top);
+  height: var(--active-tab-height);
+  width: var(--active-tab-width);
+  transform: translateX(var(--active-tab-left));
+  transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tabs-indicator-rail {
+    transition: none;
+  }
+}
+
+/**
+ * The onboarding dialog's entrance (Introduction in shell/introduction.tsx) —
+ * plays once per mount, per the animations skill's dialog + "Split, Then
+ * Stagger" recipes. The overlay and dialog fade/scale in together on the
+ * same curve `.tabs-indicator-rail` uses above; each `.stagger-section`
+ * inside then cascades in on its own delay via a `--n` custom property set
+ * inline in markup (0, 1, 2…, via the `stagger()` helper in lib/utils.ts),
+ * so content reads as one connected reveal — top part, then who built it,
+ * then why, then the button last — rather than four independent pop-ins.
+ * `animation-delay` starts before the dialog's own 220ms settle finishes,
+ * deliberately: overlapping the two is what keeps a four-step reveal
+ * feeling instant instead of like a slideshow. Last piece lands at ~570ms
+ * total, well inside "first-run moments can be a little more elaborate"
+ * while still reading as quick.
+ *
+ * `.stagger-section` itself is shared beyond the intro dialog — direct
+ * follow-up (user-directed): `ExportDialog`'s format list and
+ * `FeedbackControl`'s popover fields both cascade their contents in the
+ * same way on open. Both are Base UI `Dialog`/`Popover` primitives, which
+ * unmount their popup on close (after their own `data-closed` exit
+ * transition finishes) and remount fresh on reopen — so this "plays once
+ * per mount" keyframe replays correctly every time either opens, the same
+ * way it does for the intro dialog's single mount. `.intro-overlay`/
+ * `.intro-dialog` stay intro-specific: Export/Feedback already get their
+ * own overlay+panel enter/exit from Base UI's `data-open`/`data-closed`
+ * transition classes (see those components), so they only need the inner
+ * `.stagger-section` cascade layered on top, not a second overlay/panel
+ * animation.
+ */
+.intro-overlay {
+  animation: intro-overlay-in 200ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.intro-dialog {
+  animation: intro-dialog-in 220ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.stagger-section {
+  opacity: 0;
+  animation: stagger-section-in 260ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  animation-delay: calc(100ms + var(--n, 0) * 70ms);
+}
+@keyframes intro-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes intro-dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes stagger-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .intro-overlay,
+  .intro-dialog,
+  .stagger-section {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
 }

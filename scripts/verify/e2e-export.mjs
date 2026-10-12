@@ -5,7 +5,8 @@
 //   LOUPE_URL=http://localhost:3000 node scripts/verify/e2e-export.mjs
 //
 // The contract this holds the export to:
-//   1. Clicking the top nav's "Export" button downloads a PDF.
+//   1. The top nav's "Export" button opens the "Export book" dialog; choosing
+//      "Print-ready PDF" and confirming downloads a PDF.
 //   2. The PDF's page count is a multiple of 4 (saddle stitch) and at least the
 //      book's page count. The book is deliberately set up with a count that is
 //      NOT a multiple of 4, so this only passes if export pads with blank pages.
@@ -44,15 +45,19 @@ try {
   await setupBook(page, BOOK)
   console.log(`✓ set up a ${BOOK.pageCount}-page ${BOOK.preset} book`)
 
-  const downloadPromise = page.waitForEvent("download", { timeout: 30_000 })
   await page.getByRole("banner").getByRole("button", { name: "Export" }).click()
+  const dialog = page.getByRole("dialog", { name: "Export book" })
+  await dialog.waitFor()
+  await dialog.getByText("Print-ready PDF").click()
+  const downloadPromise = page.waitForEvent("download", { timeout: 60_000 })
+  await dialog.getByRole("button", { name: "Export", exact: true }).click()
   let download
   try {
     download = await downloadPromise
   } catch {
     throw new Error(
-      'Clicking "Export" produced no download within 30s. Either PDF export is not implemented yet, ' +
-        "or its trigger changed — if so, update the export step in scripts/verify/e2e-export.mjs.",
+      'The Export dialog produced no download within 60s. If the export flow changed on purpose, ' +
+        "update the export step in scripts/verify/e2e-export.mjs.",
     )
   }
 

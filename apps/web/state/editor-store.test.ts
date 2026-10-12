@@ -108,6 +108,34 @@ describe("undo", () => {
     expect(useEditorStore.getState().project.frames.find((f) => f.id === frameId)?.elements).toEqual([])
   })
 
+  it("undoes moveElementToFrame, restoring the element to its original page and Box", () => {
+    const store = useEditorStore.getState()
+    const frameA = store.addFrame(A5_PORTRAIT)
+    const frameB = store.addFrame(A5_PORTRAIT)
+    const elementId = useEditorStore.getState().createTextElement(frameA, "hello")
+
+    const originalBox = useEditorStore
+      .getState()
+      .project.frames.find((f) => f.id === frameA)
+      ?.elements.find((e) => e.id === elementId)?.frame
+    if (!originalBox) throw new Error("expected the created element to have a Box")
+
+    useEditorStore.getState().moveElementToFrame(frameA, frameB, elementId, { x: 0.1, y: 0.1, width: 0.5, height: 0.5 })
+
+    const midway = useEditorStore.getState().project
+    expect(midway.frames.find((f) => f.id === frameA)?.elements).toEqual([])
+    expect(midway.frames.find((f) => f.id === frameB)?.elements).toHaveLength(1)
+    expect(useEditorStore.getState().selection).toEqual({ kind: "text-element", frameId: frameB, elementId })
+
+    useEditorStore.getState().undo()
+
+    const restored = useEditorStore.getState().project
+    expect(restored.frames.find((f) => f.id === frameB)?.elements).toEqual([])
+    const restoredElement = restored.frames.find((f) => f.id === frameA)?.elements.find((e) => e.id === elementId)
+    expect(restoredElement?.frame).toEqual(originalBox)
+    expect(useEditorStore.getState().selection).toEqual({ kind: "text-element", frameId: frameA, elementId })
+  })
+
   it("clears the stack on project load — a fresh load never reaches into the previous project's history", async () => {
     useEditorStore.getState().addFrame(A5_PORTRAIT)
     expect(useEditorStore.getState().undoStack.length).toBeGreaterThan(0)
@@ -116,5 +144,88 @@ describe("undo", () => {
 
     expect(useEditorStore.getState().undoStack).toHaveLength(0)
     expect(() => useEditorStore.getState().undo()).not.toThrow()
+  })
+
+  it("pushes the undone command onto redoStack", () => {
+    useEditorStore.getState().addFrame(A5_PORTRAIT)
+    expect(useEditorStore.getState().redoStack).toHaveLength(0)
+
+    useEditorStore.getState().undo()
+
+    expect(useEditorStore.getState().undoStack).toHaveLength(0)
+    expect(useEditorStore.getState().redoStack).toHaveLength(1)
+  })
+})
+
+describe("redo", () => {
+  it("is a no-op, not an error, when the stack is empty", () => {
+    expect(() => useEditorStore.getState().redo()).not.toThrow()
+    expect(useEditorStore.getState().redoStack).toHaveLength(0)
+  })
+
+  it("replays an undone frame reorder exactly, and moves the command back onto undoStack", () => {
+    const store = useEditorStore.getState()
+    const a = store.addFrame(A5_PORTRAIT)
+    const b = store.addFrame(A5_PORTRAIT)
+    const c = store.addFrame(A5_PORTRAIT)
+
+    useEditorStore.getState().reorderFrameById(0, 2)
+    const reordered = useEditorStore.getState().project.frames.map((f) => f.id)
+    expect(reordered).toEqual([b, c, a])
+
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().project.frames.map((f) => f.id)).toEqual([a, b, c])
+
+    useEditorStore.getState().redo()
+
+    expect(useEditorStore.getState().project.frames.map((f) => f.id)).toEqual(reordered)
+    expect(useEditorStore.getState().redoStack).toHaveLength(0)
+    // 3 `addFrame`s plus the reorder itself — all four are back on undoStack.
+    expect(useEditorStore.getState().undoStack).toHaveLength(4)
+  })
+
+  it("restores a moved-to-frame photograph on redo, removing it from the pasteboard again", () => {
+    const placement: CanvasPlacement = { id: "p1", assetId: "a1", x: 10, y: 20, scale: 1.5, rotation: 0 }
+    useEditorStore.setState((state) => ({
+      project: {
+        ...state.project,
+        assets: [{ id: "a1", name: "photo.jpg", width: 100, height: 100, importedAt: 0 }],
+        canvas: { placements: [placement] },
+      },
+    }))
+
+    const frameId = useEditorStore.getState().addFrame(A5_PORTRAIT)
+    useEditorStore.getState().moveToFrame("p1", frameId)
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().project.canvas.placements).toEqual([placement])
+
+    useEditorStore.getState().redo()
+
+    const restored = useEditorStore.getState().project
+    expect(restored.canvas.placements).toHaveLength(0)
+    expect(restored.frames.find((f) => f.id === frameId)?.elements).toHaveLength(1)
+  })
+
+  it("is cleared by a new action — you cannot redo into a timeline a fresh command branched away from", () => {
+    const store = useEditorStore.getState()
+    store.addFrame(A5_PORTRAIT)
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().redoStack).toHaveLength(1)
+
+    useEditorStore.getState().addFrame(A5_PORTRAIT)
+
+    expect(useEditorStore.getState().redoStack).toHaveLength(0)
+    expect(() => useEditorStore.getState().redo()).not.toThrow()
+  })
+
+  it("clears the stack on project load, the same as undoStack", async () => {
+    useEditorStore.getState().addFrame(A5_PORTRAIT)
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().redoStack.length).toBeGreaterThan(0)
+
+    await useEditorStore.getState().hydrate()
+
+    expect(useEditorStore.getState().redoStack).toHaveLength(0)
+    expect(() => useEditorStore.getState().redo()).not.toThrow()
   })
 })

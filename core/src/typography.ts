@@ -40,6 +40,23 @@ export function sizeForRole(role: TypeRole, baseSize: number, ratio: number): nu
   return round(baseSize * Math.pow(ratio, step))
 }
 
+/**
+ * The size a `TextElement` actually renders at: its own `fontSize` override
+ * when set, `sizeForRole` otherwise. Most text has no override and just
+ * takes its role's scale-derived size — this only exists so the sidebar's
+ * "Size" field (and a freshly created element's initial, deliberately
+ * larger-than-scale default) have somewhere to write a value that actually
+ * takes effect, without every element needing one.
+ */
+export function resolveTextSize(
+  role: TypeRole,
+  fontSize: number | undefined,
+  baseSize: number,
+  ratio: number,
+): number {
+  return fontSize ?? sizeForRole(role, baseSize, ratio)
+}
+
 /** The whole scale at once — for rendering a specimen or a type panel. */
 export function typeScale(baseSize: number, ratio: number): Record<TypeRole, number> {
   const roles = Object.keys(ROLE_STEPS) as TypeRole[]
@@ -86,6 +103,36 @@ export function vandeGraafMargins(pageSize: PageSize): PageMargins {
     top: round(pageSize.height / 9),
     bottom: round((pageSize.height * 2) / 9),
   }
+}
+
+/**
+ * Default margins for a newly created frame.
+ *
+ * Van de Graaf's asymmetry — narrower inner margin, wider outer margin;
+ * narrower top, wider bottom — exists to balance a two-page spread bound on
+ * one edge and to seat text optically on a single printed page. Both of
+ * those conventions only make visual sense once a page knows which side of
+ * the spine it's on and how it's bound — but `Frame` has no recto/verso or
+ * binding-orientation concept yet (every frame renders identically
+ * regardless of its position in the book; see
+ * docs/plans/2026-08-22-001-feat-unified-canvas-plan.md). Until that exists,
+ * applying the canon's asymmetry as-is just reads as an off-center guide on
+ * every page, not a deliberate convention — confirmed directly against a
+ * screenshot of the drawn guide, which visibly sat high with far more
+ * whitespace below than above.
+ *
+ * This keeps `vandeGraafMargins` itself untouched — it still documents the
+ * real canon for whenever recto/verso/binding-orientation support lands —
+ * and instead gives new frames fully symmetric margins on both axes,
+ * splitting each of the canon's total horizontal and vertical margins evenly
+ * so the live text-block's width and height are unchanged from the canon,
+ * just centered.
+ */
+export function defaultFrameMargins(pageSize: PageSize): PageMargins {
+  const canon = vandeGraafMargins(pageSize)
+  const horizontal = round((canon.inner + canon.outer) / 2)
+  const vertical = round((canon.top + canon.bottom) / 2)
+  return { inner: horizontal, outer: horizontal, top: vertical, bottom: vertical }
 }
 
 /** The live text area left over after the canon margins. */

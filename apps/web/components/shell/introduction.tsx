@@ -3,6 +3,7 @@
 import { BookOpenIcon, XIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
+import { stagger } from "@/lib/utils"
 import { useEditorStore } from "@/state/editor-store"
 
 /**
@@ -20,6 +21,12 @@ import { useEditorStore } from "@/state/editor-store"
  * via the control beside feedback (AE9), which a rule keyed only on project
  * emptiness could never express — hence the separate `introductionDismissed`
  * flag rather than deriving visibility from `project` alone.
+ *
+ * Content is split into four `.stagger-section` pieces (what it is, who built
+ * it, why it exists, then the button) that cascade in on mount — see the
+ * entrance-animation comment in globals.css. Splitting the copy this way
+ * isn't just for the animation: it's also why the copy below stays terse —
+ * each piece has to read as a single complete beat on its own.
  */
 export function Introduction() {
   const dismissed = useEditorStore((state) => state.introductionDismissed)
@@ -35,9 +42,9 @@ export function Introduction() {
     <div
       role="dialog"
       aria-label="About Loupe"
-      className="absolute inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm"
+      className="intro-overlay absolute inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm"
     >
-      <div className="relative flex max-w-md flex-col gap-3 rounded-2xl border bg-card p-6 shadow-lg">
+      <div className="intro-dialog relative flex max-w-md flex-col gap-3 rounded-2xl border bg-card p-6 shadow-lg">
         <Button
           variant="ghost"
           size="icon-xs"
@@ -48,20 +55,26 @@ export function Introduction() {
           <XIcon />
         </Button>
 
-        <h1 className="font-heading text-lg font-medium">Loupe</h1>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          Loupe is an open experiment in growing software with the people who use it — a
-          browser-based tool for sequencing, designing, and print-imposing a photobook or zine,
-          built in the open rather than behind a roadmap nobody outside the project can see.
-        </p>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          It is early, and it will keep changing shape based on what the people actually using it
-          need. Import some photographs to get started, and use the feedback control in this
-          corner any time something feels wrong, missing, or confusing — that is how this gets
-          built.
+        <div className="stagger-section flex flex-col gap-1.5" style={stagger(0)}>
+          <h1 className="font-heading text-lg font-medium">Loupe</h1>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            A browser-based tool for sequencing, designing, and print-imposing a photobook or
+            zine — no InDesign required.
+          </p>
+        </div>
+
+        <p className="stagger-section text-sm leading-relaxed text-muted-foreground" style={stagger(1)}>
+          Built in the open by <em className="text-foreground">Brandon Lang</em>.
         </p>
 
-        <Button onClick={dismissIntroduction} className="self-start">
+        <p className="stagger-section text-sm leading-relaxed text-muted-foreground" style={stagger(2)}>
+          It&apos;s early, and it&apos;ll keep changing shape based on what people actually
+          building books with it need. Import some photographs to get started, and use the
+          feedback control in this corner any time something feels wrong, missing, or confusing —
+          that&apos;s how this gets built.
+        </p>
+
+        <Button onClick={dismissIntroduction} className="stagger-section self-start" style={stagger(3)}>
           Get started
         </Button>
       </div>

@@ -56,7 +56,9 @@ export function useCanvasShortcuts({ enabled, zoomIn, zoomOut, resetZoom }: Opti
   return canIntercept
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
+/** Exported for use-fabric-canvas.ts's own window-level key listeners
+ *  (e.g. Space for the pan/hand cursor) — same guard, one definition. */
+export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   return (
     target.isContentEditable ||
@@ -189,32 +191,37 @@ export interface TextToolOptions {
   enabled: boolean
   /** Fabric-level fact, not React state — see `shouldCreateTextbox`. */
   isTextboxEditing: () => boolean
-  createTextbox: () => void
+  /** Arms the text tool — the *next click* on the canvas is what actually
+   *  places the box (see `armTextTool` in use-fabric-canvas.ts). `T` no
+   *  longer creates a box outright, per direct user feedback that a box
+   *  materializing at the viewport center made a same-gesture "click to
+   *  place it" read as clicking away and abandoning it. */
+  armTextTool: () => void
 }
 
-/** Wires the `T` shortcut (create-and-edit a pasteboard text box, U6) to
- *  `window`'s keydown stream. Split from `shouldCreateTextbox` for the same
- *  reason `useFrameKeyboardShortcuts` is split from `handleFrameKeyDown`. */
-export function useTextToolShortcut({ enabled, isTextboxEditing, createTextbox }: TextToolOptions): void {
+/** Wires the `T` shortcut (arm the text tool, U6) to `window`'s keydown
+ *  stream. Split from `shouldCreateTextbox` for the same reason
+ *  `useFrameKeyboardShortcuts` is split from `handleFrameKeyDown`. */
+export function useTextToolShortcut({ enabled, isTextboxEditing, armTextTool }: TextToolOptions): void {
   useEffect(() => {
     if (!enabled) return
 
     const onKeyDown = (event: KeyboardEvent) => {
-      const shouldCreate = shouldCreateTextbox({
+      const shouldArm = shouldCreateTextbox({
         key: event.key,
         hasModifier: event.ctrlKey || event.metaKey || event.altKey,
         isDomTypingTarget: isTypingTarget(event.target),
         isTextboxEditing: isTextboxEditing(),
       })
-      if (!shouldCreate) return
+      if (!shouldArm) return
 
       event.preventDefault()
-      createTextbox()
+      armTextTool()
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [enabled, isTextboxEditing, createTextbox])
+  }, [enabled, isTextboxEditing, armTextTool])
 }
 
 export interface CopyPasteShortcutOptions {
@@ -256,33 +263,126 @@ export function useCopyPasteShortcut({ enabled, copySelectedFrame, pasteFrame }:
 export interface UndoShortcutOptions {
   enabled: boolean
   undo: () => void
+  redo: () => void
 }
 
 /**
- * Binds the platform undo shortcut (`Cmd/Ctrl+Z`, U8) to the store's
- * `undo()`. Guarded by `isTypingTarget` the same way the frame/text
- * shortcuts are — but for undo specifically, that guard matters more than
- * usual: inside a text field (the sidebar's content textarea, the project
- * name field, anywhere), `Ctrl+Z` should fall through to the browser's own
- * native text-undo, not this app-level command stack. Returning early here
- * (rather than calling `preventDefault`) is what lets that fall-through
- * happen.
+ * Binds the platform undo/redo shortcuts to the store's `undo()`/`redo()`:
+ * `Cmd/Ctrl+Z` for undo (U8), `Cmd/Ctrl+Shift+Z` for redo, plus `Cmd/Ctrl+Y`
+ * as the secondary redo shortcut Windows users expect. Guarded by
+ * `isTypingTarget` the same way the frame/text shortcuts are — but for
+ * undo/redo specifically, that guard matters more than usual: inside a text
+ * field (the sidebar's content textarea, the project name field, anywhere),
+ * these should fall through to the browser's own native text-undo/redo, not
+ * this app-level command stack. Returning early here (rather than calling
+ * `preventDefault`) is what lets that fall-through happen.
  */
-export function useUndoShortcut({ enabled, undo }: UndoShortcutOptions): void {
+export function useUndoShortcut({ enabled, undo, redo }: UndoShortcutOptions): void {
   useEffect(() => {
     if (!enabled) return
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== "z") return
       if (!event.ctrlKey && !event.metaKey) return
-      if (event.shiftKey) return // Redo (Cmd/Ctrl+Shift+Z) isn't implemented — leave it alone.
       if (isTypingTarget(event.target)) return
 
-      event.preventDefault()
-      undo()
+      const key = event.key.toLowerCase()
+      if (key === "z") {
+        event.preventDefault()
+        if (event.shiftKey) redo()
+        else undo()
+      } else if (key === "y") {
+        event.preventDefault()
+        redo()
+      }
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [enabled, undo])
+  }, [enabled, undo, redo])
+}
+
+/** What's currently selected, reduced to exactly what this hook needs to
+ *  decide what Backspace/Delete should remove — the caller passes this
+ *  derived shape rather than the raw `Selection` union from `@loupe/core`,
+ *  the same pattern `isFrameSelected`/`selectedFrameId` used before this
+ *  hook covered elements too. `"placement"` is one or more pasteboard
+ *  photographs that haven't been dropped onto a frame yet — an array, not a
+ *  single id, since shift-clicking several is a normal gesture (Fabric's
+ *  own multi-select) and should delete all of them in one step, not just
+ *  whichever was clicked last. Pasteboard placements have no `Selection`
+ *  variant of their own (see `onSelectPlacement` in use-fabric-canvas.ts),
+ *  so the caller tracks them separately from the store's `selection` and
+ *  folds them in here. */
+export type DeletableSelection =
+  | { kind: "frame"; frameId: string }
+  | { kind: "element"; frameId: string; elementId: string }
+  | { kind: "placement"; placementIds: readonly string[] }
+  | null
+
+export interface DeleteSelectionShortcutOptions {
+  enabled: boolean
+  selection: DeletableSelection
+  /** Fabric-level fact, not React state — see `shouldCreateTextbox`'s doc
+   *  comment on why this can't be folded into a DOM-focus check. Checked
+   *  first, before even reading `selection`: `selection.kind` stays
+   *  `"element"` continuously for the whole time a text element is being
+   *  typed into, so without this guard every backspace keystroke fixing a
+   *  typo would delete the element instead of one character. */
+  isTextEditing: () => boolean
+  removeFrame: (frameId: string) => void
+  removeElement: (frameId: string, elementId: string) => void
+  /** Deletes one or more pasteboard photographs outright, as a single
+   *  undoable step (user-directed: "delete photos that are not on a page",
+   *  then "I can't multi-select and delete" once shift-click multi-select
+   *  turned out to only ever remove the last-clicked one) — see
+   *  `removePlacements` in editor-store.ts for why this also drops the
+   *  underlying `Asset`s. */
+  removePlacements: (placementIds: readonly string[]) => void
+}
+
+/**
+ * Backspace/Delete removes whatever is currently selected (user-directed):
+ * the page itself when a frame is selected — same `removeFrame` action the
+ * right-click menu's "Delete page" item calls — the element when an image or
+ * text element is selected, via `removeElement` — or the photograph(s)
+ * outright when one or more pasteboard placements are selected, via
+ * `removePlacements`. Every path lands one undoable step, restorable via the
+ * existing undo stack.
+ *
+ * Guarded by `isTypingTarget` for the obvious reason: Backspace is the most
+ * common key there is in a text field, and must never delete anything just
+ * because the sidebar's content textarea happens to have focus. Guarded by
+ * `isTextEditing` for the same reason but at the canvas level — see that
+ * option's doc comment.
+ */
+export function useDeleteSelectionShortcut({
+  enabled,
+  selection,
+  isTextEditing,
+  removeFrame,
+  removeElement,
+  removePlacements,
+}: DeleteSelectionShortcutOptions): void {
+  useEffect(() => {
+    if (!enabled) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Backspace" && event.key !== "Delete") return
+      if (isTypingTarget(event.target)) return
+      if (isTextEditing()) return
+      if (!selection) return
+
+      event.preventDefault()
+      if (selection.kind === "frame") {
+        removeFrame(selection.frameId)
+      } else if (selection.kind === "element") {
+        removeElement(selection.frameId, selection.elementId)
+      } else {
+        removePlacements(selection.placementIds)
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [enabled, selection, isTextEditing, removeFrame, removeElement, removePlacements])
 }

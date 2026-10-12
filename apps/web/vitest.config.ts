@@ -20,6 +20,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": import.meta.dirname,
+      // `next/font/google`'s real exports only work under Next's own build
+      // (a bundler loader rewrites the call at build time) — see
+      // test/mocks/next-font-google.ts for why this needs a stand-in here.
+      "next/font/google": `${import.meta.dirname}/test/mocks/next-font-google.ts`,
     },
   },
 })

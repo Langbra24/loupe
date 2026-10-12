@@ -91,6 +91,40 @@ export interface TextElement extends BaseElement {
   /** Named step in the type scale, not a raw pixel size — see typography.ts. */
   role: TypeRole
   align: 'left' | 'center' | 'right'
+  /**
+   * A key into `apps/web/lib/fonts.ts`'s `TEXT_FONTS` list — e.g. `'lora'`,
+   * `'work-sans'`. Optional so older text elements (predating this field)
+   * don't need a migration; `resolveTextFontFamily` in that module falls
+   * back to the default serif for `undefined` or an unrecognized value.
+   * The actual font-loading and CSS wiring live in apps/web, not here — this
+   * is just the stored choice, matching the pattern `Frame.margins` already
+   * sets for an optional field with one obvious default.
+   */
+  fontFamily?: string
+  /**
+   * Point size, overriding the type scale's `sizeForRole(role, ...)` value
+   * for this one element. Optional — most text should just take its role's
+   * scale-derived size, which is why this doesn't replace `role` as the
+   * primary size control; it exists for the sidebar's "Size" field to
+   * actually do something; see `resolveTextSize` in typography.ts for how
+   * the two combine (this wins when set, `role` otherwise). Set to a fixed
+   * default (not derived from the scale) on every freshly created text
+   * element — see `armTextTool` in apps/web's use-fabric-canvas.ts — so a
+   * brand-new box reads as visibly "a text box landed here" rather than a
+   * near-invisible 10pt scrap at the book's default base size.
+   */
+  fontSize?: number
+  /**
+   * Text fill, as a hex string (e.g. `'#18181b'`). Optional — undefined
+   * means "use the frame's default ink black" (`FRAME_TEXT_FILL` in
+   * apps/web's use-fabric-canvas.ts), the same fallback every text element
+   * effectively had before this field existed, so old projects don't need a
+   * migration. Chosen via the sidebar's Color field, which accepts RGB or
+   * CMYK input (see `core/src/color.ts`) as well as a raw hex value — this
+   * is a book layout tool used by photographers and print professionals,
+   * who think in those color spaces rather than hex.
+   */
+  color?: string
 }
 
 export type PageElement = ImageElement | TextElement

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { ImagesIcon } from "@phosphor-icons/react"
+import { Redo2Icon, Trash2Icon, TypeIcon, Undo2Icon } from "lucide-react"
 import type { ImagePreset } from "@loupe/core"
 
 import { BookSetupDialog } from "@/components/sequence/book-setup-dialog"
@@ -10,10 +11,24 @@ import { CanvasControls } from "@/components/sequence/canvas-controls"
 import { useFabricCanvas } from "@/components/sequence/use-fabric-canvas"
 import {
   useCopyPasteShortcut,
+  useDeleteSelectionShortcut,
   useTextToolShortcut,
   useUndoShortcut,
+  type DeletableSelection,
 } from "@/components/sequence/use-canvas-shortcuts"
+import { modifierLabel, usePlatform } from "@/components/sequence/use-platform"
+import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { useEditorStore } from "@/state/editor-store"
+
+/** Matches `CanvasControls`' tooltip delay (same feel across the canvas's
+ *  floating chrome). */
+const TOOLTIP_DELAY_MS = 600
 
 interface ImageMenuTarget {
   frameId: string
@@ -37,6 +52,7 @@ const IMAGE_PRESET_LABELS: Record<ImagePreset, string> = {
   "full-bleed": "Full bleed",
   centered: "Centered",
   "left-half": "Left half",
+  "two-page-spread": "Two-page spread",
 }
 
 /**
@@ -51,6 +67,8 @@ export function LightTable() {
   const assets = useEditorStore((state) => state.project.assets)
   const frames = useEditorStore((state) => state.project.frames)
   const pageSize = useEditorStore((state) => state.project.pageSize)
+  const typeBaseSize = useEditorStore((state) => state.project.typeBaseSize)
+  const typeRatio = useEditorStore((state) => state.project.typeRatio)
   const movePlacement = useEditorStore((state) => state.movePlacement)
   const scalePlacement = useEditorStore((state) => state.scalePlacement)
   const reorderFrameById = useEditorStore((state) => state.reorderFrameById)
@@ -60,6 +78,7 @@ export function LightTable() {
   const selectElement = useEditorStore((state) => state.selectElement)
   const clearSelection = useEditorStore((state) => state.clearSelection)
   const updateElementBox = useEditorStore((state) => state.updateElementBox)
+  const moveElementToFrame = useEditorStore((state) => state.moveElementToFrame)
   const updateTextElement = useEditorStore((state) => state.updateTextElement)
   const applyImagePreset = useEditorStore((state) => state.applyImagePreset)
   const copySelectedFrame = useEditorStore((state) => state.copySelectedFrame)
@@ -67,7 +86,20 @@ export function LightTable() {
   const addPairedPage = useEditorStore((state) => state.addPairedPage)
   const addFrame = useEditorStore((state) => state.addFrame)
   const setFrameCover = useEditorStore((state) => state.setFrameCover)
+  const removeFrame = useEditorStore((state) => state.removeFrame)
+  const removeElement = useEditorStore((state) => state.removeElement)
+  const removePlacements = useEditorStore((state) => state.removePlacements)
+  const selection = useEditorStore((state) => state.selection)
   const undo = useEditorStore((state) => state.undo)
+  const redo = useEditorStore((state) => state.redo)
+
+  // Selected pasteboard photographs (not yet on a page) have no `Selection`
+  // variant of their own — see `onSelectPlacement`'s doc comment in
+  // use-fabric-canvas.ts — so they're tracked here rather than read off the
+  // store, the same way `imageMenu`/`frameMenu` below are. An array, not a
+  // single id: shift-clicking several is Fabric's own multi-select, and
+  // Backspace on that selection should delete all of them at once.
+  const [selectedPlacementIds, setSelectedPlacementIds] = useState<string[]>([])
 
   // Right-click promotion into an Edit lived here; Edit is gone from the data
   // model (see core/src/frames.ts) and its replacement — dropping a photo
@@ -80,10 +112,12 @@ export function LightTable() {
   const [frameMenu, setFrameMenu] = useState<FrameMenuTarget | null>(null)
   const [emptyCanvasMenu, setEmptyCanvasMenu] = useState<EmptyCanvasMenuTarget | null>(null)
 
-  const { containerRef, canvasElementRef, controls, createTextbox, isTextEditing } = useFabricCanvas({
+  const { containerRef, canvasElementRef, controls, armTextTool, isTextEditing } = useFabricCanvas({
     placements,
     assets,
     frames,
+    typeBaseSize,
+    typeRatio,
     onMove: movePlacement,
     onScale: scalePlacement,
     onContextMenu: () => {},
@@ -96,18 +130,46 @@ export function LightTable() {
     onCreateText: createTextElement,
     onSelectFrame: (frameId) => (frameId ? selectFrame(frameId) : clearSelection()),
     onSelectElement: selectElement,
+    onSelectPlacement: setSelectedPlacementIds,
     onUpdateElementBox: updateElementBox,
+    onMoveElementToFrame: moveElementToFrame,
     onUpdateTextContent: (frameId, elementId, content) =>
       updateTextElement(frameId, elementId, { content }),
+    onRemoveElement: removeElement,
   })
 
-  // `T` creates and inline-edits a pasteboard text box (U6).
-  useTextToolShortcut({ enabled: true, isTextboxEditing: isTextEditing, createTextbox })
-  // Cmd/Ctrl+Z undoes the last reorder/move/create/delete/text-edit (U8).
-  useUndoShortcut({ enabled: true, undo })
+  // `T` arms the text tool; the next click/drag on the canvas places it (U6).
+  useTextToolShortcut({ enabled: true, isTextboxEditing: isTextEditing, armTextTool })
+  // Cmd/Ctrl+Z undoes the last reorder/move/create/delete/text-edit (U8);
+  // Cmd/Ctrl+Shift+Z / Cmd/Ctrl+Y redoes it.
+  useUndoShortcut({ enabled: true, undo, redo })
   // Cmd/Ctrl+C copies the selected page, Cmd/Ctrl+V pastes it as a new one
   // right after it (user-directed).
   useCopyPasteShortcut({ enabled: true, copySelectedFrame, pasteFrame })
+  // Backspace/Delete removes whatever is currently selected — a page (same
+  // action as the right-click menu's "Delete page"), an image/text element,
+  // or one or more pasteboard photographs that haven't been dropped onto a
+  // page yet — but never while `isTextEditing` says a text element is
+  // actively being typed into (see that hook's doc comment).
+  const deletableSelection: DeletableSelection =
+    selection?.kind === "frame"
+      ? { kind: "frame", frameId: selection.frameId }
+      : selection?.kind === "text-element" || selection?.kind === "image-element"
+        ? { kind: "element", frameId: selection.frameId, elementId: selection.elementId }
+        : selectedPlacementIds.length > 0
+          ? { kind: "placement", placementIds: selectedPlacementIds }
+          : null
+  useDeleteSelectionShortcut({
+    enabled: true,
+    selection: deletableSelection,
+    isTextEditing,
+    removeFrame,
+    removeElement,
+    removePlacements: (placementIds) => {
+      removePlacements(placementIds)
+      setSelectedPlacementIds([])
+    },
+  })
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -118,7 +180,7 @@ export function LightTable() {
         <canvas ref={canvasElementRef} className="absolute inset-0" />
       </div>
 
-      {assets.length === 0 ? <EmptyTable /> : <ImportAffordance />}
+      {assets.length === 0 ? <EmptyTable /> : <ImportAffordance armTextTool={armTextTool} />}
 
       {assets.length > 0 && frames.length === 0 && <BookSetupDialog />}
 
@@ -127,9 +189,18 @@ export function LightTable() {
       {imageMenu && (
         <ImagePresetMenu
           target={imageMenu}
+          isCover={frames.find((f) => f.id === imageMenu.frameId)?.isCover ?? false}
           onDismiss={() => setImageMenu(null)}
           onSelect={(preset) => {
             applyImagePreset(imageMenu.frameId, imageMenu.elementId, preset)
+            setImageMenu(null)
+          }}
+          onToggleCover={(isCover) => {
+            setFrameCover(imageMenu.frameId, isCover)
+            setImageMenu(null)
+          }}
+          onDelete={() => {
+            removeFrame(imageMenu.frameId)
             setImageMenu(null)
           }}
         />
@@ -142,6 +213,10 @@ export function LightTable() {
           onDismiss={() => setFrameMenu(null)}
           onToggleCover={(isCover) => {
             setFrameCover(frameMenu.frameId, isCover)
+            setFrameMenu(null)
+          }}
+          onDelete={() => {
+            removeFrame(frameMenu.frameId)
             setFrameMenu(null)
           }}
         />
@@ -162,19 +237,31 @@ export function LightTable() {
 }
 
 /**
- * Fixed layout presets for an image already inside a frame — right-click
- * access, same convention a desktop layout tool would use for "arrange"
- * commands. Positioned at the click point in viewport coordinates, which is
- * the same coordinate space `containerRef` occupies, so no conversion is
- * needed between the Fabric event and this DOM overlay.
+ * Right-click menu on an image already inside a frame: the fixed layout
+ * presets, same convention a desktop layout tool would use for "arrange"
+ * commands, plus the frame-level "set as cover"/"delete page" actions
+ * `FrameContextMenu` below offers for a frame's own background. Merged in
+ * here (rather than requiring a separate right-click on empty frame
+ * background) because a full-bleed image covers the entire page — there is
+ * no exposed background left to right-click, which made those two actions
+ * unreachable for exactly the frames most likely to want them. Positioned
+ * at the click point in viewport coordinates, which is the same coordinate
+ * space `containerRef` occupies, so no conversion is needed between the
+ * Fabric event and this DOM overlay.
  */
 function ImagePresetMenu({
   target,
+  isCover,
   onSelect,
+  onToggleCover,
+  onDelete,
   onDismiss,
 }: {
   target: ImageMenuTarget
+  isCover: boolean
   onSelect: (preset: ImagePreset) => void
+  onToggleCover: (isCover: boolean) => void
+  onDelete: () => void
   onDismiss: () => void
 }) {
   useEffect(() => {
@@ -193,9 +280,10 @@ function ImagePresetMenu({
         className="absolute z-40 min-w-40 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md"
         style={{ left: target.x, top: target.y }}
       >
-        <div className="px-2 pt-1 pb-0.5 text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">
-          Positioning
-        </div>
+        {/* Plain secondary-colored label, not a caps'd/tracked section
+            header — matches the sidebar's own `Section` heading treatment
+            (inspector-panel.tsx) rather than a separate convention. */}
+        <div className="px-2 pt-1 pb-0.5 text-xs font-medium text-muted-foreground">Positioning</div>
         {(Object.keys(IMAGE_PRESET_LABELS) as ImagePreset[]).map((preset) => (
           <button
             key={preset}
@@ -205,6 +293,21 @@ function ImagePresetMenu({
             {IMAGE_PRESET_LABELS[preset]}
           </button>
         ))}
+        <div className="my-1 h-px bg-border" />
+        <button
+          onClick={() => onToggleCover(!isCover)}
+          className="block w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+        >
+          {isCover ? "Remove cover" : "Set as cover"}
+        </button>
+        <div className="my-1 h-px bg-border" />
+        <button
+          onClick={onDelete}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10"
+        >
+          <Trash2Icon className="size-3.5" />
+          Delete page
+        </button>
       </div>
     </>
   )
@@ -257,11 +360,13 @@ function FrameContextMenu({
   target,
   isCover,
   onToggleCover,
+  onDelete,
   onDismiss,
 }: {
   target: FrameMenuTarget
   isCover: boolean
   onToggleCover: (isCover: boolean) => void
+  onDelete: () => void
   onDismiss: () => void
 }) {
   useEffect(() => {
@@ -285,6 +390,14 @@ function FrameContextMenu({
         >
           {isCover ? "Remove cover" : "Set as cover"}
         </button>
+        <div className="my-1 h-px bg-border" />
+        <button
+          onClick={onDelete}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10"
+        >
+          <Trash2Icon className="size-3.5" />
+          Delete page
+        </button>
       </div>
     </>
   )
@@ -305,19 +418,124 @@ function EmptyTable() {
   )
 }
 
-/** Import stays reachable once the table has photographs on it — the empty
- *  state is copy, not the only door in. */
-function ImportAffordance() {
+/**
+ * Import stays reachable once the table has photographs on it — the empty
+ * state is copy, not the only door in. Grouped with the text tool in its own
+ * pill (both are "add something to the canvas" actions); Undo/Redo get a
+ * separate pill (both are history actions on whatever's already there) — an
+ * 8px gap (`gap-2`) between the two groups makes that distinction visible
+ * rather than reading as one long row of five buttons.
+ */
+function ImportAffordance({ armTextTool }: { armTextTool: () => void }) {
   const progress = useEditorStore((state) => state.importProgress)
+  const undo = useEditorStore((state) => state.undo)
+  const redo = useEditorStore((state) => state.redo)
+  const canUndo = useEditorStore((state) => state.undoStack.length > 0)
+  const canRedo = useEditorStore((state) => state.redoStack.length > 0)
+
+  const platform = usePlatform()
+  const modifier = modifierLabel(platform)
+  const shortcut = (key: string) => (modifier ? `${modifier} ${key}` : null)
 
   return (
-    <div className="absolute top-3 left-3 z-20 flex items-center gap-2 rounded-xl border bg-background/90 p-1 shadow-sm backdrop-blur">
-      <ImportPhotosButton variant="icon" />
-      {progress && (
-        <span className="pr-2 text-xs text-muted-foreground">
-          Importing {progress.done} of {progress.total}…
+    <TooltipProvider delay={TOOLTIP_DELAY_MS}>
+      <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
+        <div className="flex items-center gap-2 rounded-xl border bg-background/90 p-1 shadow-sm backdrop-blur">
+          <ImportPhotosButton variant="icon" />
+
+          <div className="h-4 w-px bg-border" />
+
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Add text"
+                  onClick={armTextTool}
+                >
+                  <TypeIcon />
+                </Button>
+              }
+            />
+            <TooltipContent>
+              <span className="flex items-center gap-2">
+                Add text
+                <kbd data-slot="kbd" className="rounded bg-background/20 px-1">
+                  T
+                </kbd>
+              </span>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+
+        <div className="flex items-center gap-2 rounded-xl border bg-background/90 p-1 shadow-sm backdrop-blur">
+          <HistoryButton
+            label="Undo"
+            shortcut={shortcut("Z")}
+            disabled={!canUndo}
+            onClick={undo}
+          >
+            <Undo2Icon />
+          </HistoryButton>
+          <HistoryButton
+            label="Redo"
+            shortcut={shortcut("⇧Z")}
+            disabled={!canRedo}
+            onClick={redo}
+          >
+            <Redo2Icon />
+          </HistoryButton>
+        </div>
+
+        {progress && (
+          <span className="text-xs text-muted-foreground">
+            Importing {progress.done} of {progress.total}…
+          </span>
+        )}
+      </div>
+    </TooltipProvider>
+  )
+}
+
+function HistoryButton({
+  label,
+  shortcut,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string
+  shortcut: string | null
+  disabled: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={label}
+            disabled={disabled}
+            onClick={onClick}
+          >
+            {children}
+          </Button>
+        }
+      />
+      <TooltipContent>
+        <span className="flex items-center gap-2">
+          {label}
+          {shortcut && (
+            <kbd data-slot="kbd" className="rounded bg-background/20 px-1">
+              {shortcut}
+            </kbd>
+          )}
         </span>
-      )}
-    </div>
+      </TooltipContent>
+    </Tooltip>
   )
 }

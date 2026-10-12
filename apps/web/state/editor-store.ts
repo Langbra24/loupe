@@ -11,11 +11,14 @@ import {
   presetImageBox,
   removeFromFrame,
   reorderFrame,
+  spreadSideOf,
   updateElement,
   updateFrame,
-  vandeGraafMargins,
+  defaultFrameMargins,
+  type Asset,
   type BookSetup,
   type Box,
+  type CanvasPlacement,
   type Frame,
   type ImageElement,
   type ImagePreset,
@@ -28,6 +31,7 @@ import {
 } from "@loupe/core"
 
 import { BLEED_MM } from "@/components/shell/inspector-panel"
+import { DEFAULT_TEXT_FONT } from "@/lib/fonts"
 
 import { importFiles } from "@/lib/storage/assets"
 import {
@@ -37,15 +41,26 @@ import {
 } from "@/lib/storage/project"
 
 /**
+ * A freshly created text element's initial `fontSize` override (points) —
+ * deliberately independent of the type scale's `sizeForRole('body', ...)`
+ * value (10pt at the book's default base/ratio), which reads as an almost
+ * invisible scrap of text the instant a box lands rather than something the
+ * user can see they just placed. User-directed: "big enough so the user can
+ * see that we rendered a text box." Still just a starting point — the
+ * sidebar's Size field overwrites it same as any other override.
+ */
+const DEFAULT_NEW_TEXT_SIZE = 24
+
+/**
  * One undoable step (U8). `do` replays the mutation forward; `undo` reverses
  * it. Both are plain closures over whatever state the action needs to
  * invert itself — a targeted snapshot of just what that action touched
  * (the frame array before a reorder, the placement a photograph came from),
  * not a snapshot of the whole project. This is a command stack scoped to
  * these specific canvas mutations, not a general state-snapshot/time-travel
- * system — there is no redo action consuming `do` yet; it exists so the
- * stack is symmetric and a redo can be added later without changing the
- * shape.
+ * system. `redo()` consumes the `do` side: an undone command moves onto
+ * `redoStack`, and redoing it calls `.do()` and moves it back onto
+ * `undoStack` — the same shape serves both directions.
  */
 interface UndoCommand {
   do: () => void
@@ -67,6 +82,12 @@ interface EditorState {
    *  after opening a project must never reach into a previous project's
    *  history. */
   undoStack: UndoCommand[]
+  /** Commands popped off `undoStack` by `undo()`, available for `redo()` to
+   *  replay. Cleared alongside `undoStack` on project load, and cleared by
+   *  `pushUndo` on every new action — the standard convention that
+   *  performing a fresh action after an undo invalidates the redo history,
+   *  since there is no longer a consistent timeline to redo into. */
+  redoStack: UndoCommand[]
   leftPanelOpen: boolean
   rightPanelOpen: boolean
   hydrated: boolean
@@ -78,17 +99,47 @@ interface EditorState {
   introductionDismissed: boolean
 
   hydrate: () => Promise<void>
-  /** Pops the most recent `UndoCommand` and runs its `undo` side. A no-op,
-   *  not an error, when the stack is empty. */
+  /** Pops the most recent `UndoCommand` and runs its `undo` side, then pushes
+   *  it onto `redoStack`. A no-op, not an error, when the stack is empty. */
   undo: () => void
+  /** Pops the most recent `UndoCommand` off `redoStack` and runs its `do`
+   *  side, then pushes it back onto `undoStack`. A no-op, not an error, when
+   *  the stack is empty. */
+  redo: () => void
 
   importPhotos: (files: readonly File[]) => Promise<void>
   movePlacement: (placementId: string, x: number, y: number) => void
   scalePlacement: (placementId: string, scale: number) => void
+  /** Deletes one or more pasteboard photographs outright, as a single
+   *  undoable step — Backspace/Delete on whatever's selected on the
+   *  pasteboard, one photograph or several shift-clicked together
+   *  (user-directed: "delete photos that are not on a page", then "I can't
+   *  multi-select and delete"). See the implementation below for why this
+   *  also drops each `Asset`, not just its `CanvasPlacement`. */
+  removePlacements: (placementIds: readonly string[]) => void
   moveToFrame: (placementId: string, frameId: string) => void
-  /** A pasteboard text box (U6) finished editing over a frame's bounds —
-   *  see `use-fabric-canvas.ts`'s `text:editing:exited` handler. */
-  createTextElement: (frameId: string, content: string) => void
+  /** Creates a text element on a frame — either a pasteboard text box (U6)
+   *  finishing editing over a frame's bounds, or (the common case since the
+   *  click-to-place rework) armTextTool placing directly on a frame, where
+   *  this fires immediately with empty content so the sidebar has something
+   *  to show from the very first keystroke rather than only once editing
+   *  ends. Returns the new element's id — the caller needs it to find the
+   *  Fabric object `syncFrameElements` renders for it and enter editing on
+   *  that object once it exists (see `pendingAutoEditElementIdRef` in
+   *  use-fabric-canvas.ts). */
+  createTextElement: (frameId: string, content: string, box?: Box) => string
+  /** Remove an image or text element from its frame — the Backspace/Delete
+   *  shortcut when one is selected (but not actively being edited; see
+   *  `useDeleteSelectionShortcut`). Restores it at its original index within
+   *  `frame.elements` on undo, the same convention `removeFrame` uses for
+   *  restoring a whole frame's position. */
+  removeElement: (frameId: string, elementId: string) => void
+
+  /** Renames the book — the layers panel's top-left field, made editable on
+   *  click (user-directed). Not pushed onto the undo stack: same as
+   *  `setupBook`'s `pageSize`/`pageCount`, this is a settings-style field a
+   *  user can just retype, not a canvas design mutation worth Ctrl+Z-ing. */
+  renameProject: (name: string) => void
 
   addFrame: (pageSize: PageSize) => string
   removeFrame: (frameId: string) => void
@@ -145,7 +196,7 @@ interface EditorState {
   updateTextElement: (
     frameId: string,
     elementId: string,
-    patch: Partial<Pick<TextElement, "content" | "role" | "align">>,
+    patch: Partial<Pick<TextElement, "content" | "role" | "align" | "fontFamily" | "fontSize" | "color">>,
   ) => void
   updateImageFit: (frameId: string, elementId: string, fit: ImageElement["fit"]) => void
   /** Snap an image element into one of the fixed layout presets (right-click
@@ -155,6 +206,21 @@ interface EditorState {
   /** Bound to an element's normalized `Box` — the text sidebar's width field
    *  and the image sidebar's position/size fields both go through this. */
   updateElementBox: (frameId: string, elementId: string, patch: Partial<Box>) => void
+  /**
+   * An element already inside a frame was dragged across onto a *different*
+   * frame's bounds — reassigns it there instead of `updateElementBox`,
+   * which only ever recomputes the element's Box against whichever frame it
+   * already belongs to. Without this, dragging a photo from one page onto
+   * another moved it visually but left it structurally on the original
+   * page: the sidebar's "Centered"/"Full bleed" presets read `frameId` off
+   * `selection`, which stayed pointed at the old page, so clicking a preset
+   * re-centered the image on the page it used to live on, not the one it
+   * now visually sits on (direct bug report). `box` is the element's new
+   * normalized position/size, already computed against the *destination*
+   * frame's bounds by the caller — the same math `onUpdateElementBox`
+   * already does, just against a different frame's layout.
+   */
+  moveElementToFrame: (fromFrameId: string, toFrameId: string, elementId: string, box: Box) => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
   dismissError: () => void
@@ -200,9 +266,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
     return next
   }
 
-  /** Append one undoable step to the stack. */
+  /** Append one undoable step to the stack. Clears `redoStack` — performing
+   *  any new action after an undo invalidates the redo history, since it
+   *  would otherwise redo into a timeline that branched away the moment this
+   *  new command landed. */
   const pushUndo = (command: UndoCommand) =>
-    set((state) => ({ undoStack: [...state.undoStack, command] }))
+    set((state) => ({ undoStack: [...state.undoStack, command], redoStack: [] }))
 
   return {
     // Must be a valid empty project, not undefined: the server render and the
@@ -213,6 +282,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     panelView: "canvas",
     clipboardFrame: null,
     undoStack: [],
+    redoStack: [],
     ...PANEL_DEFAULTS,
     hydrated: false,
     importProgress: null,
@@ -221,11 +291,11 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     hydrate: async () => {
       if (get().hydrated) return
-      // A fresh load's undo stack must never reach into a previous project's
-      // history (U8) — cleared unconditionally, before either branch below,
-      // since there is nothing in the just-created empty project worth
-      // undoing either way.
-      set({ undoStack: [] })
+      // A fresh load's undo/redo stacks must never reach into a previous
+      // project's history (U8) — cleared unconditionally, before either
+      // branch below, since there is nothing in the just-created empty
+      // project worth undoing (or redoing) either way.
+      set({ undoStack: [], redoStack: [] })
       try {
         const { project, migrationError } = await loadProject()
         set({ project, hydrated: true, lastError: migrationError })
@@ -240,9 +310,25 @@ export const useEditorStore = create<EditorState>((set, get) => {
       const stack = get().undoStack
       const command = stack[stack.length - 1]
       if (!command) return
-      set({ undoStack: stack.slice(0, -1) })
+      set((state) => ({
+        undoStack: stack.slice(0, -1),
+        redoStack: [...state.redoStack, command],
+      }))
       command.undo()
     },
+
+    redo: () => {
+      const stack = get().redoStack
+      const command = stack[stack.length - 1]
+      if (!command) return
+      set((state) => ({
+        redoStack: stack.slice(0, -1),
+        undoStack: [...state.undoStack, command],
+      }))
+      command.do()
+    },
+
+    renameProject: (name) => updateProject((project) => ({ ...project, name })),
 
     importPhotos: async (files) => {
       if (files.length === 0) return
@@ -305,6 +391,73 @@ export const useEditorStore = create<EditorState>((set, get) => {
           ),
         },
       })),
+
+    /**
+     * Also drops each `Asset` from `project.assets`, not just its
+     * `CanvasPlacement` — a pasteboard placement is the only thing
+     * referencing an asset on this side of the book (once a photograph
+     * joins a frame, `moveToFrame` already removes its placement), so with
+     * the placement gone the asset would otherwise sit in `project.assets`
+     * forever: invisible, unreachable, and still counted as "known" by
+     * `deleteOrphanedBlobs` (lib/storage/project.ts), which would keep its
+     * IndexedDB blobs alive too.
+     *
+     * Takes an array and removes them all as one undoable step rather than
+     * one call per id — shift-clicking several pasteboard photographs
+     * (Fabric's own multi-select) is a normal gesture, and Backspace on
+     * that selection should feel like one delete, restorable with one
+     * Ctrl+Z, not `placementIds.length` separate history entries.
+     *
+     * The blobs themselves are not deleted synchronously here — this only
+     * touches in-memory `Project` state, same as `removeFrame`/
+     * `removeElement`. `deleteOrphanedBlobs` already sweeps any asset id no
+     * longer present in `project.assets` on the *next* load, which is what
+     * keeps this safely undoable: undo only has to restore the `Asset`/
+     * `CanvasPlacement` records, never resurrect an already-deleted blob.
+     */
+    removePlacements: (placementIds) => {
+      const state = get()
+      const idSet = new Set(placementIds)
+
+      // Collected in ascending array-index order (the loop below runs in
+      // that order), which is what lets undo below splice each one back in
+      // using its original index directly, unadjusted — every earlier
+      // restoration in the loop is for an item that was originally before
+      // the current one too, so it's already back in place by the time the
+      // current one's original index is used.
+      const removedPlacements: { index: number; placement: CanvasPlacement }[] = []
+      state.project.canvas.placements.forEach((placement, index) => {
+        if (idSet.has(placement.id)) removedPlacements.push({ index, placement })
+      })
+      if (removedPlacements.length === 0) return
+
+      const assetIdSet = new Set(removedPlacements.map(({ placement }) => placement.assetId))
+      const removedAssets: { index: number; asset: Asset }[] = []
+      state.project.assets.forEach((asset, index) => {
+        if (assetIdSet.has(asset.id)) removedAssets.push({ index, asset })
+      })
+
+      const doRemove = () =>
+        updateProject((project) => ({
+          ...project,
+          canvas: { placements: project.canvas.placements.filter((p) => !idSet.has(p.id)) },
+          assets: project.assets.filter((a) => !assetIdSet.has(a.id)),
+        }))
+
+      doRemove()
+
+      pushUndo({
+        do: doRemove,
+        undo: () =>
+          updateProject((project) => {
+            const placements = [...project.canvas.placements]
+            for (const { index, placement } of removedPlacements) placements.splice(index, 0, placement)
+            const assets = [...project.assets]
+            for (const { index, asset } of removedAssets) assets.splice(index, 0, asset)
+            return { ...project, assets, canvas: { placements } }
+          }),
+      })
+    },
 
     /**
      * A photograph dragged off the pasteboard and dropped onto a frame joins
@@ -379,58 +532,128 @@ export const useEditorStore = create<EditorState>((set, get) => {
           }
         })
 
-      doMove()
+      const applyMove = () => {
+        doMove()
+        // Without this, the sidebar has nothing to point at the instant a
+        // photograph lands in a frame: the pasteboard `CanvasPlacement`
+        // Fabric object is gone (replaced by a new frame-owned one
+        // `syncFrameElements` draws next render), so `canvas.getActiveObject()`
+        // comes back empty and the selection-cleared path reverts the
+        // sidebar to book-level settings — even though something did land,
+        // right there, selected-looking, on the canvas.
+        set({ selection: { kind: "image-element", frameId, elementId } })
+      }
+
+      applyMove()
 
       pushUndo({
-        do: doMove,
+        do: applyMove,
         // The photograph's exact prior placement (position, scale,
         // rotation) is restored verbatim — U8's "restores it to its prior
         // frame (or pasteboard)" scenario, here the pasteboard side of it.
-        undo: () =>
+        undo: () => {
           updateProject((project) => ({
             ...project,
             canvas: { placements: [...project.canvas.placements, placement] },
             frames: removeFromFrame(project.frames, frameId, elementId),
-          })),
+          }))
+          set({ selection: null })
+        },
       })
     },
 
     /**
-     * A pasteboard `Textbox` (U6) finished editing with its center over a
-     * frame — see `use-fabric-canvas.ts`. `role`/`align` default to `'body'`/
-     * `'left'` and `frame` to the same full-bleed `{0,0,1,1}` box
-     * `moveToFrame` gives a dropped photograph: there is no UI yet for
-     * positioning or restyling text within its frame (that lands with U7's
-     * sidebar), so the least-surprising start is "fills the page, plain
-     * body text" rather than guessing at a caption-sized box.
+     * A text box lands on a frame — either `armTextTool`'s click/drag (the
+     * common case; `box` is that gesture's position/size, converted to the
+     * frame's normalized coordinates), or a pasteboard `Textbox` (U6)
+     * finishing editing with its center over a frame with no click-position
+     * of its own to give (see `use-fabric-canvas.ts`), in which case `box`
+     * is omitted and this falls back to the same full-bleed `{0,0,1,1}` box
+     * `moveToFrame` gives a dropped photograph. `role`/`align` default to
+     * `'body'`/`'left'`: there is no UI yet for restyling text beyond the
+     * sidebar's existing Type/Font/Alignment/Size fields, so the
+     * least-surprising start is plain body text, sized so it's visibly
+     * there (`DEFAULT_NEW_TEXT_SIZE`) rather than guessing at a role.
      */
-    createTextElement: (frameId, content) => {
+    createTextElement: (frameId, content, box) => {
       // Generated up front for the same reason `moveToFrame`'s is — the
       // undo closure needs the id that actually landed.
       const elementId = newId("element")
       const element: TextElement = {
         id: elementId,
         name: content.trim().slice(0, 40) || "Text",
-        frame: { x: 0, y: 0, width: 1, height: 1 },
+        frame: box ?? { x: 0, y: 0, width: 1, height: 1 },
         locked: false,
         hidden: false,
         kind: "text",
         content,
         role: "body",
         align: "left",
+        fontFamily: DEFAULT_TEXT_FONT,
+        fontSize: DEFAULT_NEW_TEXT_SIZE,
       }
 
-      const doCreate = () =>
+      const doCreate = () => {
         updateProject((project) => ({ ...project, frames: assignToFrame(project.frames, frameId, element) }))
+        // Without this, the sidebar has nothing to point at the instant a
+        // pasteboard textbox commits into a frame: the transient Fabric
+        // object is removed (a new frame-owned one takes its place on the
+        // next `syncFrameElements` render), so `canvas.getActiveObject()`
+        // comes back empty and the selection-cleared path reverts the
+        // sidebar to book-level settings — even though text just landed,
+        // right there, on the canvas.
+        set({ selection: { kind: "text-element", frameId, elementId } })
+      }
 
       doCreate()
 
       pushUndo({
         do: doCreate,
-        undo: () =>
+        undo: () => {
           updateProject((project) => ({
             ...project,
             frames: removeFromFrame(project.frames, frameId, elementId),
+          }))
+          set({ selection: null })
+        },
+      })
+
+      return elementId
+    },
+
+    removeElement: (frameId, elementId) => {
+      const frame = get().project.frames.find((f) => f.id === frameId)
+      const index = frame?.elements.findIndex((element) => element.id === elementId) ?? -1
+      const removed = index >= 0 ? frame?.elements[index] : undefined
+      if (!frame || !removed) return
+
+      // The removed element was necessarily the selection (it's a right-click
+      // menu / keyboard-shortcut target on the currently selected element) —
+      // clear it rather than leave a stale reference to an id that no longer
+      // exists in `frame.elements`.
+      const selection = get().selection
+      const wasSelected = selection !== null && selection.kind !== "frame" && selection.elementId === elementId
+
+      const doRemove = () => {
+        updateProject((project) => ({ ...project, frames: removeFromFrame(project.frames, frameId, elementId) }))
+        if (wasSelected) set({ selection: null })
+      }
+
+      doRemove()
+
+      pushUndo({
+        do: doRemove,
+        // Restores the element at its original index within `frame.elements`
+        // — mirrors `removeFrame`'s undo restoring a whole frame's position —
+        // not just appended at the end.
+        undo: () =>
+          updateProject((project) => ({
+            ...project,
+            frames: updateFrame(project.frames, frameId, (f) => {
+              const elements = [...f.elements]
+              elements.splice(index, 0, removed)
+              return { ...f, elements }
+            }),
           })),
       })
     },
@@ -638,11 +861,54 @@ export const useEditorStore = create<EditorState>((set, get) => {
         frames: updateFrame(project.frames, frameId, (frame) => ({ ...frame, margins })),
       })),
 
-    setFrameCover: (frameId, isCover) =>
-      updateProject((project) => ({
-        ...project,
-        frames: updateFrame(project.frames, frameId, (frame) => ({ ...frame, isCover })),
-      })),
+    setFrameCover: (frameId, isCover) => {
+      const frames = get().project.frames
+      const index = frames.findIndex((frame) => frame.id === frameId)
+      if (index === -1) return
+
+      const prevIsCover = frames[index].isCover
+      // "Set as cover" also promotes the frame to the front of the book —
+      // same convention every other reorder action here follows: reorder,
+      // then re-derive `position` from the resulting array order. "Remove
+      // cover" never moves anything, and a frame that's already at the
+      // front needs no reorder at all (avoids a no-op move / undo step).
+      const shouldMoveToFront = isCover && index !== 0
+
+      const doSet = () =>
+        updateProject((project) => {
+          const patched = updateFrame(project.frames, frameId, (frame) => ({ ...frame, isCover }))
+          const reordered = shouldMoveToFront
+            ? reorderFrame(
+                patched,
+                patched.findIndex((frame) => frame.id === frameId),
+                0,
+              )
+            : patched
+          return {
+            ...project,
+            frames: reordered.map((frame, i) => ({ ...frame, position: i })),
+          }
+        })
+
+      doSet()
+
+      pushUndo({
+        do: doSet,
+        // Restores both the exact prior array position (splice back to the
+        // original index, mirroring `removeFrame`'s undo) and the prior
+        // `isCover` value, in one step.
+        undo: () =>
+          updateProject((project) => {
+            const current = project.frames.find((frame) => frame.id === frameId)
+            if (!current) return project
+            const restoredFrame = { ...current, isCover: prevIsCover }
+            const withoutFrame = project.frames.filter((frame) => frame.id !== frameId)
+            const restored = [...withoutFrame]
+            restored.splice(index, 0, restoredFrame)
+            return { ...project, frames: restored.map((frame, i) => ({ ...frame, position: i })) }
+          }),
+      })
+    },
 
     updateTextElement: (frameId, elementId, patch) => {
       // Only a content change is treated as the "text edit" undo scenario
@@ -697,19 +963,31 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     applyImagePreset: (frameId, elementId, preset) => {
       const frame = get().project.frames.find((f) => f.id === frameId)
-      const prevBox = frame?.elements.find((e) => e.id === elementId)?.frame
-      if (!frame || !prevBox) return
+      const prevElement = frame?.elements.find((e) => e.id === elementId)
+      if (!frame || !prevElement) return
+      const prevBox = prevElement.frame
 
-      const margins = frame.margins ?? vandeGraafMargins(frame.pageSize)
-      const nextBox = presetImageBox(preset, frame.pageSize, margins, BLEED_MM)
+      const margins = frame.margins ?? defaultFrameMargins(frame.pageSize)
+      // Only `two-page-spread` reads this (see `presetImageBox`'s doc
+      // comment) — harmless to always compute since it's cheap and every
+      // other preset simply ignores it.
+      const spreadSide = spreadSideOf(get().project.frames, frameId)
+      const nextBox = presetImageBox(preset, frame.pageSize, margins, BLEED_MM, spreadSide)
+      // full-bleed is meant to crop-to-fill the page; centered/left-half/
+      // two-page-spread are meant to show the whole image without
+      // distortion — see the `fit` honoring in use-fabric-canvas.ts's
+      // syncFrameElements.
+      const nextFit: ImageElement["fit"] = preset === "full-bleed" ? "cover" : "contain"
+      const prevFit = prevElement.kind === "image" ? prevElement.fit : undefined
 
       const doApply = () =>
         updateProject((project) => ({
           ...project,
-          frames: updateElement(project.frames, frameId, elementId, (element) => ({
-            ...element,
-            frame: nextBox,
-          })),
+          frames: updateElement(project.frames, frameId, elementId, (element) =>
+            element.kind === "image"
+              ? { ...element, frame: nextBox, fit: nextFit }
+              : { ...element, frame: nextBox },
+          ),
         }))
 
       doApply()
@@ -719,10 +997,11 @@ export const useEditorStore = create<EditorState>((set, get) => {
         undo: () =>
           updateProject((project) => ({
             ...project,
-            frames: updateElement(project.frames, frameId, elementId, (element) => ({
-              ...element,
-              frame: prevBox,
-            })),
+            frames: updateElement(project.frames, frameId, elementId, (element) =>
+              element.kind === "image"
+                ? { ...element, frame: prevBox, fit: prevFit ?? element.fit }
+                : { ...element, frame: prevBox },
+            ),
           })),
       })
     },
@@ -735,6 +1014,52 @@ export const useEditorStore = create<EditorState>((set, get) => {
           frame: { ...element.frame, ...patch },
         })),
       })),
+
+    moveElementToFrame: (fromFrameId, toFrameId, elementId, box) => {
+      const fromFrame = get().project.frames.find((f) => f.id === fromFrameId)
+      const element = fromFrame?.elements.find((e) => e.id === elementId)
+      if (!fromFrame || !element) return
+      const prevBox = element.frame
+
+      const selectionFor = (frameId: string): Selection => ({
+        kind: element.kind === "text" ? "text-element" : "image-element",
+        frameId,
+        elementId,
+      })
+
+      const doMove = () => {
+        updateProject((project) => ({
+          ...project,
+          frames: assignToFrame(
+            removeFromFrame(project.frames, fromFrameId, elementId),
+            toFrameId,
+            { ...element, frame: box },
+          ),
+        }))
+        set({ selection: selectionFor(toFrameId) })
+      }
+
+      doMove()
+
+      pushUndo({
+        do: doMove,
+        // Restores both which frame it belongs to and its exact prior Box
+        // there — a plain `removeFromFrame`/`assignToFrame` round-trip
+        // would put it back on the right page but at the destination
+        // frame's Box, not the position it actually had before the drag.
+        undo: () => {
+          updateProject((project) => ({
+            ...project,
+            frames: assignToFrame(
+              removeFromFrame(project.frames, toFrameId, elementId),
+              fromFrameId,
+              { ...element, frame: prevBox },
+            ),
+          }))
+          set({ selection: selectionFor(fromFrameId) })
+        },
+      })
+    },
 
     toggleLeftPanel: () => set((state) => ({ leftPanelOpen: !state.leftPanelOpen })),
     toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),

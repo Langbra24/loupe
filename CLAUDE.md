@@ -24,7 +24,7 @@ todos/                  triage and review findings
 
 - **`core/` imports nothing from React, Next, Fabric.js, or Stripe.** It is pure TypeScript with no DOM assumptions. This is what makes the MIT-core / paid-app split real rather than aspirational. If something in `core/` needs the DOM, it belongs in `apps/web/` instead.
 - **No payment code in `core/`.** The $15 download is gated at the *download page*, not by license-key logic inside the shipped bundle — see the brief. Do not add license validation, phone-home checks, or DRM anywhere.
-- **No accounts, no backend** beyond thin serverless functions for Stripe. Project state is local-first (IndexedDB, not cookies).
+- **No accounts, no backend** beyond thin serverless functions for Stripe and for filing the feedback control's submissions as GitHub issues (`apps/web/app/api/feedback/route.ts` — direct user request: the prior client-only version required the bookmaker to sign into GitHub themselves and the maintainer got no notification; this is a single-purpose route holding one repo-scoped token, not a general backend). Project state is local-first (IndexedDB, not cookies).
 - **Fonts must be OFL-licensed.** Fonts get embedded in exported PDFs; commercial/desktop-only licenses often forbid that. Currently: Lora (heading/serif) + Geist (sans), both OFL.
 - **Design tokens flow code → Paper.design, never the reverse.** The CSS variables in `apps/web/app/globals.css` are the source of truth; Paper mirrors them via its MCP agent. Never hand-maintain a second copy.
 
@@ -97,7 +97,7 @@ npm run e2e          # build, import fixture photos, export a PDF, check page co
                      #   is a multiple of 4 and trim size matches (pdf-lib)
 ```
 
-Verifiers live in `scripts/verify/` and drive the real production build with Playwright (pinned to 1.56.1 to match the cloud image's Chromium; locally run `npx playwright install chromium` once). `npm run e2e` **fails until PDF export exists** — the top-nav Export button is still inert; its header comment states the contract export must meet. Set `LOUPE_URL=http://localhost:3000` to point a verifier at an already-running server.
+Verifiers live in `scripts/verify/` and drive the real production build with Playwright (pinned to 1.56.1 to match the cloud image's Chromium; locally run `npx playwright install chromium` once). `npm run e2e` drives the real Export dialog; its header comment states the contract the PDF must meet. Set `LOUPE_URL=http://localhost:3000` to point a verifier at an already-running server.
 
 ## Cloud sessions
 

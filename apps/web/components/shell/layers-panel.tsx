@@ -1,9 +1,11 @@
 "use client"
 
+import { useState } from "react"
 import { BookOpenIcon } from "@phosphor-icons/react"
-import { vandeGraafMargins, type Frame, type Margins } from "@loupe/core"
+import { defaultFrameMargins, type Frame, type Margins } from "@loupe/core"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tabs, TabsIndicator, TabsList, TabsTab } from "@/components/ui/tabs"
 import { useThumbnail } from "@/components/sequence/use-thumbnail"
 import { cn } from "@/lib/utils"
 import { useEditorStore, type PanelView } from "@/state/editor-store"
@@ -30,7 +32,7 @@ export function LayersPanel() {
   return (
     <aside className="flex h-full w-60 flex-col border-r bg-background">
       <div className="flex h-10 shrink-0 items-center px-3">
-        <span className="truncate text-sm font-medium">{project.name}</span>
+        <ProjectNameField name={project.name} />
       </div>
 
       <PanelViewSwitcher view={view} onChange={setView} />
@@ -42,6 +44,77 @@ export function LayersPanel() {
   )
 }
 
+/**
+ * The book's name (user-directed: "wrap it in an input when clicked on").
+ * Plain text at rest, swapping to a real `<input>` — focused and selected —
+ * the instant it's clicked, so the pointer position doubles as a text
+ * cursor rather than requiring a second click to place one.
+ *
+ * `draft` is local, uncommitted state — `renameProject` (and the debounced
+ * IndexedDB write behind it) only fires on blur/Enter, not per keystroke,
+ * the same "don't round-trip through the store on every character" reason
+ * `ColorField`'s hex draft works this way. Escape reverts to `project.name`
+ * without committing, standard cancel-an-edit behavior.
+ *
+ * Falls back to the prior name if committed empty/whitespace-only — an
+ * invisible, blank sidebar header is worse than just refusing the edit, and
+ * there's no separate "untitled" placeholder state for a book that already
+ * has a name to fall back to.
+ */
+function ProjectNameField({ name }: { name: string }) {
+  const renameProject = useEditorStore((state) => state.renameProject)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(name)
+
+  const commit = () => {
+    const trimmed = draft.trim()
+    if (trimmed && trimmed !== name) renameProject(trimmed)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <input
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault()
+            commit()
+          } else if (event.key === "Escape") {
+            event.preventDefault()
+            setDraft(name)
+            setEditing(false)
+          }
+        }}
+        autoFocus
+        onFocus={(event) => event.currentTarget.select()}
+        className="w-full truncate rounded-sm bg-transparent text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      />
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setDraft(name)
+        setEditing(true)
+      }}
+      className="w-full truncate rounded-sm text-left text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+    >
+      {name}
+    </button>
+  )
+}
+
+/**
+ * Canvas/Book switcher, on `@base-ui/react/tabs` (ui/tabs.tsx) rather than a
+ * plain button pair — the active tab now gets a rail that slides between
+ * positions (`TabsIndicator`, styled by `.tabs-indicator-rail` in
+ * globals.css) instead of snapping its background color instantly.
+ */
 function PanelViewSwitcher({
   view,
   onChange,
@@ -49,38 +122,18 @@ function PanelViewSwitcher({
   view: PanelView
   onChange: (view: PanelView) => void
 }) {
-  const views: { id: PanelView; label: string }[] = [
-    { id: "canvas", label: "Canvas" },
-    { id: "book", label: "Book" },
-  ]
-
   return (
-    <div
-      role="tablist"
-      aria-label="Left panel view"
-      className="flex shrink-0 gap-1 border-b px-2 py-1.5"
+    <Tabs
+      value={view}
+      onValueChange={(value) => onChange(value as PanelView)}
+      className="shrink-0 border-b px-2 py-1.5"
     >
-      {views.map((item) => {
-        const isActive = view === item.id
-        return (
-          <button
-            key={item.id}
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onChange(item.id)}
-            className={cn(
-              "flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors",
-              "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-              isActive
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            {item.label}
-          </button>
-        )
-      })}
-    </div>
+      <TabsList aria-label="Left panel view" className="gap-1">
+        <TabsIndicator />
+        <TabsTab value="canvas">Canvas</TabsTab>
+        <TabsTab value="book">Book</TabsTab>
+      </TabsList>
+    </Tabs>
   )
 }
 
@@ -154,7 +207,7 @@ function FrameRow({
 }) {
   const firstImage = frame.elements.find((element) => element.kind === "image")
   const thumbnailUrl = useThumbnail(firstImage?.assetId)
-  const margins = frame.margins ?? vandeGraafMargins(frame.pageSize)
+  const margins = frame.margins ?? defaultFrameMargins(frame.pageSize)
 
   return (
     <button
@@ -173,7 +226,7 @@ function FrameRow({
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm text-foreground/90">Page {frame.position + 1}</div>
+        <div className="truncate text-sm text-foreground">Page {frame.position + 1}</div>
         <div className="truncate text-[0.7rem] text-muted-foreground">{formatMargins(margins)}</div>
       </div>
     </button>
@@ -188,7 +241,7 @@ function formatMargins(margins: Margins): string {
 
 function PanelLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-2 pt-1 pb-0.5 text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">
+    <div className="px-2 pt-1 pb-0.5 text-xs font-medium text-muted-foreground">
       {children}
     </div>
   )
