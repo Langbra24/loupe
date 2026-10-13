@@ -191,3 +191,8 @@ surprises). Newest entries at the bottom.
 - PRs #61 (#58), #62 (#54), #63 (#57), #64 (#55), #65 (#50) merged in that order, each after merging `main` into its branch. Append conflicts in `package.json`, `CLAUDE.md` and `PROGRESS.md` kept both sides; `screenshot.mjs` kept both new scenes.
 - Combined, two verifiers broke on #65's renames: `book-overview.mjs` looked for the Color trigger as `#…` and `canvas-chrome.mjs` for the zoom readout as `N%`. Both now use the new names ("Color #…", "Zoom N%…"), committed on #65.
 - On the combined tree (identical to `main` after the merges): `npm run verify` passes; all 17 verifiers, including e2e 3/3, pass; all 13 screenshot scenes render.
+
+## 2026-10-13 — #71 Book setup dialog, centre it again (`issue-71-book-setup-centred`)
+
+- Maintainer's call, reversing one part of #57: the book-setup card is vertically centred again (overlay `flex items-center justify-center`, card in normal flow), and the card shifts up by half a row when Custom or an error line grows it. No transition added. Everything else from #57 is unchanged: the copy, `aria-pressed`, `FIELD_CLASS`, `aria-invalid`/`aria-describedby`, and the DOM depth `dialog-focus.mjs` relies on.
+- `verify:book-setup` now checks that the card is centred in its overlay (within 1px) with a preset chosen, with Custom chosen, with one and with both error lines showing, and after toggling Custom off and on. It no longer checks that the top edge stays put. Against main's top-anchored card it fails 6 checks (off by -3px with a preset chosen, up to 35px with both errors showing).
