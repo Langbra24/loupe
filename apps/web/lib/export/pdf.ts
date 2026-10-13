@@ -2,7 +2,7 @@ import { PDFDocument } from "pdf-lib"
 
 import type { Asset, Frame } from "@loupe/core"
 
-import { EXPORT_BLEED_MM, renderFrameToCanvas } from "@/lib/export/render-frame"
+import { EXPORT_BLEED_MM, renderExportPages } from "@/lib/export/render-frame"
 
 /** 1mm in PDF points (1pt = 1/72in). */
 function mmToPt(mm: number): number {
@@ -29,9 +29,12 @@ function canvasToJpegBytes(canvas: HTMLCanvasElement, quality: number): Promise<
 }
 
 /**
- * A single flattened, print-ready PDF: every frame in reading order,
- * rasterized to `EXPORT_DPI` and embedded as one full-bleed JPEG per page
- * (see the doc comment on `renderFrameToCanvas` for why rasterizing —
+ * A single flattened, print-ready PDF: every frame in reading order, plus
+ * any blank pages saddle stitch needs (`padForSaddleStitch` in core),
+ * rasterized to `EXPORT_DPI` and embedded as one full-bleed JPEG per page.
+ * Each page's MediaBox and BleedBox are trim plus `EXPORT_BLEED_MM` on every
+ * edge, and its TrimBox is the page size inset by that bleed. (See the doc
+ * comment on `renderFrameToCanvas` for why rasterizing —
  * rather than emitting live vector text — is the pragmatic choice here: no
  * font subsetting/embedding pipeline exists, and rasterizing guarantees the
  * PDF matches what the user actually designed, pixel for pixel).
@@ -57,20 +60,28 @@ export async function buildPrintPdf(
 ): Promise<Blob> {
   await document.fonts.ready
 
-  const ordered = [...frames].sort((a, b) => a.position - b.position)
   const pdf = await PDFDocument.create()
 
-  for (const [index, frame] of ordered.entries()) {
-    const canvas = await renderFrameToCanvas(frame, assets, typeBaseSize, typeRatio)
+  // Print order, with any blanks saddle stitch needs (#31).
+  let index = 0
+  for await (const { canvas, pageSize, total } of renderExportPages(frames, assets, typeBaseSize, typeRatio)) {
     const jpegBytes = await canvasToJpegBytes(canvas, 0.92)
     const image = await pdf.embedJpg(jpegBytes)
 
-    const widthPt = mmToPt(frame.pageSize.width + 2 * EXPORT_BLEED_MM)
-    const heightPt = mmToPt(frame.pageSize.height + 2 * EXPORT_BLEED_MM)
+    const bleedPt = mmToPt(EXPORT_BLEED_MM)
+    const trimWidthPt = mmToPt(pageSize.width)
+    const trimHeightPt = mmToPt(pageSize.height)
+    const widthPt = trimWidthPt + 2 * bleedPt
+    const heightPt = trimHeightPt + 2 * bleedPt
     const page = pdf.addPage([widthPt, heightPt])
     page.drawImage(image, { x: 0, y: 0, width: widthPt, height: heightPt })
+    // The page is drawn with bleed, so record where it trims (issue #30);
+    // without a TrimBox a print service may print the whole 6mm-larger page.
+    page.setBleedBox(0, 0, widthPt, heightPt)
+    page.setTrimBox(bleedPt, bleedPt, trimWidthPt, trimHeightPt)
 
-    onProgress?.(index + 1, ordered.length)
+    index += 1
+    onProgress?.(index, total)
   }
 
   const bytes = await pdf.save()

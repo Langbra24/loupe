@@ -85,6 +85,25 @@ surprises). Newest entries at the bottom.
 - Merged branches are NOT deleted: the cloud proxy refuses branch deletion (API and `git push --delete` both 403). All 11 code branches are fully merged into `main`, and the 4 `pr-assets/*` branches hold only PR screenshots. Delete them from a local machine.
 
 
+## 2026-10-13 — #30 record trim and bleed boxes in the PDF (`issue-30-trim-bleed-boxes`)
+
+- Scope changed mid-issue: the maintainer dropped the bleed toggle. Bleed stays always on, as before, and no toggle work was committed. `pdf.ts` now sets each page's BleedBox to the full page (= MediaBox, trim + 3mm each side) and its TrimBox to the page size at 3mm offsets. The PNG zip is unchanged.
+- `pdf-checks.mjs` checks one mode: MediaBox 154×216mm, an explicit TrimBox of 148×210mm at 3mm, and an explicit BleedBox equal to the MediaBox. Presence is checked first because pdf-lib's getters fall back to the MediaBox. There are 8 self-tests, one failing case per box.
+- `npm run e2e`: all trim and bleed checks pass. Only the page-count check (#31) still fails.
+
+## 2026-10-13 — #31 pad saddle-stitch books to a multiple of 4 at export (`issue-31-saddle-stitch-padding`, stacked on #30)
+
+- The rule is in `core`: `padForSaddleStitch(frames)` in `sequence.ts`, beside `checkPageCount`, whose `blanksNeeded` it reuses. It returns the print sequence: pages in `position` order, then blanks, or blanks before the last page when that page `isCover` (more than one page). The project is never changed. There are 10 unit tests in `core/src/sequence.test.ts`.
+- `renderExportPages` (`render-frame.ts`) yields canvases in print order. A blank is paper-white at the previous page's size, plus bleed. `pdf.ts` and `png-zip.ts` both use it, so blanks get the #30 trim/bleed boxes too.
+- Dialog: "Adds 2 blank pages to reach 12" (real numbers, singular/plural) and an info button ("Why blank pages are added") whose tooltip opens on hover and keyboard focus. It opens to the right so it doesn't cover the dialog title.
+- `npm run e2e` **passes fully** for the first time: 12 pages, every box right, pages 11–12 blank. A photo is placed on page 1 so the blank check can be seen to tell the difference. The dialog line and the keyboard tooltip are also checked. Both backlog lines in PLAN.md are now covered by #30/#31 and removed.
+
+## 2026-10-13 — #34 feedback popup asks for context (`issue-34-feedback-copy`)
+
+- The description line "Filed as a GitHub issue — no account needed." is now "The more detail, the better: what you were doing, what you expected, and what happened." It doesn't mention GitHub or screenshots (the maintainer decided against image storage for now).
+- The textarea placeholder ("What's wrong, missing, or confusing?") stays: it asks *what*, the line asks for *detail*. The success toast is unchanged.
+- New screenshot scene `feedback` (the open, empty popover). No verifier asserted the old copy; `verify:feedback` passes unchanged.
+
 ## 2026-10-13 — #27 color changes are undoable (`issue-27-color-undo`)
 
 - `updateTextElement` pushes an undo step when `color` changes, through a `colorCommand` that sets the color back or forward. Re-setting the same color pushes nothing.

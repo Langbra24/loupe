@@ -93,10 +93,11 @@ npm test             # all workspaces (Vitest) + verifier self-tests
 npm run verify       # typecheck + lint + test + build — the baseline "done" gate
 npm run screenshot   # build, then save desktop PNGs to screenshots/ (gitignored)
                      #   scenes: intro, shell, book, page-selected, image-selected, text-selected,
-                     #   feedback-error, color-picker-focus
+                     #   export-dialog, feedback, feedback-error, color-picker-focus
                      #   — `npm run screenshot -- shell`
-npm run e2e          # build, import fixture photos, export a PDF, check page count
-                     #   is a multiple of 4 and trim size matches (pdf-lib)
+npm run e2e          # build, import fixture photos, export a PDF: padded to a multiple
+                     #   of 4 with blank pages, trim/bleed boxes right (pdf-lib), and
+                     #   the dialog explains the padding
 npm run verify:rename # build, rename the book via the top-left field, reload,
                      #   check persistence, shortcut isolation, export filename
 npm run verify:feedback # build, submit feedback through the real control and
