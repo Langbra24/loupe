@@ -160,3 +160,11 @@ surprises). Newest entries at the bottom.
 - Unchanged: bleed/margin overlays, selected outline, ring, page labels.
 - `npm run verify:book-overview` (new): picks `#c2410c` for a caption, opens the Book view, checks the preview's computed background is `rgb(255, 255, 255)` and the caption's computed color is `rgb(194, 65, 12)`. Negative control on `main`: both fail (dark background, near-white text). New screenshot scene `book-overview`; the existing `book` scene ends on the canvas.
 - Seen, not fixed: captions in the previews render at a 5px floor (`pointSize * 0.4`, not scaled to the preview width), so they are barely legible at review size.
+
+## 2026-10-13 — #57 book setup dialog (`issue-57-book-setup`)
+
+- Finding S12 from `todos/2026-10-13-emil-ui-review.md`. Copy now reads "Page count can change later; page size is set for this book." — the old "You can change this later" promised something the app can't do (both inspector states show page size read-only).
+- *Custom* gained `aria-pressed`; one `FIELD_CLASS` (the page-count field's Paper FL-0 style, plus `aria-invalid:border-destructive`) now styles the custom width, custom height and page-count inputs, focus ring included; both validation messages are wired to their inputs with `aria-invalid` + `aria-describedby` (`useId`).
+- **No-jump:** the card is anchored from the top (`top-[max(1.5rem,calc(50%-12rem))]`) instead of vertically centred, so the custom row and the error lines only ever grow it downward. 12rem ≈ half the preset-state card, so in that state it still sits where centring put it. Reserving the custom row's height instead would leave an empty band under the presets for every book that uses a preset — which is most of them.
+- `npm run verify:book-setup` (new, `scripts/verify/book-setup.mjs`) passes 23/23: copy, `aria-pressed`, identical computed field style and focus ring on all three inputs after Tab, `aria-invalid`/`aria-describedby` pointing at the visible message, and 0px top-edge movement on Custom on/off and on an error appearing (while the card itself grows 36px, so the check isn't vacuous). On `main` it fails 15 of those.
+- New screenshot scene `book-setup` (Custom chosen, width 0 → error). `npm run verify` and every other verifier pass.

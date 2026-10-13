@@ -92,9 +92,9 @@ npm run lint         # all workspaces
 npm test             # all workspaces (Vitest) + verifier self-tests
 npm run verify       # typecheck + lint + test + build — the baseline "done" gate
 npm run screenshot   # build, then save desktop PNGs to screenshots/ (gitignored)
-                     #   scenes: intro, shell, book, page-selected, image-selected, text-selected,
-                     #   export-dialog, feedback, feedback-error, color-picker, color-picker-focus,
-                     #   book-overview
+                     #   scenes: intro, shell, book, book-overview, book-setup, page-selected,
+                     #   image-selected, text-selected, export-dialog, feedback, feedback-error,
+                     #   color-picker, color-picker-focus
                      #   — `npm run screenshot -- shell`
 npm run e2e          # build, import fixture photos, export a PDF: padded to a multiple
                      #   of 4 with blank pages, trim/bleed boxes right (pdf-lib), and
@@ -121,6 +121,10 @@ npm run verify:dialog-focus # build; fast Tab/Shift+Tab never leave the Export
 npm run verify:top-nav # build; the top nav holds exactly one button, Export
 npm run verify:book-overview # build; a colored caption shows in the Book view
                      #   on a white page, in exactly the picked color
+npm run verify:book-setup # build; the book-setup dialog's copy, Custom's aria-pressed,
+                     #   one field style and focus ring across all three inputs,
+                     #   aria-invalid/aria-describedby on an invalid value, and a card
+                     #   top edge that doesn't move when the card grows
 ```
 
 Verifiers live in `scripts/verify/` and drive the real production build with Playwright (pinned to 1.56.1 to match the cloud image's Chromium; locally run `npx playwright install chromium` once). `npm run e2e` drives the real Export dialog; its header comment states the contract the PDF must meet. Set `LOUPE_URL=http://localhost:3000` to point a verifier at an already-running server. `verify:text-selection` reads `window.__loupeCanvas`, which exists only in a build made with `LOUPE_TEST_HOOKS=1` (inlined via `next.config.ts`; ordinary builds compile it out).

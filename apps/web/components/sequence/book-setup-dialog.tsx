@@ -9,6 +9,11 @@ import { useEditorStore } from "@/state/editor-store"
 
 const DEFAULT_PAGE_COUNT = 12
 
+/** One field style for all three inputs — the page-count field's, from the
+ *  Paper reference (FL-0) — so the custom size reads as part of the same form. */
+const FIELD_CLASS =
+  "h-7 w-20 rounded-md border bg-input/30 px-2 text-right font-mono text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive"
+
 /**
  * The one-time book-setup prompt.
  *
@@ -30,6 +35,8 @@ export function BookSetupDialog() {
   const [customHeight, setCustomHeight] = useState("297")
   const [pageCount, setPageCount] = useState(String(DEFAULT_PAGE_COUNT))
   const titleId = useId()
+  const customErrorId = useId()
+  const countErrorId = useId()
   const selectedPresetRef = useRef<HTMLButtonElement>(null)
 
   // Keyboard focus starts on the selected page size (#45). What this covers
@@ -54,15 +61,28 @@ export function BookSetupDialog() {
     setupBook({ pageSize, pageCount: count })
   }
 
+  const customInvalid = useCustom && !customValidation.valid
+
   return (
-    <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-      <div role="dialog" aria-labelledby={titleId} className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
+    <div className="absolute inset-0 z-30 bg-background/80 backdrop-blur-sm">
+      {/* Anchored from the top, not centred: choosing Custom or showing an
+          error line grows the card, and a centred card would move its top
+          edge (and the title, and the buttons under the pointer) up by half
+          of that. 12rem is about half the card's preset-state height, so in
+          that state it sits where centring would put it, and it only ever
+          grows downward. Reserving the custom row instead would leave an
+          empty band under the presets for most books. */}
+      <div
+        role="dialog"
+        aria-labelledby={titleId}
+        className="absolute inset-x-0 top-[max(1.5rem,calc(50%-12rem))] mx-auto w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg"
+      >
         <h2 id={titleId} className="font-heading text-base font-medium">
           Set up your book
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Choose a page size and how many pages to start with. You can change
-          this later.
+          Choose a page size and how many pages to start with. Page count can
+          change later; page size is set for this book.
         </p>
 
         <div className="mt-4 flex flex-col gap-4">
@@ -90,6 +110,7 @@ export function BookSetupDialog() {
               ))}
               <button
                 type="button"
+                aria-pressed={useCustom}
                 onClick={() => setUseCustom(true)}
                 className={`rounded-lg border px-2.5 py-1.5 text-left text-xs transition-colors ${
                   useCustom ? "border-ring bg-muted" : "border-border hover:bg-muted"
@@ -106,7 +127,9 @@ export function BookSetupDialog() {
                   value={customWidth}
                   onChange={(e) => setCustomWidth(e.target.value)}
                   aria-label="Width in millimetres"
-                  className="h-8 w-20 rounded-lg border border-border bg-background px-2 text-sm"
+                  aria-invalid={customInvalid || undefined}
+                  aria-describedby={customInvalid ? customErrorId : undefined}
+                  className={FIELD_CLASS}
                 />
                 <span className="text-xs text-muted-foreground">×</span>
                 <input
@@ -114,13 +137,17 @@ export function BookSetupDialog() {
                   value={customHeight}
                   onChange={(e) => setCustomHeight(e.target.value)}
                   aria-label="Height in millimetres"
-                  className="h-8 w-20 rounded-lg border border-border bg-background px-2 text-sm"
+                  aria-invalid={customInvalid || undefined}
+                  aria-describedby={customInvalid ? customErrorId : undefined}
+                  className={FIELD_CLASS}
                 />
                 <span className="text-xs text-muted-foreground">mm</span>
               </div>
             )}
-            {useCustom && !customValidation.valid && (
-              <p className="mt-1 text-xs text-destructive">{customValidation.reason}</p>
+            {customInvalid && (
+              <p id={customErrorId} className="mt-1 text-xs text-destructive">
+                {customValidation.reason}
+              </p>
             )}
           </div>
 
@@ -138,11 +165,15 @@ export function BookSetupDialog() {
                 type="number"
                 value={pageCount}
                 onChange={(e) => setPageCount(e.target.value)}
-                className="w-20 rounded-md border bg-input/30 px-2 py-1 text-right font-mono text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                aria-invalid={!countValid || undefined}
+                aria-describedby={countValid ? undefined : countErrorId}
+                className={FIELD_CLASS}
               />
             </div>
             {!countValid && (
-              <p className="mt-1 text-xs text-destructive">Enter a whole number greater than zero.</p>
+              <p id={countErrorId} className="mt-1 text-xs text-destructive">
+                Enter a whole number greater than zero.
+              </p>
             )}
           </div>
         </div>

@@ -49,6 +49,15 @@ const SCENES = {
     await page.getByRole("tab", { name: "Book" }).click()
     await page.locator("button").getByText("Ink", { exact: true }).waitFor()
   },
+  /** Book setup with Custom chosen and an invalid size: the custom row, its
+   *  error line and the field styling (#57). */
+  "book-setup": async (page) => {
+    await dismissIntroduction(page)
+    await importPhotos(page)
+    const dialog = page.getByRole("dialog", { name: "Set up your book" })
+    await dialog.getByRole("button", { name: "Custom", exact: true }).click()
+    await dialog.getByLabel("Width in millimetres").fill("0")
+  },
   /** The text Color picker in the Paper reference's state (CMYK, #37bf7b),
    *  also saved alone (color-picker-popover.png) for comparing with
    *  docs/design/paper/colorpicker.png. */
