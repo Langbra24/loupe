@@ -48,6 +48,13 @@ surprises). Newest entries at the bottom.
 - `npm run verify:picker-focus` (new) passes 12/12. Negative control on `main`'s components: 9 failures.
 - New screenshot scene `color-picker-focus`. Shared helpers `firstPageCenter` / `openColorPicker` are in `scripts/verify/lib/app.mjs`. PR #16's `screenshot.mjs` has its own `firstPageCenter`; whichever merges second should import this one instead.
 
+## 2026-10-13 — #20 Enter on a selected text box starts editing (`issue-20-enter-to-edit`)
+
+- In `use-fabric-canvas.ts`, the key handler (`onEscape` → `onCanvasKey`) now also takes Enter: on a selected, non-editing text box, it calls `editAtEnd` (`selectable-textbox.ts`), which enters editing with a collapsed caret after the last character. It uses the same focus rule as Escape: only when focus is on the canvas or the page body.
+- The Enter keydown is `preventDefault`ed. Without that, Chrome delivers the Enter to the textarea that just took focus, and the text gains a newline.
+- While editing, Enter stays Fabric's newline, because that keydown targets the hidden textarea. Entering editing pushes no undo step (nothing does; the #14 store guard covers the exit).
+- `verify:text-selection` gains 6a–6c plus a re-select after the reload, 20/20. Negative control with `main`'s canvas hook: 4 failures.
+
 ## 2026-10-13 — #21 arrow keys on the color picker's sliders (`issue-21-picker-arrow-keys`)
 
 - `SaturationValuePicker` (`color-picker.tsx`): the hue slider takes ↑/→ +1°, ↓/← −1°, Shift ×10, and Home/End 0°/359° (clamped, no wrap). The square takes ←/→ for saturation and ↑/↓ for brightness, with the same steps, and Home/End set saturation 0/100. Handled keys are `preventDefault`ed.

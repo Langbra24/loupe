@@ -17,7 +17,10 @@
 //      inserts there ("He!llo") and replaces nothing.
 //   4. Escape returns to selected-with-handles; a second Escape deselects.
 //   5. The text survives a reload (IndexedDB).
-//   6. No uncaught page errors.
+//   6. Enter on the selected box (issue #20) edits with a collapsed caret at
+//      the end, so "?" appends; Escape returns to selected; Enter while the
+//      book-name field has focus leaves the box alone.
+//   7. No uncaught page errors.
 // Along the way: the inspector shows the text element's properties both
 // while selected and while editing.
 
@@ -227,7 +230,33 @@ try {
     `5. "He!llo" survives a reload (stored ${JSON.stringify(texts)}, rendered ${JSON.stringify(rendered)})`,
   )
 
-  check(errors.length === 0, `6. no uncaught page errors${errors.length ? `: ${errors.join("; ")}` : ""}`)
+  // 6. Enter on a selected box: caret at the end. Select it with a single click first.
+  await page.waitForFunction(() => window.__loupeCanvas?.getObjects().some((o) => o.elementKind === "text"))
+  const reloadedCenter = await textCenter()
+  await page.mouse.click(reloadedCenter.x, reloadedCenter.y)
+  state = await active()
+  check(state?.kind === "text" && !state.editing && state.handles, "after the reload, a single click selects the box again")
+  await page.keyboard.press("Enter")
+  state = await active()
+  check(
+    state?.editing && state.caretFocused && state.selection[0] === 6 && state.selection[1] === 6,
+    `6a. Enter on the selected box edits with a collapsed caret at the end (selection ${JSON.stringify(state?.selection)})`,
+  )
+  await page.keyboard.type("?")
+  check((await active())?.text === "He!llo?", `typing "?" appends (${(await active())?.text})`)
+  await page.keyboard.press("Escape")
+  state = await active()
+  check(state?.kind === "text" && !state.editing && state.handles, "6b. Escape returns to selected with handles")
+
+  await page.getByRole("complementary").first().getByRole("button", { name: "Untitled book", exact: true }).click()
+  await page.getByRole("textbox", { name: "Book name" }).press("Enter")
+  state = await active()
+  check(
+    state?.kind === "text" && !state.editing && !state.caretFocused && state.text === "He!llo?",
+    `6c. Enter in the book-name field leaves the text box alone (${JSON.stringify({ editing: state?.editing, text: state?.text })})`,
+  )
+
+  check(errors.length === 0, `7. no uncaught page errors${errors.length ? `: ${errors.join("; ")}` : ""}`)
 } catch (error) {
   failures.push(error.message)
   console.error(`✗ ${error.message}`)
