@@ -101,7 +101,8 @@ npm run verify:rename # build, rename the book via the top-left field, reload,
 npm run verify:feedback # build, submit feedback through the real control and
                      #   route against a stand-in GitHub; every status → toast
 npm run verify:text-selection # build with test hooks, place a text box with T;
-                     #   single click selects, double click edits at the caret
+                     #   single click selects, double click edits at the caret,
+                     #   Enter edits with the caret at the end
 npm run verify:picker-focus # build, open the text Color picker, Tab through every
                      #   channel field and slider; each must show a focus ring
 ```
