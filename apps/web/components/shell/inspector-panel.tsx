@@ -222,6 +222,7 @@ function FrameSettings({ frameId }: { frameId: string }) {
   const updateFrameMargins = useEditorStore((state) => state.updateFrameMargins)
   const reorderFrameById = useEditorStore((state) => state.reorderFrameById)
   const setFrameCover = useEditorStore((state) => state.setFrameCover)
+  const addPairedPage = useEditorStore((state) => state.addPairedPage)
 
   if (!frame) return <Hint>This frame no longer exists.</Hint>
 
@@ -255,6 +256,24 @@ function FrameSettings({ frameId }: { frameId: string }) {
             onChange={(isCover) => setFrameCover(frameId, isCover)}
           />
         </div>
+      </Section>
+      <Separator />
+      {/* The canvas "+" buttons add pages outside a spread (#72); inserting
+          between a spread's two pages is this deliberate action instead. */}
+      <Section title="Pages">
+        <div className="grid grid-cols-2 gap-1.5">
+          {(["before", "after"] as const).map((side) => (
+            <button
+              key={side}
+              type="button"
+              onClick={() => addPairedPage(frameId, side)}
+              className="flex h-7 items-center justify-center rounded-md border bg-input/30 px-1.5 text-center text-[0.7rem] leading-tight font-medium text-foreground transition-colors hover:bg-input/60 outline-none focus-ring"
+            >
+              Add page {side}
+            </button>
+          ))}
+        </div>
+        <Hint>Inserts next to this page, even mid-spread.</Hint>
       </Section>
       <Separator />
       <Section title="Margins">

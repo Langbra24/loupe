@@ -4,6 +4,7 @@ import {
   FRAME_DISPLAY_WIDTH,
   FRAME_GAP,
   SPREAD_BOX_PADDING,
+  addPageAnchors,
   frameGridOriginY,
   layoutFrames,
   layoutSpreadBoxes,
@@ -125,6 +126,33 @@ describe("layoutSpreadBoxes", () => {
     const [first, second] = layoutSpreadBoxes(frames, 0)
     const firstBottom = first!.bounds.y + first!.bounds.height
     expect(second!.bounds.y).toBeGreaterThan(firstBottom)
+  })
+})
+
+describe("addPageAnchors", () => {
+  const frames = [frame("cover", 0, { isCover: true }), frame("f1", 1), frame("f2", 2), frame("f3", 3)]
+
+  it("puts a solo frame's buttons on its own edges", () => {
+    const [cover] = layoutFrames(frames, 0)
+    const anchors = addPageAnchors(frames, "cover", 0)
+    expect(anchors?.before).toEqual({ frameId: "cover", side: "before", edgeX: cover!.bounds.x })
+    expect(anchors?.after).toEqual({ frameId: "cover", side: "after", edgeX: cover!.bounds.x + cover!.bounds.width })
+    expect(anchors?.centerY).toBeCloseTo(cover!.bounds.y + cover!.bounds.height / 2)
+  })
+
+  it("puts a spread's buttons on its box's outer edges, the same for either page", () => {
+    const [box] = layoutSpreadBoxes(frames, 0)
+    const expected = {
+      before: { frameId: "f1", side: "before", edgeX: box!.bounds.x },
+      after: { frameId: "f2", side: "after", edgeX: box!.bounds.x + box!.bounds.width },
+      centerY: box!.bounds.y + box!.bounds.height / 2,
+    }
+    expect(addPageAnchors(frames, "f1", 0)).toEqual(expected)
+    expect(addPageAnchors(frames, "f2", 0)).toEqual(expected)
+  })
+
+  it("returns null for an unknown frame", () => {
+    expect(addPageAnchors(frames, "missing", 0)).toBeNull()
   })
 })
 
