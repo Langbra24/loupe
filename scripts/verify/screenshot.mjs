@@ -38,6 +38,17 @@ const SCENES = {
     await importPhotos(page)
     await setupBook(page, { preset: "A5 Portrait", pageCount: 12 })
   },
+  /** The Book view with a colored caption on page 1: pages as white paper,
+   *  text in its own color (#54). */
+  "book-overview": async (page) => {
+    const popover = await openColorPicker(page)
+    await popover.getByRole("textbox", { name: "Hex color" }).fill("#c2410c")
+    await page.keyboard.press("Shift+Tab")
+    await page.keyboard.press("Escape")
+    await popover.waitFor({ state: "hidden" })
+    await page.getByRole("tab", { name: "Book" }).click()
+    await page.locator("button").getByText("Ink", { exact: true }).waitFor()
+  },
   /** The text Color picker in the Paper reference's state (CMYK, #37bf7b),
    *  also saved alone (color-picker-popover.png) for comparing with
    *  docs/design/paper/colorpicker.png. */

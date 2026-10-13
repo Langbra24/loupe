@@ -153,3 +153,10 @@ surprises). Newest entries at the bottom.
 - The top nav's Share button had no handler (review finding S5). Removed until sharing exists; Export is the only top-right action. The now-unused `ArrowSquareOutIcon` and `Button` imports and the wrapper `div` went with it.
 - Nothing else named the button: no verifier, screenshot scene or CLAUDE.md text. The build brief's original "Share + Export" description in `docs/plans/` is left as history.
 - `npm run verify:top-nav` (new): the banner holds exactly one button, named "Export".
+
+## 2026-10-13 — #54 book overview on white paper (`issue-54-book-overview-paper`)
+
+- Fixes S6 from `todos/2026-10-13-emil-ui-review.md`. Book view page previews are `bg-white` (were `bg-card`, zinc-900), and text takes `element.color ?? DEFAULT_TEXT_COLOR`, as the canvas and `render-frame.ts` do. Both changes ship together: the color alone on a dark card would hide default ink. An image slot whose thumbnail hasn't loaded is `bg-zinc-100` (was `bg-muted`, dark) so it still reads as a placeholder on paper.
+- Unchanged: bleed/margin overlays, selected outline, ring, page labels.
+- `npm run verify:book-overview` (new): picks `#c2410c` for a caption, opens the Book view, checks the preview's computed background is `rgb(255, 255, 255)` and the caption's computed color is `rgb(194, 65, 12)`. Negative control on `main`: both fail (dark background, near-white text). New screenshot scene `book-overview`; the existing `book` scene ends on the canvas.
+- Seen, not fixed: captions in the previews render at a 5px floor (`pointSize * 0.4`, not scaled to the preview width), so they are barely legible at review size.
