@@ -140,3 +140,10 @@ surprises). Newest entries at the bottom.
 - **Fix:** `lib/focus-trap.ts` `trapTab` wraps Tab/Shift+Tab at the dialog's ends inside the same keydown, so the guards are never reached; it's wired on `Dialog.Popup`'s `onKeyDown`. Initial focus is now the selected format (`initialFocus` ref) instead of the info button, and the format cards show a ring when their sr-only radio has keyboard focus.
 - **Intro and book setup aren't modal:** the top nav, and for book setup the side panels, stay usable by mouse. So they don't trap. Instead, what each one covers is `inert`: Tab can't reach what a click can't, and the uncovered UI stays reachable. Each focuses its main control on appear. Book setup gained `role="dialog"` and a label. The popovers (feedback, color picker) are non-modal by design and unchanged.
 - `npm run verify:dialog-focus` (new): 40 back-to-back presses per dialog. Negative control on `main`: intro focus starts on body and walks into the covered panels; book setup isn't a dialog at all.
+
+## 2026-10-13 — #9 whole-app UI review and polish pass (`issue-9-ui-review`)
+
+- Two reports, no app code changes: `todos/2026-10-13-emil-ui-review.md` (verdict **Blocked**: 2 Blocking, 14 Should fix, 11 Nits) and `todos/2026-10-13-emil-ui-polish.md` (verdict **Approve with changes**: 5 Should fix, 8 Nits). Evidence screenshots are in `todos/2026-10-13-ui-shots/`.
+- **Blocking:** (1) most inspector controls and every book-overview page button have no accessible name; (2) the canvas context menus are mouse-only, not real menus, and *Set as cover* has no other entry point.
+- **Method:** code read of every UI file, every screenshot scene, and a Playwright audit of the production build. The audit covered Tab walks per state, inspector ARIA snapshots, context-menu focus, Escape, reduced-motion emulation, hit areas, token contrast, and a frame-by-frame reload capture (an empty project flashes for ~100ms on every reload).
+- Excluded as already decided: #25, #40, #30, #14, user-directed menus and stagger, Paper-referenced field styling, and the intro-modality question open on #46. The maintainer triages findings into issues.
