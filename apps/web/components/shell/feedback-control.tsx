@@ -129,7 +129,7 @@ export function FeedbackControl() {
                 placeholder="Name (optional)"
                 aria-label="Name (optional)"
                 disabled={submitting}
-                className="w-full rounded-lg border bg-background p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+                className="w-full rounded-lg border bg-background p-2 text-sm outline-none focus-ring disabled:opacity-50"
               />
               <input
                 type="email"
@@ -138,7 +138,7 @@ export function FeedbackControl() {
                 placeholder="Email (optional)"
                 aria-label="Email (optional)"
                 disabled={submitting}
-                className="w-full rounded-lg border bg-background p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+                className="w-full rounded-lg border bg-background p-2 text-sm outline-none focus-ring disabled:opacity-50"
               />
             </div>
 
@@ -150,7 +150,7 @@ export function FeedbackControl() {
               aria-label="Feedback"
               rows={5}
               disabled={submitting}
-              className="stagger-section w-full resize-none rounded-lg border bg-background p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+              className="stagger-section w-full resize-none rounded-lg border bg-background p-2 text-sm outline-none focus-ring disabled:opacity-50"
               style={stagger(2)}
             />
 

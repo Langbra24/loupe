@@ -104,7 +104,7 @@ function ProjectNameField({ name }: { name: string }) {
         }}
         autoFocus
         onFocus={(event) => event.currentTarget.select()}
-        className="w-full truncate rounded-sm bg-transparent text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="w-full truncate rounded-sm bg-transparent text-sm font-medium text-foreground outline-none focus-ring"
       />
     )
   }
@@ -118,7 +118,7 @@ function ProjectNameField({ name }: { name: string }) {
         setDraft(name)
         setEditing(true)
       }}
-      className="w-full truncate rounded-sm text-left text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+      className="w-full truncate rounded-sm text-left text-sm font-medium outline-none hover:bg-muted focus-ring"
     >
       {name}
     </button>
@@ -236,7 +236,7 @@ function FrameRow({
       aria-labelledby={titleId}
       aria-describedby={marginsId}
       className={cn(
-        "flex items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted",
+        "flex items-center gap-2 rounded-md px-2 py-1.5 text-left outline-none hover:bg-muted focus-ring",
         isSelected && "bg-muted",
       )}
     >
