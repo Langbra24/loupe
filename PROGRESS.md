@@ -84,3 +84,9 @@ surprises). Newest entries at the bottom.
 - **Known gap:** `verify:text-selection` and `verify:image-cycling` set `LOUPE_TEST_HOOKS=1` with POSIX syntax, so they don't run in a plain Windows shell.
 - Merged branches are NOT deleted: the cloud proxy refuses branch deletion (API and `git push --delete` both 403). All 11 code branches are fully merged into `main`, and the 4 `pr-assets/*` branches hold only PR screenshots. Delete them from a local machine.
 
+
+## 2026-10-13 — #30 record trim and bleed boxes in the PDF (`issue-30-trim-bleed-boxes`)
+
+- Scope changed mid-issue: the maintainer dropped the bleed toggle. Bleed stays always on, as before, and no toggle work was committed. `pdf.ts` now sets each page's BleedBox to the full page (= MediaBox, trim + 3mm each side) and its TrimBox to the page size at 3mm offsets. The PNG zip is unchanged.
+- `pdf-checks.mjs` checks one mode: MediaBox 154×216mm, an explicit TrimBox of 148×210mm at 3mm, and an explicit BleedBox equal to the MediaBox. Presence is checked first because pdf-lib's getters fall back to the MediaBox. There are 8 self-tests, one failing case per box.
+- `npm run e2e`: all trim and bleed checks pass. Only the page-count check (#31) still fails.
