@@ -283,7 +283,7 @@ function MarginField({
   return (
     <label className="flex items-center justify-between gap-3 py-0.5 text-sm">
       <span className="text-foreground">{label}</span>
-      <NumberField value={value} step={0.1} onChange={onChange} />
+      <NumberField value={value} step={0.1} onChange={onChange} align="left" />
     </label>
   )
 }
@@ -680,7 +680,7 @@ function StaticFieldBox({ label, value, mono }: { label: string; value: string; 
     <div className="flex flex-col items-start gap-1.5 py-0.5 text-sm">
       <span className="text-foreground">{label}</span>
       <div className="flex h-7.5 w-full items-center rounded-md border bg-input/30 px-2">
-        <span className={cn("w-full truncate text-right text-xs text-foreground", mono && "font-mono")}>
+        <span className={cn("w-full truncate text-left text-xs text-foreground", mono && "font-mono")}>
           {value}
         </span>
       </div>
