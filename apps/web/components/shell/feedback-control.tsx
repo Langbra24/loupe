@@ -72,7 +72,8 @@ export function FeedbackControl() {
           loading: { title: "Sending feedback…", type: "loading" },
           success: {
             title: "Feedback sent",
-            description: "Filed on GitHub. Thanks — will be reviewed in 2–3 business days.",
+            description: "We'll review your feedback in 2–3 business days.",
+            timeout: 3500,
             type: "success",
           },
           error: (error: unknown) => ({
