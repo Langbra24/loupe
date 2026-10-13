@@ -28,6 +28,25 @@ const SCENES = {
     await importPhotos(page)
     await setupBook(page, { preset: "A5 Portrait", pageCount: 12 })
   },
+  /** A feedback submission the server can't file: the error toast over the
+   *  popover with the draft kept. The route is stubbed in the browser so this
+   *  can never file a real issue, even where a token is configured. */
+  "feedback-error": async (page) => {
+    await page.route("**/api/feedback", (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "Feedback isn't set up on this server yet, so it couldn't be sent. Your note is still here.",
+        }),
+      }),
+    )
+    await dismissIntroduction(page)
+    await page.getByRole("button", { name: "Provide feedback" }).click()
+    await page.getByPlaceholder("What's wrong, missing, or confusing?").fill("The export dialog should remember my last choice.")
+    await page.getByRole("button", { name: "Submit feedback" }).click()
+    await page.getByText("Couldn't send feedback").waitFor()
+  },
 }
 
 const requested = process.argv.slice(2)
