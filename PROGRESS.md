@@ -122,3 +122,9 @@ surprises). Newest entries at the bottom.
   - the segmented control has a visible track (`bg-input/70`, 3px inset, `rounded-sm` pill);
   - popover `rounded-xl` → `rounded-lg`; square `rounded-lg` → `rounded-md`.
 - Kept: #15's focus rings, #21's arrow keys, all tokens. New scene `color-picker` (CMYK, #37bf7b) also saves the popover alone as `color-picker-popover.png`.
+
+## 2026-10-13 — make `npm run e2e` deterministic (`verify-e2e-deterministic`, no issue)
+
+- 20 runs on `main` @ bbb88a6 gave 18 passes and 2 failures, both on "Tab reaches the info control … (never focused)". Logging focus after each Tab showed two causes. The Export dialog's initial focus is already on the info button, so the first Tab stepped past it. And Tab sometimes leaves the modal dialog into the page behind, so 12 presses landed somewhere different each run.
+- Fix: focus the first format radio and press Shift+Tab once, a single keyboard step onto the info control. The assertion is unchanged. Same fix in the `export-dialog` screenshot scene. After the fix: 20/20.
+- **Open app bug** (not fixed here, suggested as its own task): Tab escapes the modal Export dialog. It predates #31 and happens with the tooltip removed.
