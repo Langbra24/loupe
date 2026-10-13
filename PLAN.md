@@ -21,6 +21,7 @@ Order matters: #8 and #7 change UI that #9 reviews, so #9 goes last.
 - [ ] [#27](https://github.com/Langbra24/loupe/issues/27) Color changes are undoable (one step per drag or edit) — *not started*
 - [x] [#30](https://github.com/Langbra24/loupe/issues/30) Export: record trim and bleed boxes in the PDF — PR #33, `npm run e2e` box checks
 - [x] [#31](https://github.com/Langbra24/loupe/issues/31) Export pads saddle-stitch books to a multiple of 4, explained in the dialog — PR #35, `npm run e2e` PASS (first full pass)
+- [ ] [#34](https://github.com/Langbra24/loupe/issues/34) Feedback popup asks for more context instead of mentioning GitHub
 - [ ] [#9](https://github.com/Langbra24/loupe/issues/9) Whole-app UI review with `/emil-ui-review` → findings triaged into new issues
 
 ## Backlog (no issue yet)
