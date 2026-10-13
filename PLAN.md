@@ -14,9 +14,10 @@ Order matters: #8 and #7 change UI that #9 reviews, so #9 goes last.
 - [ ] [#8](https://github.com/Langbra24/loupe/issues/8) Image-selected sidebar matches Paper frame 1G2-0 — *blocked on `docs/design/paper/image-selected-1G2-0.png`*
 - [x] [#14](https://github.com/Langbra24/loupe/issues/14) Text boxes: single click selects, double click edits — PR #16, `npm run verify:text-selection` 15/15
 - [x] [#15](https://github.com/Langbra24/loupe/issues/15) Color picker: every focusable part shows a focus ring — PR #17, `npm run verify:picker-focus` 12/12
-- [ ] [#19](https://github.com/Langbra24/loupe/issues/19) `[` / `]` step through the images in pages; Tab reaches the UI
+- [x] [#19](https://github.com/Langbra24/loupe/issues/19) `[` / `]` step through the images in pages; Tab reaches the UI — PR #22, `npm run verify:image-cycling` 11/11
 - [x] [#20](https://github.com/Langbra24/loupe/issues/20) Text boxes: Enter on a selected box starts editing, caret at the end — PR #23, `npm run verify:text-selection` 20/20
 - [x] [#21](https://github.com/Langbra24/loupe/issues/21) Color picker: arrow keys move the hue slider and saturation/value square — PR #24, `npm run verify:picker-keys` 13/13
+- [x] [#25](https://github.com/Langbra24/loupe/issues/25) Right sidebar: separators run the full width of the panel — PR #26, `npm run verify:separators` 4/4 states
 - [ ] [#9](https://github.com/Langbra24/loupe/issues/9) Whole-app UI review with `/emil-ui-review` → findings triaged into new issues
 
 ## Backlog (no issue yet)
