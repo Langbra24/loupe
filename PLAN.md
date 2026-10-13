@@ -19,10 +19,8 @@ Order matters: #8 and #7 change UI that #9 reviews, so #9 goes last.
 - [x] [#21](https://github.com/Langbra24/loupe/issues/21) Color picker: arrow keys move the hue slider and saturation/value square — PR #24, `npm run verify:picker-keys` 13/13
 - [x] [#25](https://github.com/Langbra24/loupe/issues/25) Right sidebar: separators run the full width of the panel — PR #26, `npm run verify:separators` 4/4 states
 - [ ] [#27](https://github.com/Langbra24/loupe/issues/27) Color changes are undoable (one step per drag or edit) — *not started*
-- [ ] [#30](https://github.com/Langbra24/loupe/issues/30) Export: optional bleed with trim and bleed boxes (toggle, off by default)
-- [ ] [#31](https://github.com/Langbra24/loupe/issues/31) Export: pad saddle-stitch books to a multiple of 4 pages, explained in the dialog
-- [ ] [#30](https://github.com/Langbra24/loupe/issues/30) Export: record trim and bleed boxes in the PDF
-- [ ] [#31](https://github.com/Langbra24/loupe/issues/31) Export pads saddle-stitch books to a multiple of 4, explained in the dialog
+- [x] [#30](https://github.com/Langbra24/loupe/issues/30) Export: record trim and bleed boxes in the PDF — PR #33, `npm run e2e` box checks
+- [x] [#31](https://github.com/Langbra24/loupe/issues/31) Export pads saddle-stitch books to a multiple of 4, explained in the dialog — PR #35, `npm run e2e` PASS (first full pass)
 - [ ] [#9](https://github.com/Langbra24/loupe/issues/9) Whole-app UI review with `/emil-ui-review` → findings triaged into new issues
 
 ## Backlog (no issue yet)
