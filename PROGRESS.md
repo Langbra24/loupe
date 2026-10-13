@@ -199,3 +199,10 @@ surprises). Newest entries at the bottom.
 - **S11:** the empty project's "Add pages to get started." is muted, not destructive; an unstitchable count is still red.
 - **S13:** Cmd/Ctrl+Enter in the feedback textarea submits (respects `canSubmit`). The Submit button shows `⌘ ↵`/`Ctrl ↵` in a `<kbd>`; "Sending…" shares a grid cell with the idle label, so the button no longer changes width while sending.
 - `npm run verify:small-fixes` (new) passes; on main's app code it fails 8 checks across all four fixes.
+
+## 2026-10-13 — #52 honour reduced motion, drop the inspector's 150ms delay, no transition-all (`issue-52-motion`)
+
+- **S2:** one unlayered `@media (prefers-reduced-motion: reduce)` rule in `globals.css` resets tw-animate's `--tw-enter-*`/`--tw-exit-*` scale, translate, rotate and blur variables to identity, so every popup (Export dialog and backdrop, Color picker, Feedback, Select, Tooltip, DropdownMenu) keeps its opacity fade and loses its zoom/slide. The shell grid is `motion-reduce:transition-none`. Fabric frame snaps go through `snapFrameTo`, which reads `matchMedia` at tween time and sets the end position in one render under reduced motion.
+- **S3:** `InspectorPanel` renders the new variant in the same commit; the `phase`/`displayed` state and its 150ms `setTimeout` are gone. A wrapper keyed by variant replays `.inspector-fade-in` (150ms, opacity only, none under reduced motion), and the first render doesn't fade.
+- **S4:** Button transitions `color, background-color, border-color, box-shadow, opacity, translate` (`translate`, not `transform`: Tailwind v4's `translate-y-px` press nudge writes the `translate` property). Badge transitions its colors and shadow. No `transition-all` left anywhere in `apps/web/components`.
+- `npm run verify:motion` (new, test-hooks build) passes 22/22. It slows Chrome's animation clock to 2%, seeks each running animation to its start and compares the target's geometry with its end, so it judges what is drawn, not class names; the normal-motion half checks the same popups *do* move, so the reduced half can't pass vacuously. On `main` it fails 12.

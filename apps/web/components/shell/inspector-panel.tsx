@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useId, useState } from "react"
+import { useId, useState } from "react"
 import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon } from "lucide-react"
 import {
   checkPageCount,
@@ -94,47 +94,26 @@ export const DEFAULT_TEXT_COLOR = "#18181b"
  * (U7), replacing the old per-mode Design/Print property panels — there is
  * only one canvas now (the light table), not three mode-scoped surfaces.
  *
- * Cross-fades between variants: `phase` drives an opacity transition on the
- * content wrapper (200ms ease-out entering, 150ms ease-in leaving), gated
- * behind `motion-reduce:` so a user who has asked for reduced motion gets an
- * instant swap instead. No animation library is installed in this project —
- * see CLAUDE.md/the plan — so this is deliberately plain CSS, not a mount/
- * unmount crossfade with true overlap (that would need something like
- * Framer Motion's `AnimatePresence` to keep the outgoing content painted
- * while the incoming content fades in); the exit phase here just fades the
- * *old* variant's content out in place before swapping to the new one.
+ * Swaps variants immediately: the new variant's content renders in the same
+ * commit as the selection change, so nothing waits on a timer. The wrapper is
+ * keyed by variant, so `.inspector-fade-in` (globals.css) replays a 150ms
+ * opacity-only fade on each variant change; under reduced motion the swap
+ * has no fade. Changes within one variant (another text element, the same
+ * frame's margins) update in place without re-keying. The first render
+ * doesn't fade: content already at rest has nothing to announce.
  */
 export function InspectorPanel() {
   const selection = useEditorStore((state) => state.selection)
   const variant = sidebarVariantFor(selection)
 
-  const [displayed, setDisplayed] = useState(selection)
-  const [phase, setPhase] = useState<"idle" | "leaving">("idle")
-  const displayedVariant = sidebarVariantFor(displayed)
-
-  // Adjusting state during render (not in an effect) for the two synchronous
-  // cases, per https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes —
-  // this is a pure response to the store's `selection` changing, not a side
-  // effect on an external system, so it belongs in the render body.
-  if (variant === displayedVariant && displayed !== selection) {
-    // Same variant (e.g. one text element's fields changing, or the same
-    // frame's margins) — update in place without animating; only a variant
-    // *change* is worth a transition.
-    setDisplayed(selection)
-  } else if (variant !== displayedVariant && phase === "idle") {
-    setPhase("leaving")
+  // Adjusting state during render, per https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes:
+  // only a variant change after mount turns the fade on.
+  const [lastVariant, setLastVariant] = useState(variant)
+  const [fade, setFade] = useState(false)
+  if (variant !== lastVariant) {
+    setLastVariant(variant)
+    setFade(true)
   }
-
-  // The actual timer is a real effect: it schedules a callback against the
-  // clock (an external system), which is what effects are for.
-  useEffect(() => {
-    if (phase !== "leaving") return
-    const timer = setTimeout(() => {
-      setDisplayed(selection)
-      setPhase("idle")
-    }, 150)
-    return () => clearTimeout(timer)
-  }, [phase, selection])
 
   return (
     <aside className="flex h-full w-72 flex-col border-l bg-background">
@@ -145,13 +124,14 @@ export function InspectorPanel() {
             `w-auto` lets the negative margins widen it, where `w-full` would
             only shift it. */}
         <div
+          key={variant}
           className={cn(
-            "flex flex-col gap-6 px-3 pt-14 pb-4 transition-opacity motion-reduce:transition-none",
+            "flex flex-col gap-6 px-3 pt-14 pb-4",
             "[&_[data-slot=separator][data-orientation=horizontal]]:-mx-3 [&_[data-slot=separator][data-orientation=horizontal]]:w-auto",
-            phase === "leaving" ? "opacity-0 duration-150 ease-in" : "opacity-100 duration-200 ease-out",
+            fade && "inspector-fade-in",
           )}
         >
-          <SidebarContent selection={displayed} />
+          <SidebarContent selection={selection} />
         </div>
       </ScrollArea>
     </aside>
