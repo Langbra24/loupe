@@ -283,3 +283,50 @@ input[type="number"]::-webkit-outer-spin-button {
     filter: none;
   }
 }
+
+/**
+ * The inspector's variant swap (InspectorPanel in shell/inspector-panel.tsx).
+ * The new variant's content is in the DOM on the first frame after the
+ * selection changes; this only fades it in, opacity alone, so nothing waits
+ * on it. The wrapper is keyed by variant, so it replays on every change.
+ */
+.inspector-fade-in {
+  animation: inspector-fade-in 150ms ease-out;
+}
+@keyframes inspector-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inspector-fade-in {
+    animation: none;
+  }
+}
+
+/**
+ * Reduced motion for every tw-animate-css popup (dialogs, popovers, selects,
+ * tooltips, menus). tw-animate's `enter`/`exit` keyframes read their
+ * translate, scale, rotate and blur from `--tw-enter-*`/`--tw-exit-*`
+ * variables, which utilities like `zoom-in-95` and `slide-in-from-top-2` set,
+ * and it ships no `prefers-reduced-motion` rule of its own. Resetting those
+ * variables to identity here keeps every popup's opacity fade and drops the
+ * movement, without touching each component. This rule is unlayered, so it
+ * beats Tailwind's `@layer utilities` without `!important`.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    --tw-enter-scale: 1;
+    --tw-enter-translate-x: 0;
+    --tw-enter-translate-y: 0;
+    --tw-enter-rotate: 0;
+    --tw-enter-blur: 0;
+    --tw-exit-scale: 1;
+    --tw-exit-translate-x: 0;
+    --tw-exit-translate-y: 0;
+    --tw-exit-rotate: 0;
+    --tw-exit-blur: 0;
+  }
+}
