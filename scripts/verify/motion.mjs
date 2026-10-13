@@ -25,6 +25,10 @@
 //      fade that follows is opacity-only.
 //   4. No file in apps/web/components/ui contains `transition-all`.
 //   5. No uncaught page errors.
+//   6. Canvas: a page dragged a little and dropped back in its own slot is
+//      on that slot by the next frame under reduced motion, and still
+//      mid-tween with normal motion. Reads `window.__loupeCanvas`, so the
+//      build needs LOUPE_TEST_HOOKS=1.
 
 import { readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
@@ -162,6 +166,43 @@ async function openEachPopup(page) {
   return results
 }
 
+/**
+ * Drags the first page a short way, staying in its own slot, and lets go.
+ * Returns how far (scene units) it still is from its slot on the next frame:
+ * 0 under reduced motion, mid-tween otherwise. Needs `window.__loupeCanvas`.
+ */
+async function frameSnapGap(page) {
+  const frame = await page.evaluate(() => {
+    const canvas = window.__loupeCanvas
+    const rect = canvas.getObjects().find((o) => o.frameId && !o.elementId && o.type === "rect")
+    const box = canvas.upperCanvasEl.getBoundingClientRect()
+    const [zoom, , , , panX, panY] = canvas.viewportTransform
+    return {
+      frameId: rect.frameId,
+      slot: { x: rect.left, y: rect.top },
+      screen: { x: box.left + rect.left * zoom + panX, y: box.top + rect.top * zoom + panY },
+    }
+  })
+  await page.mouse.move(frame.screen.x, frame.screen.y)
+  await page.mouse.down()
+  await page.mouse.move(frame.screen.x + 15, frame.screen.y + 10, { steps: 4 })
+  await page.mouse.move(frame.screen.x + 30, frame.screen.y + 20, { steps: 4 })
+  await page.mouse.up()
+  const gap = await page.evaluate(
+    ({ frameId, slot }) =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => {
+          const rect = window.__loupeCanvas.getObjects().find((o) => o.frameId === frameId && !o.elementId && o.type === "rect")
+          resolve(Math.hypot(rect.left - slot.x, rect.top - slot.y))
+        }),
+      ),
+    frame,
+  )
+  await page.waitForTimeout(400)
+  await page.keyboard.press("Escape")
+  return gap
+}
+
 async function shellGridTransition(page) {
   return page.locator('div[style*="grid-template-columns"]').evaluate((grid) => {
     const style = getComputedStyle(grid)
@@ -206,6 +247,9 @@ try {
       `1. reduced: the shell grid has no transition (${grid.property} ${grid.duration})`,
     )
 
+    const gap = await frameSnapGap(page)
+    check(gap < 0.5, `6. reduced: a page dropped back in its slot lands there on the next frame (${gap.toFixed(1)} units off)`)
+
     await slowAnimations(page)
     await page.getByRole("tab", { name: "Book" }).click()
     await page.getByRole("complementary").first().getByRole("button", { name: "Page 2", exact: true }).click()
@@ -236,6 +280,9 @@ try {
       grid.property.includes("grid-template-columns") && grid.duration !== "0s",
       `2. normal: the shell grid still transitions its columns (${grid.property} ${grid.duration})`,
     )
+
+    const gap = await frameSnapGap(page)
+    check(gap >= 0.5, `6. normal: a page dropped back in its slot still tweens there (${gap.toFixed(1)} units off on the next frame)`)
 
     // 3. Click a row in-page, then look on the very next animation frame.
     await slowAnimations(page)
