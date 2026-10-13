@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Dialog } from "@base-ui/react/dialog"
 import { CircleNotchIcon, ExportIcon, FileArchiveIcon, FilePdfIcon, InfoIcon, type Icon } from "@phosphor-icons/react"
 import { checkPageCount } from "@loupe/core"
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { useToastManager } from "@/components/ui/toast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { downloadBlob } from "@/lib/export/download"
+import { trapTab } from "@/lib/focus-trap"
 import { buildPrintPdf } from "@/lib/export/pdf"
 import { buildPngZip } from "@/lib/export/png-zip"
 import { cn, stagger } from "@/lib/utils"
@@ -80,6 +81,9 @@ export function ExportDialog() {
   const [open, setOpen] = useState(false)
   const [format, setFormat] = useState<ExportFormatId>("pdf")
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
+  // The selected format is where focus starts (#45), not the first tabbable
+  // control, which is the padding note's info button.
+  const selectedFormatRef = useRef<HTMLInputElement>(null)
   const toastManager = useToastManager()
 
   const project = useEditorStore((state) => state.project)
@@ -130,7 +134,10 @@ export function ExportDialog() {
       />
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
-        <Dialog.Popup className="fixed top-1/2 left-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-popover p-5 text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
+        <Dialog.Popup
+          initialFocus={selectedFormatRef}
+          onKeyDown={(event) => trapTab(event, event.currentTarget)}
+          className="fixed top-1/2 left-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-popover p-5 text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
           <div className="stagger-section" style={stagger(0)}>
             <Dialog.Title className="text-sm font-medium">Export book</Dialog.Title>
             <Dialog.Description className={cn("pt-0.5 text-xs text-muted-foreground", blanks === 0 && "pb-4")}>
@@ -147,6 +154,8 @@ export function ExportDialog() {
                 key={option.id}
                 className={cn(
                   "stagger-section flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors",
+                  // The radio itself is sr-only, so its card shows keyboard focus.
+                  "has-[input:focus-visible]:ring-3 has-[input:focus-visible]:ring-ring/50",
                   format === option.id ? "border-ring bg-muted" : "border-border hover:bg-muted/50",
                   exporting && "pointer-events-none opacity-60",
                 )}
@@ -157,6 +166,7 @@ export function ExportDialog() {
                   name="export-format"
                   value={option.id}
                   checked={format === option.id}
+                  ref={format === option.id ? selectedFormatRef : undefined}
                   onChange={() => setFormat(option.id)}
                   disabled={exporting}
                   className="sr-only"

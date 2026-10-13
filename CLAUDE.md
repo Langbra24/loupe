@@ -115,6 +115,8 @@ npm run verify:separators # build; in all four inspector states every divider
                      #   spans the right panel's full inner width
 npm run verify:color-undo # build; a typed hex and a hue drag are one undo step
                      #   each; undo/redo move the color everywhere
+npm run verify:dialog-focus # build; fast Tab/Shift+Tab never leave the Export
+                     #   dialog or reach what the intro/book-setup overlays cover
 ```
 
 Verifiers live in `scripts/verify/` and drive the real production build with Playwright (pinned to 1.56.1 to match the cloud image's Chromium; locally run `npx playwright install chromium` once). `npm run e2e` drives the real Export dialog; its header comment states the contract the PDF must meet. Set `LOUPE_URL=http://localhost:3000` to point a verifier at an already-running server. `verify:text-selection` reads `window.__loupeCanvas`, which exists only in a build made with `LOUPE_TEST_HOOKS=1` (inlined via `next.config.ts`; ordinary builds compile it out).

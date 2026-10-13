@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef } from "react"
 import { BookOpenIcon, XIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
@@ -29,13 +30,17 @@ import { useEditorStore } from "@/state/editor-store"
  * each piece has to read as a single complete beat on its own.
  */
 export function Introduction() {
-  const dismissed = useEditorStore((state) => state.introductionDismissed)
-  const isEmptyProject = useEditorStore(
-    (state) => state.project.frames.length === 0 && state.project.assets.length === 0,
-  )
+  const shouldShowOverlay = useIntroductionShowing()
   const dismissIntroduction = useEditorStore((state) => state.dismissIntroduction)
+  const getStartedRef = useRef<HTMLButtonElement>(null)
 
-  const shouldShowOverlay = !dismissed && isEmptyProject
+  // Keyboard focus starts on the overlay's main action (#45). What the
+  // overlay covers is made inert in app-shell.tsx; the top nav stays live,
+  // for the keyboard as for the mouse.
+  useEffect(() => {
+    if (shouldShowOverlay) getStartedRef.current?.focus()
+  }, [shouldShowOverlay])
+
   if (!shouldShowOverlay) return null
 
   return (
@@ -74,7 +79,12 @@ export function Introduction() {
           that&apos;s how this gets built.
         </p>
 
-        <Button onClick={dismissIntroduction} className="stagger-section self-start" style={stagger(3)}>
+        <Button
+          ref={getStartedRef}
+          onClick={dismissIntroduction}
+          className="stagger-section self-start"
+          style={stagger(3)}
+        >
           Get started
         </Button>
       </div>
@@ -93,4 +103,14 @@ export function IntroductionReopenButton() {
       <BookOpenIcon />
     </Button>
   )
+}
+
+/** Whether the introduction overlay is up. app-shell.tsx uses it to make
+ *  the panels and canvas it covers inert. */
+export function useIntroductionShowing(): boolean {
+  const dismissed = useEditorStore((state) => state.introductionDismissed)
+  const isEmptyProject = useEditorStore(
+    (state) => state.project.frames.length === 0 && state.project.assets.length === 0,
+  )
+  return !dismissed && isEmptyProject
 }

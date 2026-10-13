@@ -6,7 +6,7 @@ import { CanvasRegion } from "@/components/shell/canvas-region"
 import { ErrorBanner } from "@/components/shell/error-banner"
 import { FeedbackControl } from "@/components/shell/feedback-control"
 import { InspectorPanel } from "@/components/shell/inspector-panel"
-import { Introduction, IntroductionReopenButton } from "@/components/shell/introduction"
+import { Introduction, IntroductionReopenButton, useIntroductionShowing } from "@/components/shell/introduction"
 import { LayersPanel } from "@/components/shell/layers-panel"
 import { TopNav } from "@/components/shell/top-nav"
 import { ToastProvider, ToastViewport } from "@/components/ui/toast"
@@ -29,6 +29,9 @@ export function AppShell() {
   const leftPanelOpen = useEditorStore((state) => state.leftPanelOpen)
   const rightPanelOpen = useEditorStore((state) => state.rightPanelOpen)
   const hydrate = useEditorStore((state) => state.hydrate)
+  // Under the introduction overlay, the panels, canvas and bottom-left
+  // controls are covered: inert, so Tab can't reach what a click can't (#45).
+  const covered = useIntroductionShowing() || undefined
 
   // IndexedDB is client-only, so the store starts as a valid empty project and
   // real state arrives after mount. Doing this any earlier is a hydration
@@ -53,13 +56,15 @@ export function AppShell() {
             ].join(" "),
           }}
         >
-          <div className="min-w-0 overflow-hidden">
+          <div className="min-w-0 overflow-hidden" inert={covered}>
             <LayersPanel />
           </div>
 
-          <CanvasRegion />
+          <div className="contents" inert={covered}>
+            <CanvasRegion />
+          </div>
 
-          <div className="min-w-0 overflow-hidden">
+          <div className="min-w-0 overflow-hidden" inert={covered}>
             <InspectorPanel />
           </div>
 
@@ -69,7 +74,7 @@ export function AppShell() {
           {/* Bottom-left: feedback and the introduction's reopen control sit
               together (R23, R32) — see error-banner.tsx for why it moved up
               to bottom-16 rather than sharing this exact spot. */}
-          <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2">
+          <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2" inert={covered}>
             <IntroductionReopenButton />
             <FeedbackControl />
           </div>
