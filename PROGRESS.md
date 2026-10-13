@@ -191,3 +191,9 @@ surprises). Newest entries at the bottom.
 - PRs #61 (#58), #62 (#54), #63 (#57), #64 (#55), #65 (#50) merged in that order, each after merging `main` into its branch. Append conflicts in `package.json`, `CLAUDE.md` and `PROGRESS.md` kept both sides; `screenshot.mjs` kept both new scenes.
 - Combined, two verifiers broke on #65's renames: `book-overview.mjs` looked for the Color trigger as `#…` and `canvas-chrome.mjs` for the zoom readout as `N%`. Both now use the new names ("Color #…", "Zoom N%…"), committed on #65.
 - On the combined tree (identical to `main` after the merges): `npm run verify` passes; all 17 verifiers, including e2e 3/3, pass; all 13 screenshot scenes render.
+
+## 2026-10-13 — #70 Feedback: drop the Name field, keep Email (`issue-70-feedback-email-only`)
+
+- The feedback popover's only contact field is now **Email (optional)**, same style, same stagger slot. The filed issue is public, so it asks for no more than a reply needs (maintainer's call).
+- `composeFeedbackBody` writes only an `Email:` line; `/api/feedback` reads only `contact.email`. A `contact.name` from a tab opened before this change is ignored, not rejected. Unit tests cover that it never reaches the body.
+- `npm run verify:feedback` now asserts the popover has no textbox named like "Name" and that an entered email reaches the issue body the stand-in GitHub receives. On main's app code it fails: "no Name field (found 1)".
