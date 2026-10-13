@@ -68,16 +68,21 @@ try {
   const blanks = padded - BOOK.pageCount
   const note = `Adds ${blanks} blank page${blanks === 1 ? "" : "s"} to reach ${padded}`
   check(await dialog.getByText(note).isVisible(), `the dialog says "${note}"`)
+  // One real keyboard step onto the info control: it comes right before the
+  // first format radio in tab order, so Shift+Tab from that radio lands on
+  // it. Cycling Tab around the dialog instead was flaky: the dialog's initial
+  // focus already sits on the info button, and Tab can leave the dialog
+  // altogether, so where 12 presses ended up varied run to run.
   const info = dialog.getByRole("button", { name: "Why blank pages are added" })
-  let focused = false
-  for (let i = 0; i < 12 && !focused; i++) {
-    await page.keyboard.press("Tab")
-    focused = await info.evaluate((button) => document.activeElement === button)
-  }
+  await dialog.getByRole("radio").first().focus()
+  await page.keyboard.press("Shift+Tab")
+  const focused = await info.evaluate((button) => document.activeElement === button)
   const tooltip = page.getByText(/sheets folded in half/)
   const tooltipShown = focused && (await tooltip.waitFor({ timeout: 3_000 }).then(() => true, () => false))
-  check(tooltipShown, `Tab reaches the info control and its tooltip explains the padding${focused ? "" : " (never focused)"}`)
-  await page.keyboard.press("Shift+Tab")
+  check(
+    tooltipShown,
+    `keyboard focus (Shift+Tab) reaches the info control and its tooltip explains the padding${focused ? "" : " (never focused)"}`,
+  )
   await dialog.getByText("Print-ready PDF").click()
   const downloadPromise = page.waitForEvent("download", { timeout: 60_000 })
   await dialog.getByRole("button", { name: "Export", exact: true }).click()
