@@ -129,12 +129,16 @@ export function ColorField({
             the reference this was built against:
             https://app.paper.design/file/01K98TQ792YZPT540WYSV69H6K/01K98TQ792S0C6FZ5FV97B0HHP/TF-0 */}
         <Popover.Positioner side="left" align="end" sideOffset={8}>
-          <Popover.Popup className="z-50 flex w-[290px] origin-(--transform-origin) flex-col gap-2 rounded-xl border bg-popover p-2 text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
+          <Popover.Popup className="z-50 flex w-[290px] origin-(--transform-origin) flex-col gap-2 rounded-lg border bg-popover p-2 text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
             <Tabs value={mode} onValueChange={(next) => setMode(next as ColorInputMode)}>
-              <TabsList aria-label="Color input mode" className="gap-1">
-                <TabsIndicator />
-                <TabsTab value="rgb">RGB</TabsTab>
-                <TabsTab value="cmyk">CMYK</TabsTab>
+              <TabsList aria-label="Color input mode" className="gap-1 rounded-md bg-input/70 p-[3px]">
+                <TabsIndicator className="rounded-sm" />
+                <TabsTab value="rgb" className="rounded-sm">
+                  RGB
+                </TabsTab>
+                <TabsTab value="cmyk" className="rounded-sm">
+                  CMYK
+                </TabsTab>
               </TabsList>
             </Tabs>
 
@@ -145,7 +149,7 @@ export function ColorField({
               onGestureEnd={onGestureEnd}
             />
 
-            <div className="flex items-center gap-2">
+            <div className="mt-3 flex items-center gap-2">
               <span
                 className="size-[30px] shrink-0 rounded-md border border-white/10"
                 style={{ backgroundColor: value }}
@@ -157,7 +161,7 @@ export function ColorField({
                 value={hexDraft}
                 onChange={(event) => commitHex(event.target.value)}
                 spellCheck={false}
-                className="w-full rounded-md border bg-input/30 px-2 py-1 font-mono text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="h-[30px] w-full rounded-md border bg-input/30 px-2 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               />
             </div>
 
@@ -167,7 +171,7 @@ export function ColorField({
                 CMYK panel visibly taller than the RGB one, which is what
                 actually caused the "moved up on toggle" bug above: a taller
                 popup no longer fit below the trigger and got flipped. */}
-            <div className="flex items-stretch justify-between gap-2">
+            <div className="mt-3 flex items-stretch justify-between gap-2">
               {mode === "rgb" ? (
                 <>
                   <ColorChannelField label="R" {...typing} value={rgb.r} max={255} onChange={(r) => setRgbChannel({ r })} />
@@ -216,7 +220,7 @@ function ColorChannelField({
   onChange: (value: number) => void
 }) {
   return (
-    <label className="flex flex-1 items-center justify-between gap-1 rounded-md border bg-input/30 px-2 py-1 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+    <label className="flex min-w-0 flex-1 items-center justify-between gap-1 rounded-md border bg-input/30 px-2 py-1 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <input
         type="number"
@@ -382,7 +386,7 @@ function SaturationValuePicker({
         aria-valuemax={100}
         aria-valuetext={`Saturation ${saturation}%, brightness ${brightness}%`}
         tabIndex={0}
-        className="relative flex-1 cursor-crosshair touch-none rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="relative flex-1 cursor-crosshair touch-none rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         style={{
           backgroundColor: pureHueHex,
           backgroundImage:

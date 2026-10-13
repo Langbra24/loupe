@@ -93,7 +93,7 @@ npm test             # all workspaces (Vitest) + verifier self-tests
 npm run verify       # typecheck + lint + test + build — the baseline "done" gate
 npm run screenshot   # build, then save desktop PNGs to screenshots/ (gitignored)
                      #   scenes: intro, shell, book, page-selected, image-selected, text-selected,
-                     #   export-dialog, feedback, feedback-error, color-picker-focus
+                     #   export-dialog, feedback, feedback-error, color-picker, color-picker-focus
                      #   — `npm run screenshot -- shell`
 npm run e2e          # build, import fixture photos, export a PDF: padded to a multiple
                      #   of 4 with blank pages, trim/bleed boxes right (pdf-lib), and
