@@ -141,6 +141,9 @@ npm run verify:motion # build with test hooks; under reduced motion the shell gr
 npm run verify:focus-ring # build; keyboard-focus a control on every surface (nav,
                      #   panels, inspector, popover, dialogs, Book view): one ring
                      #   style everywhere, >= 3:1 against the surface under it
+npm run verify:cover-toggle # build with test hooks; keyboard-only: select page 3,
+                     #   Space on the sidebar's Cover checkbox moves it to page 1
+                     #   with the badge, Ctrl+Z reverts; "Add page" adds one
 ```
 
 Verifiers live in `scripts/verify/` and drive the real production build with Playwright (pinned to 1.56.1 to match the cloud image's Chromium; locally run `npx playwright install chromium` once). `npm run e2e` drives the real Export dialog; its header comment states the contract the PDF must meet. Set `LOUPE_URL=http://localhost:3000` to point a verifier at an already-running server. `verify:text-selection` reads `window.__loupeCanvas`, which exists only in a build made with `LOUPE_TEST_HOOKS=1` (inlined via `next.config.ts`; ordinary builds compile it out).

@@ -35,7 +35,8 @@
     "verify:a11y-names": "npm run build && node scripts/verify/a11y-names.mjs",
     "verify:small-fixes": "npm run build && node scripts/verify/small-fixes.mjs",
     "verify:motion": "LOUPE_TEST_HOOKS=1 npm run build && node scripts/verify/motion.mjs",
-    "verify:focus-ring": "npm run build && node scripts/verify/focus-ring.mjs"
+    "verify:focus-ring": "npm run build && node scripts/verify/focus-ring.mjs",
+    "verify:cover-toggle": "LOUPE_TEST_HOOKS=1 npm run build && node scripts/verify/cover-toggle.mjs"
   },
   "devDependencies": {
     "pdf-lib": "^1.17.1",
