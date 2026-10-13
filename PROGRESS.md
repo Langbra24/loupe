@@ -192,6 +192,14 @@ surprises). Newest entries at the bottom.
 - Combined, two verifiers broke on #65's renames: `book-overview.mjs` looked for the Color trigger as `#…` and `canvas-chrome.mjs` for the zoom readout as `N%`. Both now use the new names ("Color #…", "Zoom N%…"), committed on #65.
 - On the combined tree (identical to `main` after the merges): `npm run verify` passes; all 17 verifiers, including e2e 3/3, pass; all 13 screenshot scenes render.
 
+## 2026-10-13 — #56 four small fixes (`issue-56-small-fixes`)
+
+- **S9:** toasts moved to the top-right, 8px under the top nav (`top-14`), clear of the zoom controls and canvas toolbars. The shadcn stack math is mirrored: `top-0`/`origin-top`, peek and expanded offsets grow downward, enter/exit at `translateY(-150%)` with a fade (150% of a toast's height doesn't clear the screen from up there), `swipeDirection={["up", "right"]}`.
+- **S10:** Escape on the intro overlay dismisses it, like its X. Handled on the overlay's keydown, so Escape in the (still live) top nav is left alone.
+- **S11:** the empty project's "Add pages to get started." is muted, not destructive; an unstitchable count is still red.
+- **S13:** Cmd/Ctrl+Enter in the feedback textarea submits (respects `canSubmit`). The Submit button shows `⌘ ↵`/`Ctrl ↵` in a `<kbd>`; "Sending…" shares a grid cell with the idle label, so the button no longer changes width while sending.
+- `npm run verify:small-fixes` (new) passes; on main's app code it fails 8 checks across all four fixes.
+
 ## 2026-10-13 — #52 honour reduced motion, drop the inspector's 150ms delay, no transition-all (`issue-52-motion`)
 
 - **S2:** one unlayered `@media (prefers-reduced-motion: reduce)` rule in `globals.css` resets tw-animate's `--tw-enter-*`/`--tw-exit-*` scale, translate, rotate and blur variables to identity, so every popup (Export dialog and backdrop, Color picker, Feedback, Select, Tooltip, DropdownMenu) keeps its opacity fade and loses its zoom/slide. The shell grid is `motion-reduce:transition-none`. Fabric frame snaps go through `snapFrameTo`, which reads `matchMedia` at tween time and sets the end position in one render under reduced motion.

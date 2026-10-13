@@ -31,13 +31,18 @@ import { cn } from "@/lib/utils"
  * stack (each toast behind the front one scaled down ~10% and tucked up
  * behind it), `--offset-y` (Base UI's own measured spacing) only takes
  * over once `data-expanded` is set (hover), and `data-starting-style`/
- * `data-ending-style` both resolve to `translateY(150%)` — i.e. enter and
- * exit both happen relative to the toast's own height, sliding fully in
- * from below and fully back out below, not a fixed pixel nudge. One
- * genuine adaptation to this app rather than a copy: `rounded-xl` is kept
- * (the reference has no rounding at all) to match every other surface in
- * this app's own popover/card language, which the raw reference doesn't
- * have to answer to.
+ * `data-ending-style` both resolve to a translate of 150% of the toast's own
+ * height, not a fixed pixel nudge. `rounded-xl` is kept (the reference has
+ * no rounding at all) to match this app's popover/card language.
+ *
+ * The reference anchors the stack to the bottom; this one is mirrored to the
+ * top-right, just under the top nav (#56), because bottom-right toasts sat
+ * on the canvas zoom controls. Mirrored means: `top-0`/`origin-top`, the
+ * collapsed peek and the expanded `--offset-y` both grow downward, toasts
+ * enter and leave at `translateY(-150%)`, and swipe-to-dismiss goes up or
+ * right. A toast this close to the viewport's top edge doesn't clear the
+ * screen in 150%, so enter and exit also fade, rather than sliding fully
+ * opaque across the nav.
  */
 const TOAST_TYPE_ICONS: Record<string, typeof CheckCircleIcon> = {
   success: CheckCircleIcon,
@@ -50,8 +55,10 @@ function ToastProvider({ ...props }: ToastPrimitive.Provider.Props) {
   return <ToastPrimitive.Provider data-slot="toast-provider" {...props} />
 }
 
-/** Fixed to the bottom-right, above everything else in the shell (`z-50`,
- *  matching the popover/tooltip layer) — never anchored to the trigger that
+/** Fixed to the top-right, 8px below the 48px top nav (`top-14`), clear of
+ *  the canvas zoom controls (bottom-right) and the canvas toolbars (top-left).
+ *  Above everything else in the shell (`z-50`, matching the popover/tooltip
+ *  layer) — never anchored to the trigger that
  *  created it, since a toast is meant to read as coming from the app itself.
  *  `pointer-events-none` here (with `pointer-events-auto` on each `Toast`
  *  below) is the reference's own trick for letting clicks pass through the
@@ -63,7 +70,7 @@ function ToastViewport({ className, ...props }: ToastPrimitive.Viewport.Props) {
       <ToastPrimitive.Viewport
         data-slot="toast-viewport"
         className={cn(
-          "pointer-events-none fixed right-4 bottom-4 z-50 mx-auto flex w-[calc(100vw-2rem)] flex-col outline-none sm:w-90",
+          "pointer-events-none fixed top-14 right-4 z-50 mx-auto flex w-[calc(100vw-2rem)] flex-col outline-none sm:w-90",
           className
         )}
         {...props}
@@ -83,22 +90,17 @@ function Toast({ className, ...props }: ToastPrimitive.Root.Props) {
   return (
     <ToastPrimitive.Root
       data-slot="toast"
+      swipeDirection={["up", "right"]}
       className={cn(
-        "group/toast pointer-events-auto absolute right-0 bottom-0 z-[calc(1000-var(--toast-index))] w-full origin-bottom rounded-xl border bg-popover text-popover-foreground shadow-lg will-change-transform outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-        "[--gap:0.75rem] [--height:var(--toast-frontmost-height,var(--toast-height))] [--offset-y:calc(var(--toast-offset-y)*-1+calc(var(--toast-index)*var(--gap)*-1)+var(--toast-swipe-movement-y))] [--peek:0.75rem] [--scale:calc(max(0,1-(var(--toast-index)*0.1)))] [--shrink:calc(1-var(--scale))]",
-        "h-(--height) [transform:translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-(var(--toast-index)*var(--peek))-(var(--shrink)*var(--height))))_scale(var(--scale))] [transition:transform_500ms_cubic-bezier(0.22,1,0.36,1),opacity_500ms,height_150ms]",
+        "group/toast pointer-events-auto absolute top-0 right-0 z-[calc(1000-var(--toast-index))] w-full origin-top rounded-xl border bg-popover text-popover-foreground shadow-lg will-change-transform outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+        "[--gap:0.75rem] [--height:var(--toast-frontmost-height,var(--toast-height))] [--offset-y:calc(var(--toast-offset-y)+calc(var(--toast-index)*var(--gap))+var(--toast-swipe-movement-y))] [--peek:0.75rem] [--scale:calc(max(0,1-(var(--toast-index)*0.1)))] [--shrink:calc(1-var(--scale))]",
+        "h-(--height) [transform:translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)+(var(--toast-index)*var(--peek))+(var(--shrink)*var(--height))))_scale(var(--scale))] [transition:transform_500ms_cubic-bezier(0.22,1,0.36,1),opacity_500ms,height_150ms]",
         "after:absolute after:top-full after:left-0 after:h-[calc(var(--gap)+1px)] after:w-full after:content-['']",
         "data-expanded:h-(--toast-height) data-expanded:[transform:translateX(var(--toast-swipe-movement-x))_translateY(var(--offset-y))]",
-        "data-limited:opacity-0 data-starting-style:[transform:translateY(150%)]",
-        "[&[data-ending-style]:not([data-limited]):not([data-swipe-direction])]:[transform:translateY(150%)]",
-        "data-ending-style:data-[swipe-direction=down]:[transform:translateY(calc(var(--toast-swipe-movement-y)+150%))]",
-        "data-ending-style:data-[swipe-direction=left]:[transform:translateX(calc(var(--toast-swipe-movement-x)-150%))_translateY(var(--offset-y))]",
+        "data-limited:opacity-0 data-starting-style:opacity-0 data-starting-style:[transform:translateY(-150%)] data-ending-style:opacity-0",
+        "[&[data-ending-style]:not([data-limited]):not([data-swipe-direction])]:[transform:translateY(-150%)]",
         "data-ending-style:data-[swipe-direction=right]:[transform:translateX(calc(var(--toast-swipe-movement-x)+150%))_translateY(var(--offset-y))]",
-        "data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--toast-swipe-movement-y)-150%))]",
-        "data-expanded:data-ending-style:data-[swipe-direction=down]:[transform:translateY(calc(var(--toast-swipe-movement-y)+150%))]",
-        "data-expanded:data-ending-style:data-[swipe-direction=left]:[transform:translateX(calc(var(--toast-swipe-movement-x)-150%))_translateY(var(--offset-y))]",
-        "data-expanded:data-ending-style:data-[swipe-direction=right]:[transform:translateX(calc(var(--toast-swipe-movement-x)+150%))_translateY(var(--offset-y))]",
-        "data-expanded:data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--toast-swipe-movement-y)-150%))]",
+        "data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--offset-y)-150%))]",
         "motion-reduce:transition-none",
         className
       )}
