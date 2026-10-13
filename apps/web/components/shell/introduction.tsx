@@ -44,9 +44,17 @@ export function Introduction() {
   if (!shouldShowOverlay) return null
 
   return (
+    // Escape does what the X does (#56). Handled on the overlay, not the
+    // window: it isn't modal, so Escape pressed in the top nav (still live)
+    // belongs to whatever has focus there.
     <div
       role="dialog"
       aria-label="About Loupe"
+      onKeyDown={(event) => {
+        if (event.key !== "Escape") return
+        event.stopPropagation()
+        dismissIntroduction()
+      }}
       className="intro-overlay absolute inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm"
     >
       <div className="intro-dialog relative flex max-w-md flex-col gap-3 rounded-2xl border bg-card p-6 shadow-lg">

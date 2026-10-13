@@ -192,7 +192,10 @@ function BookSettings() {
         <p
           className={cn(
             "px-0 text-xs leading-relaxed",
-            check.isValidForSaddleStitch ? "text-muted-foreground" : "text-destructive",
+            // No pages yet is a starting point, not an error (#56).
+            check.isValidForSaddleStitch || project.frames.length === 0
+              ? "text-muted-foreground"
+              : "text-destructive",
           )}
         >
           {check.message}

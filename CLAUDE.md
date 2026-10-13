@@ -131,6 +131,9 @@ npm run verify:canvas-chrome # build with test hooks; at 10/50/100% zoom the
                      #   pasteboard and a white page, and shared by everything
 npm run verify:a11y-names # build; every inspector control is named after its
                      #   visible label in all four states; selected page/preset exposed
+npm run verify:small-fixes # build; toasts top-right under the nav (stack, hover,
+                     #   swipe), Escape closes the intro, empty saddle-stitch
+                     #   line not red, Cmd/Ctrl+Enter submits feedback
 ```
 
 Verifiers live in `scripts/verify/` and drive the real production build with Playwright (pinned to 1.56.1 to match the cloud image's Chromium; locally run `npx playwright install chromium` once). `npm run e2e` drives the real Export dialog; its header comment states the contract the PDF must meet. Set `LOUPE_URL=http://localhost:3000` to point a verifier at an already-running server. `verify:text-selection` reads `window.__loupeCanvas`, which exists only in a build made with `LOUPE_TEST_HOOKS=1` (inlined via `next.config.ts`; ordinary builds compile it out).
