@@ -61,3 +61,9 @@ surprises). Newest entries at the bottom.
 - Keys commit through the same `onChange` as a drag. Color changes go through `updateTextElement({ color })`, which never pushes an undo step, so both drags and keys record none (the issue's "at most one per keystroke" holds).
 - `aria-valuetext`: "Hue 165 degrees" and "Saturation 71%, brightness 78%". The hue's `aria-valuemax` is now 359, matching End. The square gained `aria-valuemin`/`aria-valuemax`.
 - `npm run verify:picker-keys` (new) passes 13/13. Negative control on `main`'s picker: fails.
+
+## 2026-10-13 — #25 full-width separators in the right sidebar (`issue-25-full-width-separators`)
+
+- One rule on the inspector's content column (`inspector-panel.tsx`): horizontal `[data-slot=separator]` descendants get `-mx-3 w-auto`, so they bleed through the `px-3` in every state. The shared `ui/separator.tsx` is unchanged. Margins are horizontal only, so vertical spacing is identical; the before/after pairs line up row for row.
+- `npm run verify:separators` (new) passes in all four states, with every divider at 1153–1440 (the panel's inner edges) and no horizontal scroll. Negative control on `main`'s inspector: all four fail (1165–1428).
+- New screenshot scenes `page-selected` and `image-selected`, plus helpers `firstPhotoPoint`, `placePhotoOnFirstPage` and `placeTextOnFirstPage` in `lib/app.mjs`. They find the first pasteboard photo by its saturated pixels, so they need no test hooks.

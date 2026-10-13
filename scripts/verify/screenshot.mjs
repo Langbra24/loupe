@@ -19,6 +19,7 @@ import {
   importPhotos,
   openApp,
   openColorPicker,
+  placePhotoOnFirstPage,
   settle,
   setupBook,
 } from "./lib/app.mjs"
@@ -65,6 +66,24 @@ const SCENES = {
     // The box is centered where it was placed, so this lands on it.
     await page.mouse.click(spot.x, spot.y)
     await page.getByRole("tablist", { name: "Text alignment" }).waitFor()
+  },
+  /** A page selected: the inspector's page (margins) state. */
+  "page-selected": async (page) => {
+    await dismissIntroduction(page)
+    await importPhotos(page)
+    await setupBook(page, { preset: "A5 Portrait", pageCount: 8 })
+    await settle(page)
+    const spot = await firstPageCenter(page)
+    await page.mouse.click(spot.x, spot.y)
+    await page.getByRole("heading", { name: "Margins", exact: true }).waitFor()
+  },
+  /** A photo dragged onto page 1 and selected: the inspector's image state. */
+  "image-selected": async (page) => {
+    await dismissIntroduction(page)
+    await importPhotos(page)
+    await setupBook(page, { preset: "A5 Portrait", pageCount: 8 })
+    await settle(page)
+    await placePhotoOnFirstPage(page)
   },
   /** A feedback submission the server can't file: the error toast over the
    *  popover with the draft kept. The route is stubbed in the browser so this

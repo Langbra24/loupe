@@ -138,9 +138,15 @@ export function InspectorPanel() {
   return (
     <aside className="flex h-full w-72 flex-col border-l bg-background">
       <ScrollArea className="min-h-0 flex-1">
+        {/* Section dividers bleed through the column's `px-3` to run edge to
+            edge (issue #25). Set here once for every inspector state, not on
+            the shared `Separator`, whose inset default other panels keep;
+            `w-auto` lets the negative margins widen it, where `w-full` would
+            only shift it. */}
         <div
           className={cn(
             "flex flex-col gap-6 px-3 pt-14 pb-4 transition-opacity motion-reduce:transition-none",
+            "[&_[data-slot=separator][data-orientation=horizontal]]:-mx-3 [&_[data-slot=separator][data-orientation=horizontal]]:w-auto",
             phase === "leaving" ? "opacity-0 duration-150 ease-in" : "opacity-100 duration-200 ease-out",
           )}
         >

@@ -92,7 +92,8 @@ npm run lint         # all workspaces
 npm test             # all workspaces (Vitest) + verifier self-tests
 npm run verify       # typecheck + lint + test + build — the baseline "done" gate
 npm run screenshot   # build, then save desktop PNGs to screenshots/ (gitignored)
-                     #   scenes: intro, shell, book, feedback-error, text-selected, color-picker-focus
+                     #   scenes: intro, shell, book, page-selected, image-selected, text-selected,
+                     #   feedback-error, color-picker-focus
                      #   — `npm run screenshot -- shell`
 npm run e2e          # build, import fixture photos, export a PDF, check page count
                      #   is a multiple of 4 and trim size matches (pdf-lib)
@@ -107,6 +108,8 @@ npm run verify:picker-focus # build, open the text Color picker, Tab through eve
                      #   channel field and slider; each must show a focus ring
 npm run verify:picker-keys # build; arrow/Shift/Home/End on the hue slider and the
                      #   saturation/value square move the color everywhere
+npm run verify:separators # build; in all four inspector states every divider
+                     #   spans the right panel's full inner width
 ```
 
 Verifiers live in `scripts/verify/` and drive the real production build with Playwright (pinned to 1.56.1 to match the cloud image's Chromium; locally run `npx playwright install chromium` once). `npm run e2e` drives the real Export dialog; its header comment states the contract the PDF must meet. Set `LOUPE_URL=http://localhost:3000` to point a verifier at an already-running server. `verify:text-selection` reads `window.__loupeCanvas`, which exists only in a build made with `LOUPE_TEST_HOOKS=1` (inlined via `next.config.ts`; ordinary builds compile it out).

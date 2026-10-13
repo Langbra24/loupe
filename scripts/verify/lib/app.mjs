@@ -116,14 +116,61 @@ export async function openColorPicker(page) {
   await importPhotos(page)
   await setupBook(page, { preset: "A5 Portrait", pageCount: 8 })
   await settle(page)
-  const spot = await firstPageCenter(page)
-  await page.keyboard.press("T")
-  await page.mouse.click(spot.x, spot.y)
-  await page.waitForTimeout(300)
-  await page.keyboard.type("Ink")
-  await page.keyboard.press("Escape")
+  await placeTextOnFirstPage(page)
   await page.getByRole("button", { name: /^#[0-9a-f]{6}$/i }).click()
   const popover = page.getByRole("tablist", { name: "Color input mode" }).locator("xpath=ancestor::*[@data-open][1]")
   await popover.waitFor()
   return popover
+}
+
+/**
+ * A point inside the first pasteboard photo, found from the canvas's pixels:
+ * the first strongly colored pixel in reading order. The background, the
+ * dot grid and the pages are all neutral greys, and the fixture photos are
+ * saturated gradients.
+ */
+export async function firstPhotoPoint(page) {
+  return page.evaluate(() => {
+    const canvas = document.querySelector("canvas.lower-canvas")
+    const { width, height } = canvas
+    const data = canvas.getContext("2d").getImageData(0, 0, width, height).data
+    for (let y = 0; y < height; y += 2) {
+      for (let x = 0; x < width; x += 2) {
+        const i = (y * width + x) * 4
+        const max = Math.max(data[i], data[i + 1], data[i + 2])
+        const min = Math.min(data[i], data[i + 1], data[i + 2])
+        if (max - min < 80) continue
+        // A few pixels in, so the press lands on the photo, not its edge.
+        const rect = canvas.getBoundingClientRect()
+        const scale = rect.width / width
+        return { x: rect.left + (x + 6) * scale, y: rect.top + (y + 6) * scale }
+      }
+    }
+    throw new Error("No pasteboard photo found on the canvas.")
+  })
+}
+
+/** Drags the first pasteboard photo onto page 1, then clicks it to select it. */
+export async function placePhotoOnFirstPage(page) {
+  const from = await firstPhotoPoint(page)
+  const to = await firstPageCenter(page)
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 8 })
+  await page.mouse.move(to.x, to.y, { steps: 8 })
+  await page.mouse.up()
+  await settle(page)
+  await page.mouse.click(to.x, to.y)
+  await page.getByRole("heading", { name: "Image", exact: true }).waitFor()
+}
+
+/** Places a text box on page 1 with the `T` tool and leaves it selected. */
+export async function placeTextOnFirstPage(page, text = "Ink") {
+  const spot = await firstPageCenter(page)
+  await page.keyboard.press("T")
+  await page.mouse.click(spot.x, spot.y)
+  await page.waitForTimeout(300)
+  await page.keyboard.type(text)
+  await page.keyboard.press("Escape")
+  await page.getByRole("tablist", { name: "Text alignment" }).waitFor()
 }
