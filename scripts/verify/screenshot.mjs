@@ -38,6 +38,22 @@ const SCENES = {
     await importPhotos(page)
     await setupBook(page, { preset: "A5 Portrait", pageCount: 12 })
   },
+  /** The text Color picker in the Paper reference's state (CMYK, #37bf7b),
+   *  also saved alone (color-picker-popover.png) for comparing with
+   *  docs/design/paper/colorpicker.png. */
+  "color-picker": async (page) => {
+    const popover = await openColorPicker(page)
+    await popover.getByRole("textbox", { name: "Hex color" }).fill("#37bf7b")
+    await popover.getByRole("tab", { name: "CMYK" }).click()
+    await page.mouse.move(0, 0)
+    await page.waitForTimeout(400)
+    const box = await popover.boundingBox()
+    await page.screenshot({
+      path: path.join(repoRoot, "screenshots", "color-picker-popover.png"),
+      clip: { x: box.x - 4, y: box.y - 4, width: box.width + 8, height: box.height + 8 },
+      scale: "device",
+    })
+  },
   /** The text Color picker with the G channel field keyboard-focused (#15). */
   "color-picker-focus": async (page) => {
     const popover = await openColorPicker(page)

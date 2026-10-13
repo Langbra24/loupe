@@ -104,6 +104,25 @@ surprises). Newest entries at the bottom.
 - The textarea placeholder ("What's wrong, missing, or confusing?") stays: it asks *what*, the line asks for *detail*. The success toast is unchanged.
 - New screenshot scene `feedback` (the open, empty popover). No verifier asserted the old copy; `verify:feedback` passes unchanged.
 
+## 2026-10-13 — #27 color changes are undoable (`issue-27-color-undo`)
+
+- `updateTextElement` pushes an undo step when `color` changes, through a `colorCommand` that sets the color back or forward. Re-setting the same color pushes nothing.
+- Gestures: `beginTextColorGesture` / `endTextColorGesture` coalesce everything in between into one step, pushed at the end only if the color moved. They nest with a depth counter, because a press on the hue slider begins before the hex field it took focus from has blurred.
+- Picker wiring (`color-picker.tsx`): a square or hue drag is a gesture (pointerdown → pointerup/pointercancel). The hex and channel fields are gestures from focus to blur, so typing a hex char by char is one step. Arrow keys: **one step per keypress**, not coalesced (a held key gives one step per repeat).
+- Still not undoable: `role`, `align`, `fontSize` and `fontFamily` on text. Listed for the maintainer, not fixed here.
+- Tests: 3 store tests (single change, coalesced gesture, no-op), each undone and redone. `npm run verify:color-undo` (new) passes 7/7: one undo reverts a 20-step drag, a second reverts the typed hex, and redo reapplies both. It fails on `main`.
+
+## 2026-10-13 — #7 color picker matches the Paper reference (`issue-7-color-picker-paper`)
+
+- Reference: `docs/design/paper/colorpicker.png` (698×761). Measured, it's the same 290px popover at ~2.297×: the square comes out at exactly 160px.
+- Changes in `color-picker.tsx`:
+  - the CMYK channel boxes overflowed the popover; fixed with `min-w-0` on each box;
+  - 20px (was 8px) above the hex row and the channel row;
+  - the hex field is 30px tall to match the swatch, in sans `text-sm` (was mono `text-xs`);
+  - the segmented control has a visible track (`bg-input/70`, 3px inset, `rounded-sm` pill);
+  - popover `rounded-xl` → `rounded-lg`; square `rounded-lg` → `rounded-md`.
+- Kept: #15's focus rings, #21's arrow keys, all tokens. New scene `color-picker` (CMYK, #37bf7b) also saves the popover alone as `color-picker-popover.png`.
+
 ## 2026-10-13 — #40 left-align the page sidebar's fields (`issue-40-page-sidebar-paper`)
 
 - Narrowed by the maintainer to one change: text in the page-selected sidebar's fields is left-aligned. Page size (`StaticFieldBox`, used only there) now uses `text-left`. The four Margin fields pass a new opt-in `align="left"` to the shared `NumberField`, whose default stays right, so the image sidebar's X/Y/W/H are unchanged. Position (a select) was already left-aligned.

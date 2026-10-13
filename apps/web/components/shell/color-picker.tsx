@@ -40,7 +40,22 @@ type ColorInputMode = "rgb" | "cmyk"
  * value — CMYK exists because this is a print layout tool, and CMYK is how
  * a print professional actually thinks about ink, not a screen's RGB.
  */
-export function ColorField({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
+export function ColorField({
+  value,
+  onChange,
+  onGestureStart,
+  onGestureEnd,
+}: {
+  value: string
+  onChange: (hex: string) => void
+  /** Bracket one color gesture — a drag on the square or hue slider, or a
+   *  spell of typing in the hex or channel fields — so undo treats it as one
+   *  step (#27). Arrow keys on the sliders aren't bracketed: each press is a
+   *  step of its own. */
+  onGestureStart?: () => void
+  onGestureEnd?: () => void
+}) {
+  const typing = { onFocus: onGestureStart, onBlur: onGestureEnd }
   const [mode, setMode] = useState<ColorInputMode>("rgb")
   const [hexDraft, setHexDraft] = useState(value)
   const [lastCommittedValue, setLastCommittedValue] = useState(value)
@@ -114,29 +129,39 @@ export function ColorField({ value, onChange }: { value: string; onChange: (hex:
             the reference this was built against:
             https://app.paper.design/file/01K98TQ792YZPT540WYSV69H6K/01K98TQ792S0C6FZ5FV97B0HHP/TF-0 */}
         <Popover.Positioner side="left" align="end" sideOffset={8}>
-          <Popover.Popup className="z-50 flex w-[290px] origin-(--transform-origin) flex-col gap-2 rounded-xl border bg-popover p-2 text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
+          <Popover.Popup className="z-50 flex w-[290px] origin-(--transform-origin) flex-col gap-2 rounded-lg border bg-popover p-2 text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
             <Tabs value={mode} onValueChange={(next) => setMode(next as ColorInputMode)}>
-              <TabsList aria-label="Color input mode" className="gap-1">
-                <TabsIndicator />
-                <TabsTab value="rgb">RGB</TabsTab>
-                <TabsTab value="cmyk">CMYK</TabsTab>
+              <TabsList aria-label="Color input mode" className="gap-1 rounded-md bg-input/70 p-[3px]">
+                <TabsIndicator className="rounded-sm" />
+                <TabsTab value="rgb" className="rounded-sm">
+                  RGB
+                </TabsTab>
+                <TabsTab value="cmyk" className="rounded-sm">
+                  CMYK
+                </TabsTab>
               </TabsList>
             </Tabs>
 
-            <SaturationValuePicker hsv={hsv} onChange={commitHsv} />
+            <SaturationValuePicker
+              hsv={hsv}
+              onChange={commitHsv}
+              onGestureStart={onGestureStart}
+              onGestureEnd={onGestureEnd}
+            />
 
-            <div className="flex items-center gap-2">
+            <div className="mt-3 flex items-center gap-2">
               <span
                 className="size-[30px] shrink-0 rounded-md border border-white/10"
                 style={{ backgroundColor: value }}
               />
               <input
                 type="text"
+                {...typing}
                 aria-label="Hex color"
                 value={hexDraft}
                 onChange={(event) => commitHex(event.target.value)}
                 spellCheck={false}
-                className="w-full rounded-md border bg-input/30 px-2 py-1 font-mono text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="h-[30px] w-full rounded-md border bg-input/30 px-2 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               />
             </div>
 
@@ -146,19 +171,19 @@ export function ColorField({ value, onChange }: { value: string; onChange: (hex:
                 CMYK panel visibly taller than the RGB one, which is what
                 actually caused the "moved up on toggle" bug above: a taller
                 popup no longer fit below the trigger and got flipped. */}
-            <div className="flex items-stretch justify-between gap-2">
+            <div className="mt-3 flex items-stretch justify-between gap-2">
               {mode === "rgb" ? (
                 <>
-                  <ColorChannelField label="R" value={rgb.r} max={255} onChange={(r) => setRgbChannel({ r })} />
-                  <ColorChannelField label="G" value={rgb.g} max={255} onChange={(g) => setRgbChannel({ g })} />
-                  <ColorChannelField label="B" value={rgb.b} max={255} onChange={(b) => setRgbChannel({ b })} />
+                  <ColorChannelField label="R" {...typing} value={rgb.r} max={255} onChange={(r) => setRgbChannel({ r })} />
+                  <ColorChannelField label="G" {...typing} value={rgb.g} max={255} onChange={(g) => setRgbChannel({ g })} />
+                  <ColorChannelField label="B" {...typing} value={rgb.b} max={255} onChange={(b) => setRgbChannel({ b })} />
                 </>
               ) : (
                 <>
-                  <ColorChannelField label="C" value={cmyk.c} max={100} onChange={(c) => setCmykChannel({ c })} />
-                  <ColorChannelField label="M" value={cmyk.m} max={100} onChange={(m) => setCmykChannel({ m })} />
-                  <ColorChannelField label="Y" value={cmyk.y} max={100} onChange={(y) => setCmykChannel({ y })} />
-                  <ColorChannelField label="K" value={cmyk.k} max={100} onChange={(k) => setCmykChannel({ k })} />
+                  <ColorChannelField label="C" {...typing} value={cmyk.c} max={100} onChange={(c) => setCmykChannel({ c })} />
+                  <ColorChannelField label="M" {...typing} value={cmyk.m} max={100} onChange={(m) => setCmykChannel({ m })} />
+                  <ColorChannelField label="Y" {...typing} value={cmyk.y} max={100} onChange={(y) => setCmykChannel({ y })} />
+                  <ColorChannelField label="K" {...typing} value={cmyk.k} max={100} onChange={(k) => setCmykChannel({ k })} />
                 </>
               )}
             </div>
@@ -184,17 +209,23 @@ function ColorChannelField({
   value,
   max,
   onChange,
+  onFocus,
+  onBlur,
 }: {
+  onFocus?: () => void
+  onBlur?: () => void
   label: string
   value: number
   max: number
   onChange: (value: number) => void
 }) {
   return (
-    <label className="flex flex-1 items-center justify-between gap-1 rounded-md border bg-input/30 px-2 py-1 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+    <label className="flex min-w-0 flex-1 items-center justify-between gap-1 rounded-md border bg-input/30 px-2 py-1 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <input
         type="number"
+        onFocus={onFocus}
+        onBlur={onBlur}
         step={1}
         min={0}
         max={max}
@@ -241,7 +272,17 @@ const HUE_TRACK_WIDTH_PX = 14
  * bounds mid-drag (dragging the handle to the edge and past it, a normal
  * gesture), without needing to attach/detach global listeners by hand.
  */
-function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (next: HsvColor) => void }) {
+function SaturationValuePicker({
+  hsv,
+  onChange,
+  onGestureStart,
+  onGestureEnd,
+}: {
+  hsv: HsvColor
+  onChange: (next: HsvColor) => void
+  onGestureStart?: () => void
+  onGestureEnd?: () => void
+}) {
   const squareRef = useRef<HTMLDivElement>(null)
   const hueRef = useRef<HTMLDivElement>(null)
 
@@ -280,6 +321,7 @@ function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (ne
     const square = squareRef.current
     if (!square) return
     square.setPointerCapture(event.pointerId)
+    onGestureStart?.()
 
     const update = (clientX: number, clientY: number) => {
       const rect = square.getBoundingClientRect()
@@ -295,15 +337,19 @@ function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (ne
     const onUp = () => {
       square.removeEventListener("pointermove", onMove)
       square.removeEventListener("pointerup", onUp)
+      square.removeEventListener("pointercancel", onUp)
+      onGestureEnd?.()
     }
     square.addEventListener("pointermove", onMove)
     square.addEventListener("pointerup", onUp)
+    square.addEventListener("pointercancel", onUp)
   }
 
   const handleHuePointer = (event: ReactPointerEvent<HTMLDivElement>) => {
     const track = hueRef.current
     if (!track) return
     track.setPointerCapture(event.pointerId)
+    onGestureStart?.()
 
     const update = (clientY: number) => {
       const rect = track.getBoundingClientRect()
@@ -319,9 +365,12 @@ function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (ne
     const onUp = () => {
       track.removeEventListener("pointermove", onMove)
       track.removeEventListener("pointerup", onUp)
+      track.removeEventListener("pointercancel", onUp)
+      onGestureEnd?.()
     }
     track.addEventListener("pointermove", onMove)
     track.addEventListener("pointerup", onUp)
+    track.addEventListener("pointercancel", onUp)
   }
 
   return (
@@ -337,7 +386,7 @@ function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (ne
         aria-valuemax={100}
         aria-valuetext={`Saturation ${saturation}%, brightness ${brightness}%`}
         tabIndex={0}
-        className="relative flex-1 cursor-crosshair touch-none rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="relative flex-1 cursor-crosshair touch-none rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         style={{
           backgroundColor: pureHueHex,
           backgroundImage:
