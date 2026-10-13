@@ -104,6 +104,8 @@ npm run verify:text-selection # build with test hooks, place a text box with T;
                      #   single click selects, double click edits at the caret
 npm run verify:picker-focus # build, open the text Color picker, Tab through every
                      #   channel field and slider; each must show a focus ring
+npm run verify:frame-cycling # build with test hooks; first Tab reaches the UI,
+                     #   ] / [ cycle the focused frame, [ types normally in fields
 ```
 
 Verifiers live in `scripts/verify/` and drive the real production build with Playwright (pinned to 1.56.1 to match the cloud image's Chromium; locally run `npx playwright install chromium` once). `npm run e2e` drives the real Export dialog; its header comment states the contract the PDF must meet. Set `LOUPE_URL=http://localhost:3000` to point a verifier at an already-running server. `verify:text-selection` reads `window.__loupeCanvas`, which exists only in a build made with `LOUPE_TEST_HOOKS=1` (inlined via `next.config.ts`; ordinary builds compile it out).

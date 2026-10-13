@@ -55,6 +55,15 @@ export function AppShell() {
     reorderFrameById,
   })
 
+  // Nothing on the canvas shows the focused frame yet, so verifiers read it
+  // here (scripts/verify/frame-cycling.mjs). Compiled out of ordinary builds;
+  // see `LOUPE_TEST_HOOKS` in next.config.ts.
+  useEffect(() => {
+    if (process.env.LOUPE_TEST_HOOKS === "1") {
+      ;(window as unknown as { __loupeFocusedFrameIndex?: number | null }).__loupeFocusedFrameIndex = focusedFrameIndex
+    }
+  }, [focusedFrameIndex])
+
   return (
     <ToastProvider>
       <div className="flex h-svh flex-col overflow-hidden">

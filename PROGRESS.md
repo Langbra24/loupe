@@ -47,3 +47,11 @@ surprises). Newest entries at the bottom.
 - The square and hue slider have `role="slider"` but no arrow-key handling. Noted, not built (per the issue).
 - `npm run verify:picker-focus` (new) passes 12/12. Negative control on `main`'s components: 9 failures.
 - New screenshot scene `color-picker-focus`. Shared helpers `firstPageCenter` / `openColorPicker` are in `scripts/verify/lib/app.mjs`. PR #16's `screenshot.mjs` has its own `firstPageCenter`; whichever merges second should import this one instead.
+
+## 2026-10-13 — #19 frame cycling on `[` / `]` (`issue-19-bracket-frame-cycling`)
+
+- Frame cycling (R30) moved from Tab to `]` (next) / `[` (previous), wrapping at both ends. Tab is never handled, so #17's body-only guard is gone. Cmd/Ctrl+Arrow reorder is unchanged.
+- The typing guard moved into the pure `handleFrameKeyDown` (as an `isTypingTarget` flag) so it's unit-tested. Ctrl/Cmd/Alt + bracket is left to the browser, except AltGr: Windows reports it as Ctrl+Alt, and German-style layouts need it to type brackets. Mac layouts that type brackets with Option are still excluded by the Alt rule.
+- Nothing on the canvas shows the focused frame (a bare index in `app-shell.tsx`). This is a separate design question. `window.__loupeFocusedFrameIndex` exposes it in `LOUPE_TEST_HOOKS=1` builds only.
+- `npm run verify:frame-cycling` (new) passes. Negative control with `main`'s shortcut code: 3 failures. The unit tests (25) cover brackets with wrap, Tab never claimed, inert while typing, and modifiers.
+- The plan doc's "Tab-based element cycling" (2026-08-22 plan, U-unit file list) is historical and left as written.

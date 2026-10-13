@@ -70,9 +70,9 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 
 export interface FrameKeyboardOptions {
   enabled: boolean
-  /** Total number of frames — reorder and Tab-cycling both need the bound. */
+  /** Total number of frames — reorder and `[`/`]` cycling both need the bound. */
   frameCount: number
-  /** Which frame Tab-cycling currently has landed on. `null` means none. */
+  /** Which frame `[`/`]` cycling has landed on. `null` means none. */
   focusedFrameIndex: number | null
   setFocusedFrameIndex: (index: number | null) => void
   reorderFrameById: (from: number, to: number) => void
@@ -81,16 +81,27 @@ export interface FrameKeyboardOptions {
 /** The DOM-facing half of {@link handleFrameKeyDown} — everything below the
  *  event-listener wiring is deliberately separated out so it can be called
  *  directly in a test without simulating a real keydown. */
-type FrameKeyEvent = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey"> & {
+type FrameKeyEvent = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey"> & {
   preventDefault: () => void
+  /** `isTypingTarget(event.target)`, resolved by the caller so this stays
+   *  testable without a DOM. Fabric's text editing counts: it types into a
+   *  hidden textarea. */
+  isTypingTarget: boolean
+  /** AltGr is held. Windows reports it as Ctrl+Alt, and layouts such as
+   *  German type `[`/`]` with it, so it doesn't count as a modifier. */
+  altGraph: boolean
 }
 
 /**
  * Keyboard reach for the two drag-only frame actions (R30): reordering a
  * frame, and selecting/cycling which frame is focused.
  *
- * - `Tab` / `Shift+Tab` cycles the focused frame, wrapping at both ends —
- *   this is the keyboard equivalent of clicking a frame to select it.
+ * - `]` / `[` focuses the next / previous frame, wrapping at both ends —
+ *   the keyboard equivalent of clicking a frame to select it. This was Tab
+ *   until issue #19: claiming Tab meant keyboard users could never Tab into
+ *   the toolbar, panels, or dialogs. Tab is now plain browser focus
+ *   movement, never handled here. With Ctrl/Cmd/Alt held, the brackets are
+ *   left to the browser (AltGr aside, see `FrameKeyEvent.altGraph`).
  * - `Cmd/Ctrl+ArrowLeft` / `Cmd/Ctrl+ArrowRight` moves the focused frame one
  *   position earlier/later — the modifier is required so a bare arrow key
  *   stays free for whatever normal focus movement ends up wanting it, and so
@@ -103,12 +114,13 @@ type FrameKeyEvent = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftK
  */
 export function handleFrameKeyDown(event: FrameKeyEvent, options: Omit<FrameKeyboardOptions, "enabled">): void {
   const { frameCount, focusedFrameIndex, setFocusedFrameIndex, reorderFrameById } = options
-  if (frameCount === 0) return
+  if (frameCount === 0 || event.isTypingTarget) return
 
-  if (event.key === "Tab") {
+  if (event.key === "]" || event.key === "[") {
+    if (!event.altGraph && (event.ctrlKey || event.metaKey || event.altKey)) return
     event.preventDefault()
-    const step = event.shiftKey ? -1 : 1
-    const base = focusedFrameIndex ?? (event.shiftKey ? 0 : -1)
+    const step = event.key === "]" ? 1 : -1
+    const base = focusedFrameIndex ?? (step < 0 ? 0 : -1)
     const next = ((base + step) % frameCount + frameCount) % frameCount
     setFocusedFrameIndex(next)
     return
@@ -143,18 +155,22 @@ export function useFrameKeyboardShortcuts({
     if (!enabled) return
 
     const onKeyDown = (event: KeyboardEvent) => {
-      // Tab and Ctrl/Cmd+Arrow are both keys the rest of the app relies on for
-      // normal focus movement and text editing, so this only claims them when
-      // focus isn't already inside an input, textarea, select, or editable
-      // region — mirroring the guard the (now-removed) theme hotkey used.
-      if (isTypingTarget(event.target)) return
-      // Once any control has focus (a button, a tab, a slider), Tab is that
-      // control's way out. Claiming it there trapped keyboard users inside
-      // whatever they had focused (issue #15), so frames only cycle while
-      // nothing in particular has focus.
-      if (event.key === "Tab" && event.target !== document.body) return
-
-      handleFrameKeyDown(event, { frameCount, focusedFrameIndex, setFocusedFrameIndex, reorderFrameById })
+      // The brackets and Ctrl/Cmd+Arrow are both keys text editing relies on,
+      // so none of this applies while focus is in an input, textarea, select,
+      // or editable region (`handleFrameKeyDown` checks the flag).
+      handleFrameKeyDown(
+        {
+          key: event.key,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          altKey: event.altKey,
+          shiftKey: event.shiftKey,
+          preventDefault: () => event.preventDefault(),
+          isTypingTarget: isTypingTarget(event.target),
+          altGraph: event.getModifierState("AltGraph"),
+        },
+        { frameCount, focusedFrameIndex, setFocusedFrameIndex, reorderFrameById },
+      )
     }
 
     window.addEventListener("keydown", onKeyDown)

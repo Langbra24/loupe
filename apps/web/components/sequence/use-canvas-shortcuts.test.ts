@@ -7,12 +7,25 @@ import { handleFrameKeyDown, shouldCreateTextbox } from "@/components/sequence/u
  * there is no browser test runner in this repo (see CLAUDE.md / vitest.config.ts),
  * so this is the honest substitute for wiring-level coverage.
  */
-function fakeEvent(overrides: Partial<{ key: string; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }>) {
+function fakeEvent(
+  overrides: Partial<{
+    key: string
+    ctrlKey: boolean
+    metaKey: boolean
+    altKey: boolean
+    shiftKey: boolean
+    isTypingTarget: boolean
+    altGraph: boolean
+  }>,
+) {
   return {
     key: overrides.key ?? "",
     ctrlKey: overrides.ctrlKey ?? false,
     metaKey: overrides.metaKey ?? false,
+    altKey: overrides.altKey ?? false,
     shiftKey: overrides.shiftKey ?? false,
+    isTypingTarget: overrides.isTypingTarget ?? false,
+    altGraph: overrides.altGraph ?? false,
     preventDefault: vi.fn(),
   }
 }
@@ -21,7 +34,7 @@ describe("handleFrameKeyDown", () => {
   it("does nothing when there are no frames", () => {
     const setFocusedFrameIndex = vi.fn()
     const reorderFrameById = vi.fn()
-    handleFrameKeyDown(fakeEvent({ key: "Tab" }), {
+    handleFrameKeyDown(fakeEvent({ key: "]" }), {
       frameCount: 0,
       focusedFrameIndex: null,
       setFocusedFrameIndex,
@@ -31,9 +44,9 @@ describe("handleFrameKeyDown", () => {
     expect(reorderFrameById).not.toHaveBeenCalled()
   })
 
-  it("Tab focuses the first frame when nothing is focused yet", () => {
+  it("] focuses the first frame when nothing is focused yet", () => {
     const setFocusedFrameIndex = vi.fn()
-    const event = fakeEvent({ key: "Tab" })
+    const event = fakeEvent({ key: "]" })
     handleFrameKeyDown(event, {
       frameCount: 3,
       focusedFrameIndex: null,
@@ -44,9 +57,20 @@ describe("handleFrameKeyDown", () => {
     expect(setFocusedFrameIndex).toHaveBeenCalledWith(0)
   })
 
-  it("Tab cycles forward and wraps at the end", () => {
+  it("[ focuses the last frame when nothing is focused yet", () => {
     const setFocusedFrameIndex = vi.fn()
-    handleFrameKeyDown(fakeEvent({ key: "Tab" }), {
+    handleFrameKeyDown(fakeEvent({ key: "[" }), {
+      frameCount: 3,
+      focusedFrameIndex: null,
+      setFocusedFrameIndex,
+      reorderFrameById: vi.fn(),
+    })
+    expect(setFocusedFrameIndex).toHaveBeenCalledWith(2)
+  })
+
+  it("] cycles forward and wraps at the end", () => {
+    const setFocusedFrameIndex = vi.fn()
+    handleFrameKeyDown(fakeEvent({ key: "]" }), {
       frameCount: 3,
       focusedFrameIndex: 2,
       setFocusedFrameIndex,
@@ -55,15 +79,79 @@ describe("handleFrameKeyDown", () => {
     expect(setFocusedFrameIndex).toHaveBeenCalledWith(0)
   })
 
-  it("Shift+Tab cycles backward and wraps at the start", () => {
+  it("[ cycles backward and wraps at the start", () => {
     const setFocusedFrameIndex = vi.fn()
-    handleFrameKeyDown(fakeEvent({ key: "Tab", shiftKey: true }), {
+    handleFrameKeyDown(fakeEvent({ key: "[" }), {
       frameCount: 3,
       focusedFrameIndex: 0,
       setFocusedFrameIndex,
       reorderFrameById: vi.fn(),
     })
     expect(setFocusedFrameIndex).toHaveBeenCalledWith(2)
+  })
+
+  it.each([{}, { shiftKey: true }])("never claims Tab (%o), so it stays browser focus movement", (modifiers) => {
+    const setFocusedFrameIndex = vi.fn()
+    const event = fakeEvent({ key: "Tab", ...modifiers })
+    handleFrameKeyDown(event, {
+      frameCount: 3,
+      focusedFrameIndex: 1,
+      setFocusedFrameIndex,
+      reorderFrameById: vi.fn(),
+    })
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(setFocusedFrameIndex).not.toHaveBeenCalled()
+  })
+
+  it.each(["[", "]"])("%s is inert while typing in a field or text box", (key) => {
+    const setFocusedFrameIndex = vi.fn()
+    const event = fakeEvent({ key, isTypingTarget: true })
+    handleFrameKeyDown(event, {
+      frameCount: 3,
+      focusedFrameIndex: 1,
+      setFocusedFrameIndex,
+      reorderFrameById: vi.fn(),
+    })
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(setFocusedFrameIndex).not.toHaveBeenCalled()
+  })
+
+  it.each([{ ctrlKey: true }, { metaKey: true }, { altKey: true }])(
+    "leaves a bracket with %o to the browser",
+    (modifiers) => {
+      const setFocusedFrameIndex = vi.fn()
+      const event = fakeEvent({ key: "]", ...modifiers })
+      handleFrameKeyDown(event, {
+        frameCount: 3,
+        focusedFrameIndex: 1,
+        setFocusedFrameIndex,
+        reorderFrameById: vi.fn(),
+      })
+      expect(event.preventDefault).not.toHaveBeenCalled()
+      expect(setFocusedFrameIndex).not.toHaveBeenCalled()
+    },
+  )
+
+  it("claims a bracket typed with AltGr (reported as Ctrl+Alt), as on a German layout", () => {
+    const setFocusedFrameIndex = vi.fn()
+    handleFrameKeyDown(fakeEvent({ key: "]", ctrlKey: true, altKey: true, altGraph: true }), {
+      frameCount: 3,
+      focusedFrameIndex: 1,
+      setFocusedFrameIndex,
+      reorderFrameById: vi.fn(),
+    })
+    expect(setFocusedFrameIndex).toHaveBeenCalledWith(2)
+  })
+
+  it("Ctrl+ArrowRight is inert while typing", () => {
+    const reorderFrameById = vi.fn()
+    handleFrameKeyDown(fakeEvent({ key: "ArrowRight", ctrlKey: true, isTypingTarget: true }), {
+      frameCount: 3,
+      focusedFrameIndex: 1,
+      setFocusedFrameIndex: vi.fn(),
+      reorderFrameById,
+    })
+    expect(reorderFrameById).not.toHaveBeenCalled()
   })
 
   it("a bare ArrowLeft/ArrowRight (no modifier) does nothing", () => {
