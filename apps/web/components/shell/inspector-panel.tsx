@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useId, useState } from "react"
-import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon } from "lucide-react"
+import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, CheckIcon } from "lucide-react"
 import {
   checkPageCount,
   presetImageBox,
@@ -173,6 +173,7 @@ function SidebarContent({ selection }: { selection: Selection }) {
 
 function BookSettings() {
   const project = useEditorStore((state) => state.project)
+  const addFrame = useEditorStore((state) => state.addFrame)
   // Frames are the book-in-progress under this data model (there is no
   // separate commit step populating `project.pages` yet — see CLAUDE.md's
   // Sequence-funnel notes), so `frames.length` is the real page count to
@@ -186,6 +187,19 @@ function BookSettings() {
         <Row label="Page size" value={project.pageSize.name} />
         <Row label="Trim" value={`${project.pageSize.width} × ${project.pageSize.height} mm`} />
         <Row label="Pages" value={String(project.frames.length)} />
+        {/* The keyboard route to the empty canvas's right-click "Add new
+            page" (#51): same action, a blank page at the end of the book.
+            Only once a book exists — before setup, the setup dialog makes
+            the pages. */}
+        {project.frames.length > 0 && (
+          <button
+            type="button"
+            onClick={() => addFrame(project.pageSize)}
+            className="mt-2 flex h-7 items-center justify-center rounded-md border bg-input/30 px-1.5 text-[0.7rem] leading-tight font-medium text-foreground transition-colors hover:bg-input/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            Add page
+          </button>
+        )}
       </Section>
       <Separator />
       <Section title="Saddle stitch">
@@ -224,6 +238,7 @@ function FrameSettings({ frameId }: { frameId: string }) {
   const frameCount = useEditorStore((state) => state.project.frames.length)
   const updateFrameMargins = useEditorStore((state) => state.updateFrameMargins)
   const reorderFrameById = useEditorStore((state) => state.reorderFrameById)
+  const setFrameCover = useEditorStore((state) => state.setFrameCover)
 
   if (!frame) return <Hint>This frame no longer exists.</Hint>
 
@@ -252,6 +267,10 @@ function FrameSettings({ frameId }: { frameId: string }) {
             frameCount={frameCount}
             onChange={(next) => reorderFrameById(frame.position, next)}
           />
+          <CoverToggle
+            checked={frame.isCover ?? false}
+            onChange={(isCover) => setFrameCover(frameId, isCover)}
+          />
         </div>
       </Section>
       <Separator />
@@ -269,6 +288,46 @@ function FrameSettings({ frameId }: { frameId: string }) {
         <Row label="Bleed" value={`${BLEED_MM} mm`} />
       </Section>
     </>
+  )
+}
+
+/**
+ * The keyboard route to "Set as cover" (#51), which otherwise lives only in
+ * the canvas's right-click menus. Same store action, so it behaves the same:
+ * turning it on moves the page to the front of the book, turning it off
+ * leaves the page where it is, and either is one undo step.
+ *
+ * A native checkbox, not a button-based switch: the canvas's window-level
+ * Space handler (hold-to-pan) skips inputs but not buttons, so Space only
+ * toggles a control that's a real `<input>`.
+ */
+function CoverToggle({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+  const hintId = useId()
+  // The box's outline is the only thing that shows an unchecked checkbox is
+  // there, so it takes `muted-foreground` (over 3:1 on the panel), not the
+  // `--border` hairline the text fields can get away with.
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="flex items-center justify-between gap-3 py-0.5 text-sm">
+        <span className="text-foreground">Cover</span>
+        <span className="relative flex size-4 items-center justify-center">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={(event) => onChange(event.target.checked)}
+            aria-describedby={hintId}
+            className="peer size-4 appearance-none rounded-[4px] border border-muted-foreground bg-input/30 transition-colors checked:border-primary checked:bg-primary focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          />
+          <CheckIcon
+            aria-hidden
+            className="pointer-events-none absolute size-3 text-primary-foreground opacity-0 peer-checked:opacity-100"
+          />
+        </span>
+      </label>
+      <p id={hintId} className="text-xs leading-relaxed text-muted-foreground">
+        A cover moves to page 1.
+      </p>
+    </div>
   )
 }
 

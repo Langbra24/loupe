@@ -32,7 +32,8 @@
     "verify:book-overview": "npm run build && node scripts/verify/book-overview.mjs",
     "verify:book-setup": "npm run build && node scripts/verify/book-setup.mjs",
     "verify:canvas-chrome": "LOUPE_TEST_HOOKS=1 npm run build && node scripts/verify/canvas-chrome.mjs",
-    "verify:a11y-names": "npm run build && node scripts/verify/a11y-names.mjs"
+    "verify:a11y-names": "npm run build && node scripts/verify/a11y-names.mjs",
+    "verify:cover-toggle": "LOUPE_TEST_HOOKS=1 npm run build && node scripts/verify/cover-toggle.mjs"
   },
   "devDependencies": {
     "pdf-lib": "^1.17.1",

@@ -191,3 +191,11 @@ surprises). Newest entries at the bottom.
 - PRs #61 (#58), #62 (#54), #63 (#57), #64 (#55), #65 (#50) merged in that order, each after merging `main` into its branch. Append conflicts in `package.json`, `CLAUDE.md` and `PROGRESS.md` kept both sides; `screenshot.mjs` kept both new scenes.
 - Combined, two verifiers broke on #65's renames: `book-overview.mjs` looked for the Color trigger as `#…` and `canvas-chrome.mjs` for the zoom readout as `N%`. Both now use the new names ("Color #…", "Zoom N%…"), committed on #65.
 - On the combined tree (identical to `main` after the merges): `npm run verify` passes; all 17 verifiers, including e2e 3/3, pass; all 13 screenshot scenes render.
+
+## 2026-10-13 — #51 Set as cover from the sidebar, by keyboard (`issue-51-cover-toggle`)
+
+- **Cover checkbox** in the page inspector's Layout section, under Position. It calls `setFrameCover`, the same action as the right-click menu (which keeps its item). Checking it sets `isCover` and moves the page to the front; unchecking clears the flag and leaves the page where it is. Either way it's one undo step, and undo puts the page back at its old index. A native `<input type="checkbox">`, because the canvas's window-level Space handler (hold to pan) skips inputs but swallows Space on buttons.
+- **Add page** button in the nothing-selected Book settings: `addFrame(pageSize)`, the empty-canvas menu's "Add new page".
+- Every other context-menu action already had a non-mouse route: image presets → the sidebar's Layout preset buttons; Delete page → Backspace/Delete on a selected page.
+- `npm run verify:cover-toggle` (new, test-hooks build) selects page 3, toggles Cover and adds a page using only the keyboard. It checks the stored order, the Position field, the Book list, the canvas badge and Ctrl+Z. It fails on main's app code (no Cover checkbox). `verify:a11y-names` now also expects "Cover" and "Add page".
+- Known gaps, not fixed here: Ctrl+Z does nothing while focus is on the checkbox itself (the undo shortcut leaves every `<input>` to the browser). Space can't press any button, app-wide (the pan handler). After a page is selected, the keyboard has no way back to nothing selected.
