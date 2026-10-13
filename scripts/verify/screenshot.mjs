@@ -112,10 +112,10 @@ const SCENES = {
     await dialog.waitFor()
     const info = dialog.getByRole("button", { name: "Why blank pages are added" })
     if (await info.count()) {
-      for (let i = 0; i < 12; i++) {
-        await page.keyboard.press("Tab")
-        if (await info.evaluate((button) => document.activeElement === button)) break
-      }
+      // Shift+Tab from the first format radio is one keyboard step onto the
+      // info control (see e2e-export.mjs for why cycling Tab was flaky).
+      await dialog.getByRole("radio").first().focus()
+      await page.keyboard.press("Shift+Tab")
       await page.getByText(/sheets folded in half/).waitFor()
     }
     await page.waitForTimeout(400)
