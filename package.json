@@ -20,7 +20,8 @@
     "screenshot": "npm run build && node scripts/verify/screenshot.mjs",
     "e2e": "npm run build && node scripts/verify/e2e-export.mjs",
     "verify:rename": "npm run build && node scripts/verify/rename.mjs",
-    "verify:feedback": "npm run build && node scripts/verify/feedback.mjs"
+    "verify:feedback": "npm run build && node scripts/verify/feedback.mjs",
+    "verify:picker-focus": "npm run build && node scripts/verify/color-picker-focus.mjs"
   },
   "devDependencies": {
     "pdf-lib": "^1.17.1",

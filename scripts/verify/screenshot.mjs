@@ -12,7 +12,7 @@
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
 
-import { DESKTOP_VIEWPORT, dismissIntroduction, importPhotos, openApp, settle, setupBook } from "./lib/app.mjs"
+import { DESKTOP_VIEWPORT, dismissIntroduction, importPhotos, openApp, openColorPicker, settle, setupBook } from "./lib/app.mjs"
 import { repoRoot, startApp } from "./lib/server.mjs"
 
 const SCENES = {
@@ -27,6 +27,13 @@ const SCENES = {
     await dismissIntroduction(page)
     await importPhotos(page)
     await setupBook(page, { preset: "A5 Portrait", pageCount: 12 })
+  },
+  /** The text Color picker with the G channel field keyboard-focused (#15). */
+  "color-picker-focus": async (page) => {
+    const popover = await openColorPicker(page)
+    await popover.getByRole("textbox", { name: "Hex color" }).focus()
+    await page.keyboard.press("Tab")
+    await page.keyboard.press("Tab")
   },
   /** A feedback submission the server can't file: the error toast over the
    *  popover with the draft kept. The route is stubbed in the browser so this

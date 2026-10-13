@@ -127,6 +127,7 @@ export function ColorField({ value, onChange }: { value: string; onChange: (hex:
               />
               <input
                 type="text"
+                aria-label="Hex color"
                 value={hexDraft}
                 onChange={(event) => commitHex(event.target.value)}
                 spellCheck={false}
@@ -185,7 +186,7 @@ function ColorChannelField({
   onChange: (value: number) => void
 }) {
   return (
-    <label className="flex flex-1 items-center justify-between gap-1 rounded-md border bg-input/30 px-2 py-1">
+    <label className="flex flex-1 items-center justify-between gap-1 rounded-md border bg-input/30 px-2 py-1 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <input
         type="number"
@@ -289,7 +290,7 @@ function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (ne
         aria-label="Saturation and value"
         aria-valuenow={Math.round(hsv.s)}
         tabIndex={0}
-        className="relative flex-1 cursor-crosshair touch-none rounded-lg"
+        className="relative flex-1 cursor-crosshair touch-none rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         style={{
           backgroundColor: pureHueHex,
           backgroundImage:
@@ -311,7 +312,7 @@ function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (ne
         aria-valuemin={0}
         aria-valuemax={360}
         tabIndex={0}
-        className="relative shrink-0 cursor-pointer touch-none rounded-sm border"
+        className="relative shrink-0 cursor-pointer touch-none rounded-sm border outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         style={{
           width: HUE_TRACK_WIDTH_PX,
           background:

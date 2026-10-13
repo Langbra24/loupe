@@ -29,3 +29,11 @@ surprises). Newest entries at the bottom.
 - **Screenshot attachment:** removed deliberately before this PR (doc comment in `feedback-control.tsx`). The body is `{feedback, contact}`, which matches the route, so there's no body-size concern.
 - **Verification:** 15 route tests. `npm run verify:feedback` (new) drives the real control and route against a local stand-in GitHub, 11/11 pass. Screenshot scene `feedback-error` added.
 - **Not verified:** a real submission. No `GITHUB_FEEDBACK_TOKEN` exists in cloud sessions. The maintainer does the steps in README "Feedback setup" and confirms one issue lands.
+
+## 2026-10-13 — #15 color picker focus rings (`issue-15-picker-focus-rings`)
+
+- `ColorChannelField` (R/G/B, C/M/Y/K) gets `NumberField`'s `focus-within` ring. The saturation/value square and hue slider were Tab-reachable with no focus style; they now get a `focus-visible` ring. The hex input already had a ring and now has an accessible name ("Hex color"). The RGB/CMYK tabs already had a ring.
+- **Keyboard trap found and fixed.** Frame Tab-cycling (`useFrameKeyboardShortcuts`) swallowed every Tab whenever focus wasn't in a text field, so you couldn't Tab off any button, tab, or slider anywhere in the app once a book had frames. It now claims Tab only while focus is on the page body. **Still open:** from the body, Tab cycles frames and never reaches the UI. This is a product question, raised with the manager.
+- The square and hue slider have `role="slider"` but no arrow-key handling. Noted, not built (per the issue).
+- `npm run verify:picker-focus` (new) passes 12/12. Negative control on `main`'s components: 9 failures.
+- New screenshot scene `color-picker-focus`. Shared helpers `firstPageCenter` / `openColorPicker` are in `scripts/verify/lib/app.mjs`. PR #16's `screenshot.mjs` has its own `firstPageCenter`; whichever merges second should import this one instead.
