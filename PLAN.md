@@ -21,6 +21,7 @@ Order matters: #8 and #7 change UI that #9 reviews, so #9 goes last.
 - [ ] [#27](https://github.com/Langbra24/loupe/issues/27) Color changes are undoable (one step per drag or edit) — *not started*
 - [ ] [#30](https://github.com/Langbra24/loupe/issues/30) Export: optional bleed with trim and bleed boxes (toggle, off by default)
 - [ ] [#31](https://github.com/Langbra24/loupe/issues/31) Export: pad saddle-stitch books to a multiple of 4 pages, explained in the dialog
+- [ ] [#30](https://github.com/Langbra24/loupe/issues/30) Export: record trim and bleed boxes in the PDF
 - [ ] [#9](https://github.com/Langbra24/loupe/issues/9) Whole-app UI review with `/emil-ui-review` → findings triaged into new issues
 
 ## Backlog (no issue yet)

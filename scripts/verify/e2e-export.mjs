@@ -10,9 +10,9 @@
 //   2. The PDF's page count is a multiple of 4 (saddle stitch) and at least the
 //      book's page count. The book is deliberately set up with a count that is
 //      NOT a multiple of 4, so this only passes if export pads with blank pages.
-//   3. Every page's trim size equals the book's page size. The TrimBox is used
-//      when present, so an export that includes bleed in the MediaBox still
-//      passes; with no TrimBox, pdf-lib falls back to CropBox, then MediaBox.
+//   3. Every page is drawn with 3mm bleed and says where to trim (issue #30):
+//      MediaBox = BleedBox = page size plus 3mm each side, and an explicit
+//      TrimBox of the page size at 3mm offsets.
 //   4. The PDF is reader-order pages, not imposed printer's spreads. If export
 //      grows an imposed mode, check that mode separately — don't loosen this.
 //
@@ -27,7 +27,7 @@ import { dismissIntroduction, FIXTURE_PHOTOS, importPhotos, openApp, setupBook }
 import { checkExportedPdf } from "./lib/pdf-checks.mjs"
 import { repoRoot, startApp } from "./lib/server.mjs"
 
-const BOOK = { preset: "A5 Portrait", widthMm: 148, heightMm: 210, pageCount: 10 }
+const BOOK = { preset: "A5 Portrait", widthMm: 148, heightMm: 210, bleedMm: 3, pageCount: 10 }
 
 const failures = []
 const check = (ok, message) => {
