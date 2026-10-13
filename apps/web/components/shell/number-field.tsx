@@ -2,6 +2,8 @@
 
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 
+import { cn } from "@/lib/utils"
+
 /**
  * A number input with its own custom up/down chevron steppers, replacing
  * the browser's native spinner (removed app-wide in globals.css) — the
@@ -44,6 +46,7 @@ export function NumberField({
   min,
   max,
   unit,
+  align = "right",
 }: {
   value: number
   onChange: (value: number) => void
@@ -51,6 +54,9 @@ export function NumberField({
   min?: number
   max?: number
   unit?: string
+  /** Where the number sits in the box. Right by default; the page sidebar's
+   *  margin fields left-align (issue #40). */
+  align?: "left" | "right"
 }) {
   const clamp = (next: number) => {
     let clamped = next
@@ -73,7 +79,11 @@ export function NumberField({
           if (Number.isNaN(next)) return
           onChange(clamp(next))
         }}
-        className="min-w-0 flex-1 bg-transparent text-right text-xs text-foreground outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className={cn(
+          "min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none",
+          align === "left" ? "text-left" : "text-right",
+          "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+        )}
       />
       {unit ? <span className="pl-0.5 text-xs text-muted-foreground select-none">{unit}</span> : null}
       <div className="absolute inset-y-0 right-0.5 flex flex-col justify-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">

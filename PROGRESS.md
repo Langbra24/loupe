@@ -123,6 +123,11 @@ surprises). Newest entries at the bottom.
   - popover `rounded-xl` → `rounded-lg`; square `rounded-lg` → `rounded-md`.
 - Kept: #15's focus rings, #21's arrow keys, all tokens. New scene `color-picker` (CMYK, #37bf7b) also saves the popover alone as `color-picker-popover.png`.
 
+## 2026-10-13 — #40 left-align the page sidebar's fields (`issue-40-page-sidebar-paper`)
+
+- Narrowed by the maintainer to one change: text in the page-selected sidebar's fields is left-aligned. Page size (`StaticFieldBox`, used only there) now uses `text-left`. The four Margin fields pass a new opt-in `align="left"` to the shared `NumberField`, whose default stays right, so the image sidebar's X/Y/W/H are unchanged. Position (a select) was already left-aligned.
+- Nothing else changed: headings, the Bleed row, full-width dividers (#25), number formatting, copy.
+
 ## 2026-10-13 — make `npm run e2e` deterministic (`verify-e2e-deterministic`, no issue)
 
 - 20 runs on `main` @ bbb88a6 gave 18 passes and 2 failures, both on "Tab reaches the info control … (never focused)". Logging focus after each Tab showed two causes. The Export dialog's initial focus is already on the info button, so the first Tab stepped past it. And Tab sometimes leaves the modal dialog into the page behind, so 12 presses landed somewhere different each run.
