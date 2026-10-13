@@ -122,3 +122,8 @@ surprises). Newest entries at the bottom.
   - the segmented control has a visible track (`bg-input/70`, 3px inset, `rounded-sm` pill);
   - popover `rounded-xl` → `rounded-lg`; square `rounded-lg` → `rounded-md`.
 - Kept: #15's focus rings, #21's arrow keys, all tokens. New scene `color-picker` (CMYK, #37bf7b) also saves the popover alone as `color-picker-popover.png`.
+
+## 2026-10-13 — #40 left-align the page sidebar's fields (`issue-40-page-sidebar-paper`)
+
+- Narrowed by the maintainer to one change: text in the page-selected sidebar's fields is left-aligned. Page size (`StaticFieldBox`, used only there) now uses `text-left`. The four Margin fields pass a new opt-in `align="left"` to the shared `NumberField`, whose default stays right, so the image sidebar's X/Y/W/H are unchanged. Position (a select) was already left-aligned.
+- Nothing else changed: headings, the Bleed row, full-width dividers (#25), number formatting, copy.
