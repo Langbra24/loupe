@@ -30,7 +30,7 @@ const SCENARIOS = [
     name: "201 created",
     github: { status: 201, body: { html_url: "https://github.com/Langbra24/loupe/issues/999" } },
     route: 201,
-    toast: ["Feedback sent", "Filed on GitHub. Thanks — will be reviewed in 2–3 business days."],
+    toast: ["Feedback sent", "We'll review your feedback in 2–3 business days."],
   },
   {
     name: "401 bad token",
