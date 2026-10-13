@@ -40,6 +40,9 @@ Reports: `todos/2026-10-13-emil-ui-review.md`, `todos/2026-10-13-emil-ui-polish.
 - [x] [#54](https://github.com/Langbra24/loupe/issues/54) Book overview: white pages, real text colors (S6) — PR #62, `npm run verify:book-overview` 5/5
 - [x] [#55](https://github.com/Langbra24/loupe/issues/55) Canvas chrome: one selection color, screen-sized add-page buttons and cover badge (S7, S8) — PR #64, `npm run verify:canvas-chrome` 16/16
 - [ ] [#59](https://github.com/Langbra24/loupe/issues/59) Polish: stable widths, tabular numbers, hit areas, no faux italic, no reload flash (P1–P5)
+- [ ] [#70](https://github.com/Langbra24/loupe/issues/70) Feedback: drop the Name field, keep Email
+- [ ] [#71](https://github.com/Langbra24/loupe/issues/71) Book setup dialog: centre it again (reverses #57's top anchor)
+- [ ] [#72](https://github.com/Langbra24/loupe/issues/72) Add-page buttons sit outside a spread; gutter insert is an explicit sidebar action
 
 Nits from both reports stay in the reports for a later pass.
 
