@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { BookOpenIcon } from "@phosphor-icons/react"
 import { defaultFrameMargins, type Frame, type Margins } from "@loupe/core"
 
@@ -65,6 +65,17 @@ function ProjectNameField({ name }: { name: string }) {
   const renameProject = useEditorStore((state) => state.renameProject)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(name)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  // Enter and Escape hand focus back to the name, since the input unmounts
+  // under the keyboard user. A blur means focus already went somewhere on
+  // purpose, so it is left there.
+  const refocusRef = useRef(false)
+
+  useEffect(() => {
+    if (editing || !refocusRef.current) return
+    refocusRef.current = false
+    buttonRef.current?.focus()
+  }, [editing])
 
   const commit = () => {
     const trimmed = draft.trim()
@@ -75,15 +86,18 @@ function ProjectNameField({ name }: { name: string }) {
   if (editing) {
     return (
       <input
+        aria-label="Book name"
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             event.preventDefault()
+            refocusRef.current = true
             commit()
           } else if (event.key === "Escape") {
             event.preventDefault()
+            refocusRef.current = true
             setDraft(name)
             setEditing(false)
           }
@@ -97,7 +111,9 @@ function ProjectNameField({ name }: { name: string }) {
 
   return (
     <button
+      ref={buttonRef}
       type="button"
+      title="Rename book"
       onClick={() => {
         setDraft(name)
         setEditing(true)
