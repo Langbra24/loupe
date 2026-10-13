@@ -14,6 +14,13 @@ surprises). Newest entries at the bottom.
   - Pages are trim + 3mm bleed (154×216mm) with no TrimBox, so the trim size isn't recorded in the file.
 - Project board not created: Projects v2 needs GraphQL, blocked from cloud sessions. Must be made locally.
 
+## 2026-10-13 — #5 verify the book name is editable (`issue-5-rename-verifier`)
+
+- New verifier `scripts/verify/rename.mjs` (`npm run verify:rename`): Escape cancels, empty/whitespace refused, Enter and blur commit, `T` in the field types a T and leaves the text tool unarmed (canvas cursor stays `default`; pressing `T` on the canvas flips it to `text`, so the check is not vacuous), the name survives an immediate reload, and export downloads `field-notes-vol-2.pdf`.
+- **Bug found and fixed: the `pagehide` flush never landed.** Any change made inside the 800ms save debounce was lost on reload or tab close. That included the rename and the whole book setup if you reloaded quickly. `flushPendingSave` awaited `getDb()` before writing, and Chromium drops that write during teardown. It now opens the transaction synchronously on the already-opened db (`getOpenedDb`) and calls `tx.commit()`. Commit alone without the sync open was not tested; the sync open alone was tested and still failed. Unit tests are in `project.test.ts`.
+- Name field a11y (from `/emil-ui-review`): input labelled "Book name"; focus returns to the name after Enter/Escape; the button carries `title="Rename book"`.
+- `npm run verify` passes; `npm run e2e` still fails only its 2 known checks.
+
 ## 2026-10-13 — #6 feedback submissions land as GitHub issues (`issue-6-feedback-issues`)
 
 - **Reproduced on `main`:** with no token the route returns 500 "Feedback isn't configured on the server yet."; with a token GitHub rejects it returns 502. Either way the toast showed the same generic "Something went wrong on our end", because the client discarded the route's message. Without the deployed server's logs, there's no telling which of the two the live site hits. The new `[feedback]` log line will say.

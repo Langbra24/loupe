@@ -6,7 +6,7 @@ import {
   type Project,
 } from "@loupe/core"
 
-import { getDb, isQuotaError, PROJECT_KEY } from "@/lib/storage/db"
+import { getDb, getOpenedDb, isQuotaError, PROJECT_KEY } from "@/lib/storage/db"
 
 /** Long enough to collapse a drag's worth of position updates, short enough
  *  that an ordinary pause between gestures commits the work. */
@@ -57,14 +57,23 @@ export function saveProjectDebounced(project: Project): void {
   }, SAVE_DEBOUNCE_MS)
 }
 
-/** Commit any debounced write now. Registered on `pagehide` so closing the tab
- *  mid-arrangement does not discard the last gesture. */
+/** Commit any debounced write now. Registered on `pagehide` so closing or
+ *  reloading the tab mid-arrangement does not discard the last gesture. The
+ *  `put` is issued synchronously, see `getOpenedDb`. */
 export function flushPendingSave(): void {
   if (!pending) return
 
   const snapshot = pending
   cancelPending()
-  void saveProject(snapshot).catch(() => undefined)
+  const db = getOpenedDb()
+  if (!db) {
+    void saveProject(snapshot).catch(() => undefined)
+    return
+  }
+  const tx = db.transaction("project", "readwrite")
+  void tx.store.put(snapshot, PROJECT_KEY).catch(() => undefined)
+  tx.commit()
+  void tx.done.catch(() => undefined)
 }
 
 function cancelPending(): void {

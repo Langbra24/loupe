@@ -21,6 +21,7 @@ const DB_VERSION = 1
 export const PROJECT_KEY = "current"
 
 let dbPromise: Promise<IDBPDatabase<LoupeDB>> | null = null
+let openedDb: IDBPDatabase<LoupeDB> | null = null
 
 export function getDb(): Promise<IDBPDatabase<LoupeDB>> {
   if (typeof indexedDB === "undefined") {
@@ -33,9 +34,21 @@ export function getDb(): Promise<IDBPDatabase<LoupeDB>> {
       if (!db.objectStoreNames.contains("thumbnails")) db.createObjectStore("thumbnails")
       if (!db.objectStoreNames.contains("project")) db.createObjectStore("project")
     },
-  })
+  }).then((db) => (openedDb = db))
 
   return dbPromise
+}
+
+/**
+ * The database, if it has already been opened — synchronously.
+ *
+ * A write issued from `pagehide` has to open its transaction inside the event
+ * handler itself. Awaiting `getDb()` first, even when it is already resolved,
+ * pushes the `put` past the point where Chromium tears the page down on a
+ * reload, and the write is silently dropped.
+ */
+export function getOpenedDb(): IDBPDatabase<LoupeDB> | null {
+  return openedDb
 }
 
 /**

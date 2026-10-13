@@ -95,6 +95,8 @@ npm run screenshot   # build, then save desktop PNGs to screenshots/ (gitignored
                      #   scenes: intro, shell, book — `npm run screenshot -- shell`
 npm run e2e          # build, import fixture photos, export a PDF, check page count
                      #   is a multiple of 4 and trim size matches (pdf-lib)
+npm run verify:rename # build, rename the book via the top-left field, reload,
+                     #   check persistence, shortcut isolation, export filename
 npm run verify:feedback # build, submit feedback through the real control and
                      #   route against a stand-in GitHub; every status → toast
 ```
