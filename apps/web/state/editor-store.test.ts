@@ -97,6 +97,20 @@ describe("undo", () => {
     expect(afterUndo?.kind === "text" ? afterUndo.content : undefined).toBe("hello")
   })
 
+  it("records no undo step when a text edit leaves the content unchanged", () => {
+    const store = useEditorStore.getState()
+    const frameId = store.addFrame(A5_PORTRAIT)
+    store.createTextElement(frameId, "hello")
+    const created = useEditorStore.getState().project.frames.find((f) => f.id === frameId)?.elements[0]
+    if (!created) throw new Error("expected the created text element to exist")
+    const depth = useEditorStore.getState().undoStack.length
+
+    // What leaving editing without typing does: commit the same content.
+    useEditorStore.getState().updateTextElement(frameId, created.id, { content: "hello" })
+
+    expect(useEditorStore.getState().undoStack).toHaveLength(depth)
+  })
+
   it("undoes a text element's creation, removing it from the frame", () => {
     const store = useEditorStore.getState()
     const frameId = store.addFrame(A5_PORTRAIT)

@@ -939,7 +939,10 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
       doUpdate()
 
-      if (patch.content !== undefined && prevContent !== undefined) {
+      // Leaving a text box's editing commits its content whether or not it
+      // changed. Entering and leaving editing isn't an edit, so an unchanged
+      // content gets no undo step.
+      if (patch.content !== undefined && prevContent !== undefined && patch.content !== prevContent) {
         pushUndo({
           do: doUpdate,
           undo: () =>

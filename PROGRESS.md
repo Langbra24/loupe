@@ -29,3 +29,13 @@ surprises). Newest entries at the bottom.
 - **Screenshot attachment:** removed deliberately before this PR (doc comment in `feedback-control.tsx`). The body is `{feedback, contact}`, which matches the route, so there's no body-size concern.
 - **Verification:** 15 route tests. `npm run verify:feedback` (new) drives the real control and route against a local stand-in GitHub, 11/11 pass. Screenshot scene `feedback-error` added.
 - **Not verified:** a real submission. No `GITHUB_FEEDBACK_TOKEN` exists in cloud sessions. The maintainer does the steps in README "Feedback setup" and confirms one issue lands.
+
+## 2026-10-13 — #14 text boxes: single click selects, double click edits (`issue-14-text-selection`)
+
+- Replaced the deliberate single-click-to-edit in `use-fabric-canvas.ts` with `SelectableTextbox` (`components/sequence/selectable-textbox.ts`). It's a `fabric.Textbox` subclass, because Fabric's own `IText` enters editing on any click on an already-selected box and selects a word on the double-click that starts editing. Once editing, double-click still selects a word.
+- Escape while editing returns to selected with handles (Fabric's own behavior). A second Escape now deselects; the handler skips typing targets, so the first Escape doesn't do both.
+- The `T` box still enters editing at once. `updateTextElement` no longer pushes an undo step when the content is unchanged; leaving editing always commits, so it used to add a junk step.
+- Test hook: `window.__loupeCanvas`, only when built with `LOUPE_TEST_HOOKS=1`. It's inlined via `next.config.ts` `env`, so an ordinary build has no trace of it (checked by grepping `.next/static`). A `NEXT_PUBLIC_` var alone was NOT compiled out when unset; Next left a runtime `process.env` lookup.
+- `npm run verify:text-selection` passes 15/15. Negative control: with Fabric's stock `Textbox` it fails 5 checks.
+- New screenshot scene `text-selected`. It finds page 1 from the canvas pixels, since screenshot builds have no hooks.
+- Open question for the maintainer: Enter on a selected text box to start editing (Figma does). Not built.
