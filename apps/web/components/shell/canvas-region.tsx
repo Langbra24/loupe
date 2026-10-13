@@ -83,6 +83,8 @@ function FramePreview({ frame, project }: { frame: Frame; project: Project }) {
     <div className="flex flex-col gap-2">
       <button
         onClick={() => reviewFrame(frame.id)}
+        aria-label={`Page ${frame.position + 1}`}
+        aria-current={isSelected || undefined}
         className={cn(
           "relative block w-full cursor-pointer bg-white shadow-sm ring-1 ring-border transition-shadow hover:shadow-md",
           isSelected && "outline-2 outline-ring",

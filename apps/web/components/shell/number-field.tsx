@@ -47,6 +47,7 @@ export function NumberField({
   max,
   unit,
   align = "right",
+  labelledBy,
 }: {
   value: number
   onChange: (value: number) => void
@@ -57,6 +58,9 @@ export function NumberField({
   /** Where the number sits in the box. Right by default; the page sidebar's
    *  margin fields left-align (issue #40). */
   align?: "left" | "right"
+  /** Id of a visible label elsewhere, for a field with no wrapping
+   *  `<label>` (the text sidebar's Width, #50). */
+  labelledBy?: string
 }) {
   const clamp = (next: number) => {
     let clamped = next
@@ -70,6 +74,7 @@ export function NumberField({
     <div className="group relative flex w-20 items-center rounded-md border bg-muted py-1 pr-5 pl-2 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
       <input
         type="number"
+        aria-labelledby={labelledBy}
         step={step}
         min={min}
         max={max}
@@ -85,11 +90,23 @@ export function NumberField({
           "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
         )}
       />
-      {unit ? <span className="pl-0.5 text-xs text-muted-foreground select-none">{unit}</span> : null}
-      <div className="absolute inset-y-0 right-0.5 flex flex-col justify-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+      {unit ? (
+        <span aria-hidden className="pl-0.5 text-xs text-muted-foreground select-none">
+          {unit}
+        </span>
+      ) : null}
+      {/* Hidden from assistive tech: the input's own arrow keys step it, and
+          inside a wrapping <label> these buttons' names would otherwise be
+          read as part of the field's ("Top Increase Decrease", #50). */}
+      <div
+        aria-hidden
+        className="absolute inset-y-0 right-0.5 flex flex-col justify-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+      >
         <button
           type="button"
           tabIndex={-1}
+          // Keep focus in the input: these are hidden from assistive tech.
+          onMouseDown={(event) => event.preventDefault()}
           aria-label="Increase"
           onClick={() => onChange(clamp(value + step))}
           className="flex items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -99,6 +116,7 @@ export function NumberField({
         <button
           type="button"
           tabIndex={-1}
+          onMouseDown={(event) => event.preventDefault()}
           aria-label="Decrease"
           onClick={() => onChange(clamp(value - step))}
           className="flex items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"

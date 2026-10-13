@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  useId,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -20,6 +21,7 @@ import {
   type RgbColor,
 } from "@loupe/core"
 
+import { useSectionLabel } from "@/components/shell/section-label"
 import { Tabs, TabsIndicator, TabsList, TabsTab } from "@/components/ui/tabs"
 
 /** Which color space the popover's numeric channel fields are currently
@@ -60,6 +62,9 @@ export function ColorField({
   const [hexDraft, setHexDraft] = useState(value)
   const [lastCommittedValue, setLastCommittedValue] = useState(value)
   const [hsv, setHsv] = useState<HsvColor>(() => hexToHsv(value))
+  // Named by the section heading plus its own value: "Color #18181b" (#50).
+  const sectionLabel = useSectionLabel()
+  const triggerId = useId()
 
   // The hex field is free text while it's being typed (an in-progress "#18"
   // shouldn't be rejected or reformatted mid-keystroke) — only commit
@@ -106,6 +111,8 @@ export function ColorField({
         render={
           <button
             type="button"
+            id={triggerId}
+            aria-labelledby={sectionLabel ? `${sectionLabel} ${triggerId}` : undefined}
             className="flex w-full items-center gap-2 rounded-md border bg-input/30 py-1 pr-2 pl-1 text-sm text-foreground transition-colors outline-none data-popup-open:border-ring focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <span

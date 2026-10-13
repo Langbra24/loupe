@@ -60,6 +60,10 @@ export function CanvasControls({ controls }: { controls: Controls }) {
             render={
               <button
                 onClick={resetZoom}
+                // The visible text is only the level; the name also says
+                // what pressing it does, which otherwise lives in the
+                // tooltip alone (#50).
+                aria-label={`Zoom ${Math.round(zoom * 100)}%, reset to 100%`}
                 className="min-w-14 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
               >
                 {Math.round(zoom * 100)}%

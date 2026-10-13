@@ -54,7 +54,7 @@ try {
   const popover = await openColorPicker(page)
   const hex = popover.getByRole("textbox", { name: "Hex color" })
   const hue = popover.getByRole("slider", { name: "Hue" })
-  const sidebar = page.getByRole("complementary").getByRole("button", { name: /^#[0-9a-f]{6}$/i })
+  const sidebar = page.getByRole("complementary").getByRole("button", { name: /^Color #[0-9a-f]{6}$/i })
 
   /** The color in the hex field, the sidebar and IndexedDB (stored null = the default). */
   const colorEverywhere = async () => {

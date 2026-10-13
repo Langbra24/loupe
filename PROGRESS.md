@@ -174,3 +174,14 @@ surprises). Newest entries at the bottom.
 - **S7:** one selection color, `#4176f6` — `--sidebar-primary`'s hue at oklch lightness 0.6 (the token itself is 2.6:1 on the pasteboard). It measures 4.34:1 on the `--canvas` pasteboard and 4.08:1 on a white page. Frames, images, text (incl. `editingBorderColor`), shift-click groups, the marquee and the frame-drag insertion indicator all use it, borders 2 screen px (`borderScaleFactor`). The indicator stroke is now `strokeUniform`. Print guides keep red bleed / sky-blue margin; the cover badge moved off the margin blue to `--primary`'s zinc; the frame stroke is zinc-400 instead of slate.
 - **S8:** the add-page buttons (28px) and cover badge (22px glyph) are sized in screen pixels. Each carries a scene anchor plus a screen-pixel offset, and a `before:render` handler rescales them by 1/zoom, so every pan/zoom path is covered. The badge now sits above the bleed line, not on it.
 - `npm run verify:canvas-chrome` (new, test-hooks build): at 10/50/100% the button measures 26×26px of solid fill and the badge 16×19px; selection-outline contrast is computed from drawn pixels; hover and click on the button still work at 10%.
+
+## 2026-10-13 — #50 name every inspector control (`issue-50-a11y-names`)
+
+- **Section headings label their controls.** `Section` gives its `<h2>` an id and provides it through `section-label.ts`. The Text, Type, Size, Font, Fit and Width controls and the Color trigger read it via `aria-labelledby`. The Color trigger is named "Color #18181b" (heading plus its own value). Position labels itself from its own visible "Position".
+- **`NumberField`:** the hover steppers and the unit are `aria-hidden`. They were being read into every wrapping label ("Top Increase Decrease"). The input's own arrow keys still step it.
+- **Selected state is exposed:**
+  - the active image preset is `aria-pressed`;
+  - page rows are named "Page N", described by their margins, and `aria-current` when selected;
+  - book-overview previews are named "Page N" and `aria-current` when selected;
+  - the zoom readout is "Zoom N%, reset to 100%".
+- `npm run verify:a11y-names` (new) passes. Negative control on main's app code fails: the readout is named "9%", and the rows can't be found as "Page 3". The three color-picker verifiers now find the trigger as `Color #…`.

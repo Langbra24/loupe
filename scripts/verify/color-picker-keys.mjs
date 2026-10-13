@@ -58,7 +58,7 @@ try {
   const sidebarColor = () =>
     page
       .getByRole("complementary")
-      .getByRole("button", { name: /^#[0-9a-f]{6}$/i })
+      .getByRole("button", { name: /^Color #[0-9a-f]{6}$/i })
       .textContent()
       .then((text) => text.trim().toLowerCase())
 
