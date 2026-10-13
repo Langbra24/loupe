@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useId, useState } from "react"
 import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon } from "lucide-react"
 import {
   checkPageCount,
@@ -18,6 +18,7 @@ import {
 
 import { ColorField } from "@/components/shell/color-picker"
 import { NumberField } from "@/components/shell/number-field"
+import { SectionLabelContext, useSectionLabel } from "@/components/shell/section-label"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -307,11 +308,9 @@ function TextElementSettings({ frameId, elementId }: { frameId: string; elementI
   return (
     <>
       <Section title="Text">
-        <textarea
+        <TextContentField
           value={element.content}
-          onChange={(event) => updateTextElement(frameId, elementId, { content: event.target.value })}
-          rows={3}
-          className="w-full resize-none rounded-md border bg-input/30 px-2 py-1 text-sm leading-snug text-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          onChange={(content) => updateTextElement(frameId, elementId, { content })}
         />
       </Section>
       <Separator />
@@ -440,6 +439,7 @@ function ImageElementSettings({ frameId, elementId }: { frameId: string; element
             <button
               key={preset}
               type="button"
+              aria-pressed={preset === activePreset}
               onClick={() => applyImagePreset(frameId, elementId, preset)}
               className={cn(
                 "flex h-7 items-center justify-center rounded-md border px-1.5 text-center text-[0.7rem] leading-tight font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
@@ -499,7 +499,7 @@ function SizeSelect({ value, onChange }: { value: number; onChange: (value: numb
 
   return (
     <Select value={value} onValueChange={(next) => onChange(next as number)}>
-      <SelectTrigger>
+      <SelectTrigger aria-labelledby={useSectionLabel()}>
         <SelectValue>{(current: number) => `${current}pt`}</SelectValue>
       </SelectTrigger>
       <SelectContent>
@@ -575,7 +575,7 @@ function SelectField<T extends string>({
 }) {
   return (
     <Select value={value} onValueChange={(next) => onChange(next as T)}>
-      <SelectTrigger>
+      <SelectTrigger aria-labelledby={useSectionLabel()}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -606,7 +606,7 @@ function FontFamilySelect({
 }) {
   return (
     <Select value={value ?? DEFAULT_TEXT_FONT} onValueChange={(next) => onChange(next as string)}>
-      <SelectTrigger>
+      <SelectTrigger aria-labelledby={useSectionLabel()}>
         {/* `Select.Value` displays the raw value ("playfair-display") by
             default — it only shows a real label when given this mapping
             function, per base-ui's own API for exactly this case. */}
@@ -632,10 +632,12 @@ function PercentField({
   value: number
   onChange: (value: number) => void
 }) {
+  const sectionLabel = useSectionLabel()
   return (
     <label className="flex items-center justify-between gap-3 py-0.5 text-sm">
       {label ? <span className="text-foreground">{label}</span> : null}
       <NumberField
+        labelledBy={label ? undefined : sectionLabel}
         value={Math.round(value * 100)}
         step={1}
         min={0}
@@ -647,12 +649,29 @@ function PercentField({
   )
 }
 
+/** The heading also labels the controls under it (see section-label.ts):
+ *  `SelectField`, `PercentField`, `ColorField` and the rest read its id. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const headingId = useId()
   return (
     <section className="flex flex-col gap-1">
-      <h2 className="pb-1 text-xs font-medium text-muted-foreground">{title}</h2>
-      {children}
+      <h2 id={headingId} className="pb-1 text-xs font-medium text-muted-foreground">
+        {title}
+      </h2>
+      <SectionLabelContext.Provider value={headingId}>{children}</SectionLabelContext.Provider>
     </section>
+  )
+}
+
+function TextContentField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <textarea
+      aria-labelledby={useSectionLabel()}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      rows={3}
+      className="w-full resize-none rounded-md border bg-input/30 px-2 py-1 text-sm leading-snug text-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+    />
   )
 }
 
@@ -714,12 +733,15 @@ function PositionSelect({
   onChange: (position: number) => void
 }) {
   const pages = Array.from({ length: frameCount }, (_, index) => index)
+  const labelId = useId()
 
   return (
     <div className="flex flex-col items-start gap-1.5 py-0.5 text-sm">
-      <span className="text-foreground">Position</span>
+      <span id={labelId} className="text-foreground">
+        Position
+      </span>
       <Select value={position} onValueChange={(next) => onChange(next as number)}>
-        <SelectTrigger className="h-7.5 font-mono">
+        <SelectTrigger aria-labelledby={labelId} className="h-7.5 font-mono">
           <SelectValue>{(current: number) => `Page ${current + 1}`}</SelectValue>
         </SelectTrigger>
         <SelectContent>

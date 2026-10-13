@@ -117,7 +117,7 @@ export async function openColorPicker(page) {
   await setupBook(page, { preset: "A5 Portrait", pageCount: 8 })
   await settle(page)
   await placeTextOnFirstPage(page)
-  await page.getByRole("button", { name: /^#[0-9a-f]{6}$/i }).click()
+  await page.getByRole("button", { name: /^Color #[0-9a-f]{6}$/i }).click()
   const popover = page.getByRole("tablist", { name: "Color input mode" }).locator("xpath=ancestor::*[@data-open][1]")
   await popover.waitFor()
   return popover

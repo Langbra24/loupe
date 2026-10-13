@@ -147,3 +147,14 @@ surprises). Newest entries at the bottom.
 - **Blocking:** (1) most inspector controls and every book-overview page button have no accessible name; (2) the canvas context menus are mouse-only, not real menus, and *Set as cover* has no other entry point.
 - **Method:** code read of every UI file, every screenshot scene, and a Playwright audit of the production build. The audit covered Tab walks per state, inspector ARIA snapshots, context-menu focus, Escape, reduced-motion emulation, hit areas, token contrast, and a frame-by-frame reload capture (an empty project flashes for ~100ms on every reload).
 - Excluded as already decided: #25, #40, #30, #14, user-directed menus and stagger, Paper-referenced field styling, and the intro-modality question open on #46. The maintainer triages findings into issues.
+
+## 2026-10-13 — #50 name every inspector control (`issue-50-a11y-names`)
+
+- **Section headings label their controls.** `Section` gives its `<h2>` an id and provides it through `section-label.ts`. The Text, Type, Size, Font, Fit and Width controls and the Color trigger read it via `aria-labelledby`. The Color trigger is named "Color #18181b" (heading plus its own value). Position labels itself from its own visible "Position".
+- **`NumberField`:** the hover steppers and the unit are `aria-hidden`. They were being read into every wrapping label ("Top Increase Decrease"). The input's own arrow keys still step it.
+- **Selected state is exposed:**
+  - the active image preset is `aria-pressed`;
+  - page rows are named "Page N", described by their margins, and `aria-current` when selected;
+  - book-overview previews are named "Page N" and `aria-current` when selected;
+  - the zoom readout is "Zoom N%, reset to 100%".
+- `npm run verify:a11y-names` (new) passes. Negative control on main's app code fails: the readout is named "9%", and the rows can't be found as "Page 3". The three color-picker verifiers now find the trigger as `Color #…`.

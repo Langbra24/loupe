@@ -27,7 +27,8 @@
     "verify:image-cycling": "LOUPE_TEST_HOOKS=1 npm run build && node scripts/verify/image-cycling.mjs",
     "verify:separators": "npm run build && node scripts/verify/sidebar-separators.mjs",
     "verify:color-undo": "npm run build && node scripts/verify/color-undo.mjs",
-    "verify:dialog-focus": "npm run build && node scripts/verify/dialog-focus.mjs"
+    "verify:dialog-focus": "npm run build && node scripts/verify/dialog-focus.mjs",
+    "verify:a11y-names": "npm run build && node scripts/verify/a11y-names.mjs"
   },
   "devDependencies": {
     "pdf-lib": "^1.17.1",

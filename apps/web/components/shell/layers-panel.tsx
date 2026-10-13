@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { BookOpenIcon } from "@phosphor-icons/react"
 import { defaultFrameMargins, type Frame, type Margins } from "@loupe/core"
 
@@ -224,10 +224,17 @@ function FrameRow({
   const firstImage = frame.elements.find((element) => element.kind === "image")
   const thumbnailUrl = useThumbnail(firstImage?.assetId)
   const margins = frame.margins ?? defaultFrameMargins(frame.pageSize)
+  // Named "Page 2" and described by its margins, rather than both run
+  // together as one name ("Page 235/25/25/35mm margins", #50).
+  const titleId = useId()
+  const marginsId = useId()
 
   return (
     <button
       onClick={onSelect}
+      aria-current={isSelected || undefined}
+      aria-labelledby={titleId}
+      aria-describedby={marginsId}
       className={cn(
         "flex items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted",
         isSelected && "bg-muted",
@@ -242,8 +249,12 @@ function FrameRow({
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm text-foreground">Page {frame.position + 1}</div>
-        <div className="truncate text-[0.7rem] text-muted-foreground">{formatMargins(margins)}</div>
+        <div id={titleId} className="truncate text-sm text-foreground">
+          Page {frame.position + 1}
+        </div>
+        <div id={marginsId} className="truncate text-[0.7rem] text-muted-foreground">
+          {formatMargins(margins)}
+        </div>
       </div>
     </button>
   )
