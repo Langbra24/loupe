@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 
 import { PAGE_SIZE_PRESETS, validateCustomPageSize, type PageSize } from "@loupe/core"
 
@@ -29,6 +29,14 @@ export function BookSetupDialog() {
   const [customWidth, setCustomWidth] = useState("210")
   const [customHeight, setCustomHeight] = useState("297")
   const [pageCount, setPageCount] = useState(String(DEFAULT_PAGE_COUNT))
+  const titleId = useId()
+  const selectedPresetRef = useRef<HTMLButtonElement>(null)
+
+  // Keyboard focus starts on the selected page size (#45). What this covers
+  // in the canvas region is made inert in light-table.tsx.
+  useEffect(() => {
+    selectedPresetRef.current?.focus()
+  }, [])
 
   const width = Number(customWidth)
   const height = Number(customHeight)
@@ -48,8 +56,10 @@ export function BookSetupDialog() {
 
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
-        <h2 className="font-heading text-base font-medium">Set up your book</h2>
+      <div role="dialog" aria-labelledby={titleId} className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
+        <h2 id={titleId} className="font-heading text-base font-medium">
+          Set up your book
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Choose a page size and how many pages to start with. You can change
           this later.
@@ -63,6 +73,8 @@ export function BookSetupDialog() {
                 <button
                   key={preset.name}
                   type="button"
+                  ref={!useCustom && selectedPreset.name === preset.name ? selectedPresetRef : undefined}
+                  aria-pressed={!useCustom && selectedPreset.name === preset.name}
                   onClick={() => {
                     setSelectedPreset(preset)
                     setUseCustom(false)

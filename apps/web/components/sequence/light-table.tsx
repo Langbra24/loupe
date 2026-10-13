@@ -186,20 +186,26 @@ export function LightTable() {
     },
   })
 
+  const settingUp = assets.length > 0 && frames.length === 0
+
   return (
     <div className="relative h-full w-full overflow-hidden">
       {/* The observed element. Deliberately overflow-hidden: observing a
           scrollable ancestor would let the canvas and its scrollbar feed each
           other in a resize loop. */}
-      <div ref={containerRef} className="absolute inset-0 canvas-dot-grid">
-        <canvas ref={canvasElementRef} className="absolute inset-0" />
+      {/* Under the book-setup overlay, the canvas and its toolbars are
+          covered: inert, so Tab can't reach what a click can't (#45). */}
+      <div className="contents" inert={settingUp || undefined}>
+        <div ref={containerRef} className="absolute inset-0 canvas-dot-grid">
+          <canvas ref={canvasElementRef} className="absolute inset-0" />
+        </div>
+
+        {assets.length === 0 ? <EmptyTable /> : <ImportAffordance armTextTool={armTextTool} />}
+
+        <CanvasControls controls={controls} />
       </div>
 
-      {assets.length === 0 ? <EmptyTable /> : <ImportAffordance armTextTool={armTextTool} />}
-
-      {assets.length > 0 && frames.length === 0 && <BookSetupDialog />}
-
-      <CanvasControls controls={controls} />
+      {settingUp && <BookSetupDialog />}
 
       {imageMenu && (
         <ImagePresetMenu
