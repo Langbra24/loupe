@@ -243,3 +243,64 @@ describe("redo", () => {
     expect(() => useEditorStore.getState().redo()).not.toThrow()
   })
 })
+
+describe("text color undo (#27)", () => {
+  /** A frame with one text element, returning the ids and a color reader. */
+  function textBox() {
+    const frameId = useEditorStore.getState().addFrame(A5_PORTRAIT)
+    useEditorStore.getState().createTextElement(frameId, "hello")
+    const element = useEditorStore.getState().project.frames.find((f) => f.id === frameId)?.elements[0]
+    if (!element) throw new Error("expected the created text element to exist")
+    const color = () => {
+      const current = useEditorStore
+        .getState()
+        .project.frames.find((f) => f.id === frameId)
+        ?.elements.find((e) => e.id === element.id)
+      return current?.kind === "text" ? current.color : "not text"
+    }
+    return { frameId, elementId: element.id, color, depth: () => useEditorStore.getState().undoStack.length }
+  }
+
+  it("makes a single color change one undo step, undone and redone", () => {
+    const { frameId, elementId, color, depth } = textBox()
+    const before = depth()
+
+    useEditorStore.getState().updateTextElement(frameId, elementId, { color: "#37bf7b" })
+    expect(depth()).toBe(before + 1)
+
+    useEditorStore.getState().undo()
+    expect(color()).toBeUndefined()
+    useEditorStore.getState().redo()
+    expect(color()).toBe("#37bf7b")
+  })
+
+  it("coalesces a drag's many changes into one step back to the color before it", () => {
+    const { frameId, elementId, color, depth } = textBox()
+    useEditorStore.getState().updateTextElement(frameId, elementId, { color: "#111111" })
+    const before = depth()
+
+    useEditorStore.getState().beginTextColorGesture(frameId, elementId)
+    for (const step of ["#222222", "#333333", "#444444", "#555555"]) {
+      useEditorStore.getState().updateTextElement(frameId, elementId, { color: step })
+    }
+    useEditorStore.getState().endTextColorGesture()
+    expect(depth()).toBe(before + 1)
+
+    useEditorStore.getState().undo()
+    expect(color()).toBe("#111111")
+    useEditorStore.getState().redo()
+    expect(color()).toBe("#555555")
+  })
+
+  it("adds no step for a gesture that changed nothing, or for re-setting the same color", () => {
+    const { frameId, elementId, depth } = textBox()
+    useEditorStore.getState().updateTextElement(frameId, elementId, { color: "#111111" })
+    const before = depth()
+
+    useEditorStore.getState().beginTextColorGesture(frameId, elementId)
+    useEditorStore.getState().endTextColorGesture()
+    useEditorStore.getState().updateTextElement(frameId, elementId, { color: "#111111" })
+
+    expect(depth()).toBe(before)
+  })
+})

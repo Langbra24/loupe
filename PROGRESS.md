@@ -84,3 +84,11 @@ surprises). Newest entries at the bottom.
 - **Known gap:** `verify:text-selection` and `verify:image-cycling` set `LOUPE_TEST_HOOKS=1` with POSIX syntax, so they don't run in a plain Windows shell.
 - Merged branches are NOT deleted: the cloud proxy refuses branch deletion (API and `git push --delete` both 403). All 11 code branches are fully merged into `main`, and the 4 `pr-assets/*` branches hold only PR screenshots. Delete them from a local machine.
 
+
+## 2026-10-13 — #27 color changes are undoable (`issue-27-color-undo`)
+
+- `updateTextElement` pushes an undo step when `color` changes, through a `colorCommand` that sets the color back or forward. Re-setting the same color pushes nothing.
+- Gestures: `beginTextColorGesture` / `endTextColorGesture` coalesce everything in between into one step, pushed at the end only if the color moved. They nest with a depth counter, because a press on the hue slider begins before the hex field it took focus from has blurred.
+- Picker wiring (`color-picker.tsx`): a square or hue drag is a gesture (pointerdown → pointerup/pointercancel). The hex and channel fields are gestures from focus to blur, so typing a hex char by char is one step. Arrow keys: **one step per keypress**, not coalesced (a held key gives one step per repeat).
+- Still not undoable: `role`, `align`, `fontSize` and `fontFamily` on text. Listed for the maintainer, not fixed here.
+- Tests: 3 store tests (single change, coalesced gesture, no-op), each undone and redone. `npm run verify:color-undo` (new) passes 7/7: one undo reverts a 20-step drag, a second reverts the typed hex, and redo reapplies both. It fails on `main`.

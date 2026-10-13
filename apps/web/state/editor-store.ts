@@ -198,6 +198,12 @@ interface EditorState {
     elementId: string,
     patch: Partial<Pick<TextElement, "content" | "role" | "align" | "fontFamily" | "fontSize" | "color">>,
   ) => void
+  /** Brackets one color gesture — a drag on the picker, or typing in its hex
+   *  or channel fields — so every color change in between becomes a single
+   *  undo step, pushed by `endTextColorGesture` if the color actually moved
+   *  (issue #27). Color changes outside a gesture are one step each. */
+  beginTextColorGesture: (frameId: string, elementId: string) => void
+  endTextColorGesture: () => void
   updateImageFit: (frameId: string, elementId: string, fit: ImageElement["fit"]) => void
   /** Snap an image element into one of the fixed layout presets (right-click
    *  on an image in a frame) — full-bleed, centered with margins, or left
@@ -254,6 +260,35 @@ export const useEditorStore = create<EditorState>((set, get) => {
     saveProject(project).catch((error: unknown) =>
       set({ lastError: error instanceof Error ? error.message : "Could not save" }),
     )
+
+  const textElement = (frameId: string, elementId: string) =>
+    get()
+      .project.frames.find((frame) => frame.id === frameId)
+      ?.elements.find((element): element is TextElement => element.id === elementId && element.kind === "text")
+
+  /** The open color gesture, if any: which element, its color before, and how
+   *  many begins are still open. Gestures nest because they can overlap: a
+   *  press on the hue slider begins its drag before the hex field it took
+   *  focus from has ended its own. */
+  let colorGesture: { frameId: string; elementId: string; before: string | undefined; depth: number } | null = null
+
+  const setTextColor = (frameId: string, elementId: string, color: string | undefined) =>
+    updateProject((project) => ({
+      ...project,
+      frames: updateElement(project.frames, frameId, elementId, (element) =>
+        element.kind === "text" ? { ...element, color } : element,
+      ),
+    }))
+
+  const colorCommand = (
+    frameId: string,
+    elementId: string,
+    before: string | undefined,
+    after: string | undefined,
+  ): UndoCommand => ({
+    do: () => setTextColor(frameId, elementId, after),
+    undo: () => setTextColor(frameId, elementId, before),
+  })
 
   const updateProject = (
     mutate: (project: Project) => Project,
@@ -929,6 +964,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
               ?.elements.find((e): e is TextElement => e.id === elementId && e.kind === "text")?.content
           : undefined
 
+      const prevColor = patch.color !== undefined ? textElement(frameId, elementId)?.color : undefined
+
       const doUpdate = () =>
         updateProject((project) => ({
           ...project,
@@ -938,6 +975,14 @@ export const useEditorStore = create<EditorState>((set, get) => {
         }))
 
       doUpdate()
+
+      // Color is undoable (#27): one step per change, unless a gesture is
+      // open on this element, in which case `endTextColorGesture` pushes one
+      // step for the whole gesture.
+      const inGesture = colorGesture?.frameId === frameId && colorGesture.elementId === elementId
+      if (patch.color !== undefined && !inGesture && patch.color !== prevColor) {
+        pushUndo(colorCommand(frameId, elementId, prevColor, patch.color))
+      }
 
       // Leaving a text box's editing commits its content whether or not it
       // changed. Entering and leaving editing isn't an edit, so an unchanged
@@ -953,6 +998,26 @@ export const useEditorStore = create<EditorState>((set, get) => {
               ),
             })),
         })
+      }
+    },
+
+    beginTextColorGesture: (frameId, elementId) => {
+      if (colorGesture?.frameId === frameId && colorGesture.elementId === elementId) {
+        colorGesture.depth += 1
+        return
+      }
+      colorGesture = { frameId, elementId, before: textElement(frameId, elementId)?.color, depth: 1 }
+    },
+
+    endTextColorGesture: () => {
+      const gesture = colorGesture
+      if (!gesture) return
+      gesture.depth -= 1
+      if (gesture.depth > 0) return
+      colorGesture = null
+      const after = textElement(gesture.frameId, gesture.elementId)?.color
+      if (after !== gesture.before) {
+        pushUndo(colorCommand(gesture.frameId, gesture.elementId, gesture.before, after))
       }
     },
 
