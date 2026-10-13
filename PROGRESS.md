@@ -75,3 +75,12 @@ surprises). Newest entries at the bottom.
 - One rule on the inspector's content column (`inspector-panel.tsx`): horizontal `[data-slot=separator]` descendants get `-mx-3 w-auto`, so they bleed through the `px-3` in every state. The shared `ui/separator.tsx` is unchanged. Margins are horizontal only, so vertical spacing is identical; the before/after pairs line up row for row.
 - `npm run verify:separators` (new) passes in all four states, with every divider at 1153–1440 (the panel's inner edges) and no horizontal scroll. Negative control on `main`'s inspector: all four fail (1165–1428).
 - New screenshot scenes `page-selected` and `image-selected`, plus helpers `firstPhotoPoint`, `placePhotoOnFirstPage` and `placeTextOnFirstPage` in `lib/app.mjs`. They find the first pasteboard photo by its saturated pixels, so they need no test hooks.
+
+## 2026-10-13 — end of day (manager)
+
+- **Merged today:** #11 (#5 rename), #12 (#6 feedback errors), #16 (#14 text select/edit), #17 (#15 picker focus rings), #22 (#19 `[`/`]` cycle page images), #23 (#20 Enter to edit), #24 (#21 picker arrow keys), #26 (#25 full-width sidebar dividers), and #4 (emil skills). `main` @ 870b248: `npm run verify` green, all 8 verifiers pass, 8 screenshot scenes. `e2e` fails only its 2 known export checks.
+- **Next up:** #27 (color undo), filed and not started. The executor session (`session_01Qfn3GngwN5fzJT6VYrzRkd`) is idle and can take it.
+- **Blocked on the maintainer:** #7 and #8 need `docs/design/paper/color-picker-TF-0.png` and `image-selected-1G2-0.png`; #9 follows them. #6's final tick needs a real `GITHUB_FEEDBACK_TOKEN` submission. The export backlog needs a decision: pad to a multiple of 4 with blanks, or warn and block.
+- **Known gap:** `verify:text-selection` and `verify:image-cycling` set `LOUPE_TEST_HOOKS=1` with POSIX syntax, so they don't run in a plain Windows shell.
+- Merged branches deleted; only `main` remains on the remote.
+
