@@ -425,10 +425,10 @@ function ImageElementSettings({ frameId, elementId }: { frameId: string; element
               aria-pressed={preset === activePreset}
               onClick={() => applyImagePreset(frameId, elementId, preset)}
               className={cn(
-                "flex h-7 items-center justify-center rounded-md border px-1.5 text-center text-[0.7rem] leading-tight font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                "flex h-7 items-center justify-center rounded-md border px-1.5 text-center text-[0.7rem] leading-tight font-medium transition-colors outline-none focus-ring",
                 preset === activePreset
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "bg-input/30 text-foreground hover:bg-input/60 focus-visible:border-ring",
+                  : "bg-input/30 text-foreground hover:bg-input/60",
               )}
             >
               {IMAGE_PRESET_LABELS[preset]}
@@ -653,7 +653,7 @@ function TextContentField({ value, onChange }: { value: string; onChange: (value
       value={value}
       onChange={(event) => onChange(event.target.value)}
       rows={3}
-      className="w-full resize-none rounded-md border bg-input/30 px-2 py-1 text-sm leading-snug text-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      className="w-full resize-none rounded-md border bg-input/30 px-2 py-1 text-sm leading-snug text-foreground transition-colors outline-none focus-ring"
     />
   )
 }

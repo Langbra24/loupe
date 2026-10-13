@@ -16,9 +16,11 @@ function ScrollArea({
       className={cn("relative", className)}
       {...props}
     >
+      {/* Focusable whenever it scrolls. The panels clip their overflow, so
+          the shared ring is drawn inset here (see `focus-ring-inset`). */}
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
-        className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
+        className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-ring-inset"
       >
         {children}
       </ScrollAreaPrimitive.Viewport>

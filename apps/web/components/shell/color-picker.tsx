@@ -113,7 +113,7 @@ export function ColorField({
             type="button"
             id={triggerId}
             aria-labelledby={sectionLabel ? `${sectionLabel} ${triggerId}` : undefined}
-            className="flex w-full items-center gap-2 rounded-md border bg-input/30 py-1 pr-2 pl-1 text-sm text-foreground transition-colors outline-none data-popup-open:border-ring focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="flex w-full items-center gap-2 rounded-md border bg-input/30 py-1 pr-2 pl-1 text-sm text-foreground transition-colors outline-none data-popup-open:border-ring focus-ring"
           >
             <span
               className="size-4 shrink-0 rounded-xs border border-white/10"
@@ -168,7 +168,7 @@ export function ColorField({
                 value={hexDraft}
                 onChange={(event) => commitHex(event.target.value)}
                 spellCheck={false}
-                className="h-[30px] w-full rounded-md border bg-input/30 px-2 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="h-[30px] w-full rounded-md border bg-input/30 px-2 text-sm text-foreground outline-none transition-colors focus-ring"
               />
             </div>
 
@@ -227,7 +227,7 @@ function ColorChannelField({
   onChange: (value: number) => void
 }) {
   return (
-    <label className="flex min-w-0 flex-1 items-center justify-between gap-1 rounded-md border bg-input/30 px-2 py-1 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+    <label className="flex min-w-0 flex-1 items-center justify-between gap-1 rounded-md border bg-input/30 px-2 py-1 transition-colors focus-ring-within">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <input
         type="number"
@@ -393,7 +393,7 @@ function SaturationValuePicker({
         aria-valuemax={100}
         aria-valuetext={`Saturation ${saturation}%, brightness ${brightness}%`}
         tabIndex={0}
-        className="relative flex-1 cursor-crosshair touch-none rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="relative flex-1 cursor-crosshair touch-none rounded-md outline-none focus-ring"
         style={{
           backgroundColor: pureHueHex,
           backgroundImage:
@@ -417,7 +417,7 @@ function SaturationValuePicker({
         aria-valuemax={MAX_HUE}
         aria-valuetext={`Hue ${hue} degrees`}
         tabIndex={0}
-        className="relative shrink-0 cursor-pointer touch-none rounded-sm border outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="relative shrink-0 cursor-pointer touch-none rounded-sm border outline-none focus-ring"
         style={{
           width: HUE_TRACK_WIDTH_PX,
           background:
