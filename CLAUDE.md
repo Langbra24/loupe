@@ -92,16 +92,19 @@ npm run lint         # all workspaces
 npm test             # all workspaces (Vitest) + verifier self-tests
 npm run verify       # typecheck + lint + test + build — the baseline "done" gate
 npm run screenshot   # build, then save desktop PNGs to screenshots/ (gitignored)
-                     #   scenes: intro, shell, book — `npm run screenshot -- shell`
+                     #   scenes: intro, shell, book, feedback-error, text-selected
+                     #   — `npm run screenshot -- shell`
 npm run e2e          # build, import fixture photos, export a PDF, check page count
                      #   is a multiple of 4 and trim size matches (pdf-lib)
 npm run verify:rename # build, rename the book via the top-left field, reload,
                      #   check persistence, shortcut isolation, export filename
 npm run verify:feedback # build, submit feedback through the real control and
                      #   route against a stand-in GitHub; every status → toast
+npm run verify:text-selection # build with test hooks, place a text box with T;
+                     #   single click selects, double click edits at the caret
 ```
 
-Verifiers live in `scripts/verify/` and drive the real production build with Playwright (pinned to 1.56.1 to match the cloud image's Chromium; locally run `npx playwright install chromium` once). `npm run e2e` drives the real Export dialog; its header comment states the contract the PDF must meet. Set `LOUPE_URL=http://localhost:3000` to point a verifier at an already-running server.
+Verifiers live in `scripts/verify/` and drive the real production build with Playwright (pinned to 1.56.1 to match the cloud image's Chromium; locally run `npx playwright install chromium` once). `npm run e2e` drives the real Export dialog; its header comment states the contract the PDF must meet. Set `LOUPE_URL=http://localhost:3000` to point a verifier at an already-running server. `verify:text-selection` reads `window.__loupeCanvas`, which exists only in a build made with `LOUPE_TEST_HOOKS=1` (inlined via `next.config.ts`; ordinary builds compile it out).
 
 ## Cloud sessions
 
