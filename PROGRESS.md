@@ -185,3 +185,9 @@ surprises). Newest entries at the bottom.
   - book-overview previews are named "Page N" and `aria-current` when selected;
   - the zoom readout is "Zoom N%, reset to 100%".
 - `npm run verify:a11y-names` (new) passes. Negative control on main's app code fails: the readout is named "9%", and the rows can't be found as "Page 3". The three color-picker verifiers now find the trigger as `Color #…`.
+
+## 2026-10-13 — wave 1 of Phase 2 merged (manager)
+
+- PRs #61 (#58), #62 (#54), #63 (#57), #64 (#55), #65 (#50) merged in that order, each after merging `main` into its branch. Append conflicts in `package.json`, `CLAUDE.md` and `PROGRESS.md` kept both sides; `screenshot.mjs` kept both new scenes.
+- Combined, two verifiers broke on #65's renames: `book-overview.mjs` looked for the Color trigger as `#…` and `canvas-chrome.mjs` for the zoom readout as `N%`. Both now use the new names ("Color #…", "Zoom N%…"), committed on #65.
+- On the combined tree (identical to `main` after the merges): `npm run verify` passes; all 17 verifiers, including e2e 3/3, pass; all 13 screenshot scenes render.
