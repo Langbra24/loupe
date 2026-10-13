@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { ImagesIcon } from "@phosphor-icons/react"
 import { Redo2Icon, Trash2Icon, TypeIcon, Undo2Icon } from "lucide-react"
 import type { ImagePreset } from "@loupe/core"
@@ -12,6 +12,7 @@ import { useFabricCanvas } from "@/components/sequence/use-fabric-canvas"
 import {
   useCopyPasteShortcut,
   useDeleteSelectionShortcut,
+  useFrameKeyboardShortcuts,
   useTextToolShortcut,
   useUndoShortcut,
   type DeletableSelection,
@@ -112,7 +113,7 @@ export function LightTable() {
   const [frameMenu, setFrameMenu] = useState<FrameMenuTarget | null>(null)
   const [emptyCanvasMenu, setEmptyCanvasMenu] = useState<EmptyCanvasMenuTarget | null>(null)
 
-  const { containerRef, canvasElementRef, controls, armTextTool, isTextEditing } = useFabricCanvas({
+  const { containerRef, canvasElementRef, controls, armTextTool, isTextEditing, selectElementOnCanvas } = useFabricCanvas({
     placements,
     assets,
     frames,
@@ -138,6 +139,20 @@ export function LightTable() {
     onRemoveElement: removeElement,
   })
 
+  // `]` / `[` select the next / previous image placed in a page; Cmd/Ctrl+
+  // Arrow moves the page holding the selection (R30, issue #19).
+  const selectImage = useCallback(
+    ({ elementId }: { elementId: string }) => selectElementOnCanvas(elementId),
+    [selectElementOnCanvas],
+  )
+  useFrameKeyboardShortcuts({
+    enabled: true,
+    frames,
+    selectedFrameId: selection?.frameId ?? null,
+    selectedElementId: selection && "elementId" in selection ? selection.elementId : null,
+    selectImage,
+    reorderFrameById,
+  })
   // `T` arms the text tool; the next click/drag on the canvas places it (U6).
   useTextToolShortcut({ enabled: true, isTextboxEditing: isTextEditing, armTextTool })
   // Cmd/Ctrl+Z undoes the last reorder/move/create/delete/text-edit (U8);
