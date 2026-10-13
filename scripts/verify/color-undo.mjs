@@ -9,6 +9,9 @@
 //   2. Cmd/Ctrl+Z once undoes the whole drag (back to #37bf7b, not to some
 //      color partway through it); again undoes the hex edit (back to #18181b).
 //   3. Cmd/Ctrl+Shift+Z redoes each in turn.
+//   4. Typing a hex and pressing Escape mid-typing closes the picker; after
+//      reopening it and dragging the hue, one undo reverts just that drag. So
+//      no gesture is left open when the popover unmounts.
 //   After every step the hex field, the sidebar's Color field and the stored
 //   text element agree.
 
@@ -96,6 +99,25 @@ try {
   await agreesOn("redo reapplies the typed hex", TYPED)
   await page.keyboard.press("ControlOrMeta+Shift+z")
   await agreesOn("redo reapplies the drag", dragged)
+
+  // 4. Escape mid-typing, reopen, drag, undo once.
+  const ESCAPED = "#123456"
+  await hex.click()
+  await hex.fill("")
+  await page.keyboard.type(ESCAPED)
+  await page.keyboard.press("Escape")
+  await popover.waitFor({ state: "hidden" })
+  await sidebar.click()
+  await hue.waitFor()
+  const hueBox = await hue.boundingBox()
+  await page.mouse.move(hueBox.x + hueBox.width / 2, hueBox.y + 4)
+  await page.mouse.down()
+  await page.mouse.move(hueBox.x + hueBox.width / 2, hueBox.y + hueBox.height / 2, { steps: 12 })
+  await page.mouse.up()
+  const draggedAgain = (await hex.inputValue()).toLowerCase()
+  check(draggedAgain !== ESCAPED, `the drag after reopening changed the color (${ESCAPED} → ${draggedAgain})`)
+  await page.keyboard.press("ControlOrMeta+z")
+  await agreesOn("after Escape mid-typing, one undo reverts only the next drag", ESCAPED)
 
   check(errors.length === 0, `no uncaught page errors${errors.length ? `: ${errors.join("; ")}` : ""}`)
 } catch (error) {
