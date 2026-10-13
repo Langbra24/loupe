@@ -21,6 +21,7 @@
     "e2e": "npm run build && node scripts/verify/e2e-export.mjs",
     "verify:rename": "npm run build && node scripts/verify/rename.mjs",
     "verify:feedback": "npm run build && node scripts/verify/feedback.mjs",
+    "verify:text-selection": "LOUPE_TEST_HOOKS=1 npm run build && node scripts/verify/text-selection.mjs",
     "verify:picker-focus": "npm run build && node scripts/verify/color-picker-focus.mjs"
   },
   "devDependencies": {

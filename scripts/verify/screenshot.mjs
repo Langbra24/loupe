@@ -12,7 +12,16 @@
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
 
-import { DESKTOP_VIEWPORT, dismissIntroduction, importPhotos, openApp, openColorPicker, settle, setupBook } from "./lib/app.mjs"
+import {
+  DESKTOP_VIEWPORT,
+  dismissIntroduction,
+  firstPageCenter,
+  importPhotos,
+  openApp,
+  openColorPicker,
+  settle,
+  setupBook,
+} from "./lib/app.mjs"
 import { repoRoot, startApp } from "./lib/server.mjs"
 
 const SCENES = {
@@ -34,6 +43,28 @@ const SCENES = {
     await popover.getByRole("textbox", { name: "Hex color" }).focus()
     await page.keyboard.press("Tab")
     await page.keyboard.press("Tab")
+  },
+  /** A placed text box after a single click: selected with handles, not
+   *  editing, and the inspector showing its properties (issue #14). */
+  "text-selected": async (page) => {
+    await dismissIntroduction(page)
+    await importPhotos(page)
+    await setupBook(page, { preset: "A5 Portrait", pageCount: 8 })
+    await settle(page)
+    const page1 = await firstPageCenter(page)
+    await page.mouse.move(page1.x, page1.y)
+    for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -560)
+    await settle(page)
+    const spot = await firstPageCenter(page)
+    await page.keyboard.press("T")
+    await page.mouse.click(spot.x, spot.y)
+    await page.waitForTimeout(300)
+    await page.keyboard.type("Morning light")
+    await page.keyboard.press("Escape")
+    await page.keyboard.press("Escape")
+    // The box is centered where it was placed, so this lands on it.
+    await page.mouse.click(spot.x, spot.y)
+    await page.getByRole("tablist", { name: "Text alignment" }).waitFor()
   },
   /** A feedback submission the server can't file: the error toast over the
    *  popover with the draft kept. The route is stubbed in the browser so this
@@ -93,3 +124,4 @@ try {
   await app.stop()
 }
 process.exit(failed ? 1 : 0)
+

@@ -23,6 +23,7 @@ import {
   type SpreadBoxLayout,
 } from "@/components/sequence/frame-grid"
 import { BLEED_MM, DEFAULT_TEXT_COLOR } from "@/components/shell/inspector-panel"
+import { selectableTextboxClass } from "@/components/sequence/selectable-textbox"
 import { isTypingTarget } from "@/components/sequence/use-canvas-shortcuts"
 import { DEFAULT_TEXT_FONT, resolveTextFontFamily } from "@/lib/fonts"
 import { thumbnailUrl } from "@/lib/storage/assets"
@@ -470,11 +471,30 @@ export function useFabricCanvas(options: Options) {
     /* Escape cancels an armed text placement without creating anything — the
        same "changed my mind" escape hatch a right-click gives it in the
        mouse:down handler below. Window-level (not a Fabric canvas event)
-       since the tool can be armed with focus anywhere. */
-    const onKeyDownDuringTextPlacement = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && placingTextRef.current) disarmTextPlacement()
+       since the tool can be armed with focus anywhere.
+
+       Otherwise Escape deselects whatever the canvas has selected, but only
+       when focus is on the canvas or nowhere in particular, so closing a
+       dialog or popover with Escape leaves the selection alone. Leaving a
+       text box's editing is Fabric's own Escape on its hidden textarea, a
+       typing target here, so the box stays selected; only a second Escape
+       deselects. */
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      if (placingTextRef.current) {
+        disarmTextPlacement()
+        return
+      }
+      const target_canvas = canvasRef.current
+      const focus = event.target
+      const onCanvas = focus instanceof Node && Boolean(target_canvas?.wrapperEl.contains(focus))
+      if (isTypingTarget(focus) || (focus !== document.body && !onCanvas)) return
+      const active = target_canvas?.getActiveObject() as PlacedTextbox | undefined
+      if (!target_canvas || !active || active.isEditing) return
+      target_canvas.discardActiveObject()
+      target_canvas.requestRenderAll()
     }
-    window.addEventListener("keydown", onKeyDownDuringTextPlacement)
+    window.addEventListener("keydown", onEscape)
 
     /**
      * Holding Space shows the familiar "hand tool" grab cursor and lets a
@@ -568,6 +588,14 @@ export function useFabricCanvas(options: Options) {
       })
 
       canvasRef.current = canvas
+
+      // Verifiers read selection and editing state off the live canvas
+      // (scripts/verify/text-selection.mjs); handles and the caret are only
+      // pixels otherwise. `LOUPE_TEST_HOOKS` is inlined at build time
+      // (next.config.ts), so an ordinary build compiles this out.
+      if (process.env.LOUPE_TEST_HOOKS === "1") {
+        ;(window as unknown as { __loupeCanvas?: Canvas }).__loupeCanvas = canvas
+      }
 
       /**
        * Keeps the dot-grid background (`.canvas-dot-grid` on `containerRef`)
@@ -714,7 +742,8 @@ export function useFabricCanvas(options: Options) {
           return
         }
 
-        const textbox = new fabric.Textbox("", {
+        const Textbox = selectableTextboxClass(fabric)
+        const textbox = new Textbox("", {
           left: center.x,
           top: center.y,
           originX: "center",
@@ -1035,21 +1064,10 @@ export function useFabricCanvas(options: Options) {
         // space-triggered pan above, but harmless to set unconditionally.
         if (spacePressed) setPanCursor(target, "grab")
 
-        // A plain click on an already-placed text element — not a drag, not
-        // a resize — enters editing immediately, cursor ready: one click to
-        // select *and* start typing, rather than needing Fabric's own
-        // built-in double-click. Fabric always attaches a `transform` to
-        // this event for a transformable target, armed but not yet acted on
-        // — `actionPerformed` is the field that actually distinguishes "the
-        // pointer moved enough to drag/resize" from a click that never left
-        // its starting corner, so checking `opt.transform` alone would treat
-        // every click as a drag and never enter editing at all.
-        const clicked = opt.target as (Partial<PlacedElement> & { isEditing?: boolean; enterEditing?: () => void }) | undefined
-        const transform = opt.transform as { actionPerformed?: boolean } | null | undefined
-        if (!transform?.actionPerformed && clicked?.elementKind === "text" && !clicked.isEditing) {
-          clicked.enterEditing?.()
-          target.requestRenderAll()
-        }
+        // A click on a placed text box only selects it; a double click edits
+        // it (`selectableTextboxClass`, issue #14). This used to enter
+        // editing on a single click, which the maintainer reversed to match
+        // Figma: a single click has to stay free for moving and resizing.
       })
 
       /* While a frame is mid-drag, show which grid slot it would land in.
@@ -1220,10 +1238,10 @@ export function useFabricCanvas(options: Options) {
        * session (nothing in `syncObjects`/`syncFrames` touches it, since it's
        * in neither tracked map), but is lost on reload, and dragging it near
        * a frame alone does not commit it — only exiting edit mode re-runs
-       * this hit test. Re-entering editing (Fabric's built-in double-click
-       * behavior) and exiting again re-evaluates the hit test at the box's
-       * current position, so moving it onto a frame and re-editing is how a
-       * miss gets a second chance.
+       * this hit test. Re-entering editing (a double click, see
+       * `selectableTextboxClass`) and exiting again re-evaluates the hit
+       * test at the box's current position, so moving it onto a frame and
+       * re-editing is how a miss gets a second chance.
        */
       canvas.on("text:editing:exited", (opt) => {
         const target_canvas = canvasRef.current
@@ -1233,7 +1251,7 @@ export function useFabricCanvas(options: Options) {
         const content = (textbox.text ?? "").trim()
 
         // Re-editing an already-placed frame text element (double-click,
-        // Fabric's own built-in trigger) commits its content in place —
+        // see `selectableTextboxClass`) commits its content in place —
         // distinct from a fresh pasteboard textbox landing on a frame for
         // the first time, which is everything below this branch. Since
         // `placeTextbox` now commits directly onto a frame immediately, with
@@ -1304,7 +1322,7 @@ export function useFabricCanvas(options: Options) {
     return () => {
       disposed = true
       setReady(false)
-      window.removeEventListener("keydown", onKeyDownDuringTextPlacement)
+      window.removeEventListener("keydown", onEscape)
       window.removeEventListener("keydown", onSpaceKeyDown)
       window.removeEventListener("keyup", onSpaceKeyUp)
       objects.clear()
@@ -1998,7 +2016,8 @@ export function useFabricCanvas(options: Options) {
         if (pending.has(element.id)) continue
 
         if (element.kind === "text") {
-          const textbox = new fabric.Textbox(element.content, {
+          const Textbox = selectableTextboxClass(fabric)
+          const textbox = new Textbox(element.content, {
             left: absLeft,
             top: absTop,
             originX: "left",
