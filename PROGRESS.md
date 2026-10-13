@@ -222,3 +222,10 @@ surprises). Newest entries at the bottom.
 - Every other context-menu action already had a non-mouse route: image presets → the sidebar's Layout preset buttons; Delete page → Backspace/Delete on a selected page.
 - `npm run verify:cover-toggle` (new, test-hooks build) selects page 3, toggles Cover and adds a page using only the keyboard. It checks the stored order, the Position field, the Book list, the canvas badge and Ctrl+Z. It fails on main's app code (no Cover checkbox). `verify:a11y-names` now also expects "Cover" and "Add page".
 - Known gaps, not fixed here: Ctrl+Z does nothing while focus is on the checkbox itself (the undo shortcut leaves every `<input>` to the browser). Space can't press any button, app-wide (the pan handler). After a page is selected, the keyboard has no way back to nothing selected.
+
+## 2026-10-13 — wave 2 of Phase 2 merged (manager)
+
+- PRs #74 (#56), #68 (#52), #69 (#53), #67 (#51) merged in that order. `ui/button.tsx`, `ui/badge.tsx`, `ui/toast.tsx` and `feedback-control.tsx` conflicted between the behaviour PRs and #69. Resolution: keep #74's toast position, Cmd+Enter handler and #68's transition lists, with #69's `focus-ring` in place of the old ring classes. #67's Cover checkbox and Add page button were switched to `focus-ring` too; `verify:focus-ring` doesn't cover them.
+- `verify:cover-toggle` failed 5 checks on the combined tree. It took its baseline from IndexedDB before the debounced save had stored the new book, so `page3Id` was undefined. It now waits for all 8 pages to be stored (3/3 passes after).
+- On the combined tree (identical to `main` after the merges): `npm run verify` passes (118 core / 97 web tests); every verifier passes, including e2e; all screenshot scenes render.
+- Filed from the executor's notes on #67: #75 (Space is swallowed on focused buttons by the hold-to-pan handler) and #76 (no keyboard route back to "nothing selected"). #70–#72 (the maintainer's answers) are with the executor.
