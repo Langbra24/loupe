@@ -1,6 +1,11 @@
 "use client"
 
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
+import {
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react"
 import { Popover } from "@base-ui/react/popover"
 import {
   cmykToHex,
@@ -206,6 +211,8 @@ function ColorChannelField({
 }
 
 const SQUARE_HEIGHT_PX = 160
+/** The hue slider's keyboard ceiling: 360° is the same color as 0°. */
+const MAX_HUE = 359
 const HUE_TRACK_WIDTH_PX = 14
 
 /**
@@ -222,6 +229,11 @@ const HUE_TRACK_WIDTH_PX = 14
  * `side="left"` doc comment on `ColorField`'s `Popover.Positioner` for why
  * that mattered.
  *
+ * Both are also keyboard sliders (issue #21, the ARIA slider pattern): arrow
+ * keys step by 1 (Shift: 10), Home/End jump to the ends, all clamped. A key
+ * commits through the same `onChange` as a drag, so the hex, channel fields
+ * and text element follow it identically; neither records an undo step.
+ *
  * The square's `s`/`v` axes and the hue bar are both driven by pointer
  * capture (`setPointerCapture` on `pointerdown`) rather than a `window`
  * listener pair — capturing on the element itself keeps receiving
@@ -234,6 +246,35 @@ function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (ne
   const hueRef = useRef<HTMLDivElement>(null)
 
   const pureHueHex = hsvToHex({ h: hsv.h, s: 100, v: 100 })
+  const hue = Math.round(hsv.h)
+  const saturation = Math.round(hsv.s)
+  const brightness = Math.round(hsv.v)
+
+  const handleSquareKey = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const step = event.shiftKey ? 10 : 1
+    const next = { h: hsv.h, s: saturation, v: brightness }
+    if (event.key === "ArrowRight") next.s += step
+    else if (event.key === "ArrowLeft") next.s -= step
+    else if (event.key === "ArrowUp") next.v += step
+    else if (event.key === "ArrowDown") next.v -= step
+    else if (event.key === "Home") next.s = 0
+    else if (event.key === "End") next.s = 100
+    else return
+    event.preventDefault()
+    onChange({ h: next.h, s: clamp(next.s, 0, 100), v: clamp(next.v, 0, 100) })
+  }
+
+  const handleHueKey = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const step = event.shiftKey ? 10 : 1
+    let next = hue
+    if (event.key === "ArrowUp" || event.key === "ArrowRight") next += step
+    else if (event.key === "ArrowDown" || event.key === "ArrowLeft") next -= step
+    else if (event.key === "Home") next = 0
+    else if (event.key === "End") next = MAX_HUE
+    else return
+    event.preventDefault()
+    onChange({ h: clamp(next, 0, MAX_HUE), s: hsv.s, v: hsv.v })
+  }
 
   const handleSquarePointer = (event: ReactPointerEvent<HTMLDivElement>) => {
     const square = squareRef.current
@@ -266,7 +307,9 @@ function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (ne
 
     const update = (clientY: number) => {
       const rect = track.getBoundingClientRect()
-      const h = clamp01((clientY - rect.top) / rect.height) * 360
+      // 360° is 0° again; stop at the keyboard's ceiling so aria-valuenow
+      // never exceeds aria-valuemax.
+      const h = Math.min(MAX_HUE, clamp01((clientY - rect.top) / rect.height) * 360)
       onChange({ h, s: hsv.s, v: hsv.v })
     }
 
@@ -286,9 +329,13 @@ function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (ne
       <div
         ref={squareRef}
         onPointerDown={handleSquarePointer}
+        onKeyDown={handleSquareKey}
         role="slider"
         aria-label="Saturation and value"
-        aria-valuenow={Math.round(hsv.s)}
+        aria-valuenow={saturation}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuetext={`Saturation ${saturation}%, brightness ${brightness}%`}
         tabIndex={0}
         className="relative flex-1 cursor-crosshair touch-none rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         style={{
@@ -306,11 +353,13 @@ function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (ne
       <div
         ref={hueRef}
         onPointerDown={handleHuePointer}
+        onKeyDown={handleHueKey}
         role="slider"
         aria-label="Hue"
-        aria-valuenow={Math.round(hsv.h)}
+        aria-valuenow={hue}
         aria-valuemin={0}
-        aria-valuemax={360}
+        aria-valuemax={MAX_HUE}
+        aria-valuetext={`Hue ${hue} degrees`}
         tabIndex={0}
         className="relative shrink-0 cursor-pointer touch-none rounded-sm border outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         style={{
@@ -329,5 +378,9 @@ function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (ne
 }
 
 function clamp01(value: number): number {
-  return Math.min(1, Math.max(0, value))
+  return clamp(value, 0, 1)
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
