@@ -104,7 +104,8 @@ Verifiers live in `scripts/verify/` and drive the real production build with Pla
 - **Read `PROGRESS.md` first, update it last.** `PLAN.md` holds the phase checklist; tick items only when their "done when" condition is verified.
 - One GitHub issue per session, on its own branch, ending in a PR. The issue's "done when" line is the goal — run the command it names and quote the result in the PR.
 - Only take issues labelled `cloud-ok`. `local-only` issues need Paper.design or real API keys.
-- **Paper.design is local-only. Cloud sessions never touch it** — no Paper MCP calls, no token sync. Change tokens in `globals.css` and leave the Paper mirror for a local session.
+- **Paper.design is local-only. Cloud sessions never touch it** — no Paper MCP calls, no token sync. Change tokens in `globals.css` and leave the Paper mirror for a local session. Design references reach cloud sessions as PNGs in `docs/design/paper/`, named `<what>-<frame-id>.png`.
+- **Every UI change gets `/emil-ui-review`** on its diff; the verdict and findings go in the PR body, with Blocking and Should-fix findings resolved or justified. The app is desktop-only, so the skill's touch/mobile rules are judgment calls, not automatic blockers.
 - `gh` works for repo-scoped REST only (issues, labels, PRs). GraphQL is blocked, so cloud sessions cannot move cards on the Project board.
 
 Core purity gates (both must return nothing):
