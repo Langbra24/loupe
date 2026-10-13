@@ -55,3 +55,17 @@ surprises). Newest entries at the bottom.
 - Nothing on the canvas shows the focused frame (a bare index in `app-shell.tsx`). This is a separate design question. `window.__loupeFocusedFrameIndex` exposes it in `LOUPE_TEST_HOOKS=1` builds only.
 - `npm run verify:frame-cycling` (new) passes. Negative control with `main`'s shortcut code: 3 failures. The unit tests (25) cover brackets with wrap, Tab never claimed, inert while typing, and modifiers.
 - The plan doc's "Tab-based element cycling" (2026-08-22 plan, U-unit file list) is historical and left as written.
+
+## 2026-10-13 — #20 Enter on a selected text box starts editing (`issue-20-enter-to-edit`)
+
+- In `use-fabric-canvas.ts`, the key handler (`onEscape` → `onCanvasKey`) now also takes Enter: on a selected, non-editing text box, it calls `editAtEnd` (`selectable-textbox.ts`), which enters editing with a collapsed caret after the last character. It uses the same focus rule as Escape: only when focus is on the canvas or the page body.
+- The Enter keydown is `preventDefault`ed. Without that, Chrome delivers the Enter to the textarea that just took focus, and the text gains a newline.
+- While editing, Enter stays Fabric's newline, because that keydown targets the hidden textarea. Entering editing pushes no undo step (nothing does; the #14 store guard covers the exit).
+- `verify:text-selection` gains 6a–6c plus a re-select after the reload, 20/20. Negative control with `main`'s canvas hook: 4 failures.
+
+## 2026-10-13 — #21 arrow keys on the color picker's sliders (`issue-21-picker-arrow-keys`)
+
+- `SaturationValuePicker` (`color-picker.tsx`): the hue slider takes ↑/→ +1°, ↓/← −1°, Shift ×10, and Home/End 0°/359° (clamped, no wrap). The square takes ←/→ for saturation and ↑/↓ for brightness, with the same steps, and Home/End set saturation 0/100. Handled keys are `preventDefault`ed.
+- Keys commit through the same `onChange` as a drag. Color changes go through `updateTextElement({ color })`, which never pushes an undo step, so both drags and keys record none (the issue's "at most one per keystroke" holds).
+- `aria-valuetext`: "Hue 165 degrees" and "Saturation 71%, brightness 78%". The hue's `aria-valuemax` is now 359, matching End. The square gained `aria-valuemin`/`aria-valuemax`.
+- `npm run verify:picker-keys` (new) passes 13/13. Negative control on `main`'s picker: fails.

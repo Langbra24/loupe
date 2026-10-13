@@ -51,3 +51,16 @@ export function selectableTextboxClass(fabric: FabricModule): typeof Textbox {
   }
   return SelectableTextbox
 }
+
+/**
+ * Enter on a selected box (issue #20): start editing the way a double click
+ * does, but with no click point the caret goes after the last character,
+ * collapsed, so typing appends.
+ */
+export function editAtEnd(textbox: Textbox) {
+  textbox.enterEditing()
+  const end = textbox.text.length
+  textbox.setSelectionStart(end)
+  textbox.setSelectionEnd(end)
+  textbox.initDelayedCursor(true)
+}
