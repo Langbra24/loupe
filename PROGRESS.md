@@ -82,5 +82,5 @@ surprises). Newest entries at the bottom.
 - **Next up:** #27 (color undo), filed and not started. The executor session (`session_01Qfn3GngwN5fzJT6VYrzRkd`) is idle and can take it.
 - **Blocked on the maintainer:** #7 and #8 need `docs/design/paper/color-picker-TF-0.png` and `image-selected-1G2-0.png`; #9 follows them. #6's final tick needs a real `GITHUB_FEEDBACK_TOKEN` submission. The export backlog needs a decision: pad to a multiple of 4 with blanks, or warn and block.
 - **Known gap:** `verify:text-selection` and `verify:image-cycling` set `LOUPE_TEST_HOOKS=1` with POSIX syntax, so they don't run in a plain Windows shell.
-- Merged branches deleted; only `main` remains on the remote.
+- Merged branches are NOT deleted: the cloud proxy refuses branch deletion (API and `git push --delete` both 403). All 11 code branches are fully merged into `main`, and the 4 `pr-assets/*` branches hold only PR screenshots. Delete them from a local machine.
 
