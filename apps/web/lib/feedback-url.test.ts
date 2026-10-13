@@ -16,36 +16,29 @@ describe("composeFeedbackBody", () => {
 
   it("omits the contact block entirely when no contact is given", () => {
     const body = composeFeedbackBody("hi")
-    expect(body).not.toContain("Name:")
     expect(body).not.toContain("Email:")
   })
 
-  it("includes just a Name line when only a name is given", () => {
-    const body = composeFeedbackBody("hi", { name: "Jane Doe" })
-    expect(body).toContain("\n\n---\nName: Jane Doe\n\n---\n")
-    expect(body).not.toContain("Email:")
-  })
-
-  it("includes just an Email line when only an email is given", () => {
+  it("includes an Email line when an email is given", () => {
     const body = composeFeedbackBody("hi", { email: "jane@example.com" })
+    expect(body).toContain("\n\n---\nEmail: jane@example.com\n\n---\n")
+  })
+
+  it("never writes a name, even if a stray one rides along on the contact", () => {
+    const contact = { name: "Jane Doe", email: "jane@example.com" }
+    const body = composeFeedbackBody("hi", contact)
+    expect(body).not.toContain("Jane Doe")
     expect(body).not.toContain("Name:")
     expect(body).toContain("\n\n---\nEmail: jane@example.com\n\n---\n")
   })
 
-  it("includes both lines, name first, when both are given", () => {
-    const body = composeFeedbackBody("hi", { name: "Jane Doe", email: "jane@example.com" })
-    expect(body).toContain("\n\n---\nName: Jane Doe\nEmail: jane@example.com\n\n---\n")
+  it("treats a blank/whitespace-only email as not given", () => {
+    expect(composeFeedbackBody("hi", { email: "" })).not.toContain("Email:")
+    expect(composeFeedbackBody("hi", { email: "   " })).not.toContain("Email:")
   })
 
-  it("treats blank/whitespace-only name and email as not given", () => {
-    const body = composeFeedbackBody("hi", { name: "   ", email: "" })
-    expect(body).not.toContain("Name:")
-    expect(body).not.toContain("Email:")
-  })
-
-  it("trims surrounding whitespace from name and email", () => {
-    const body = composeFeedbackBody("hi", { name: "  Jane Doe  ", email: "  jane@example.com  " })
-    expect(body).toContain("Name: Jane Doe\n")
+  it("trims surrounding whitespace from the email", () => {
+    const body = composeFeedbackBody("hi", { email: "  jane@example.com  " })
     expect(body).toContain("Email: jane@example.com\n")
   })
 

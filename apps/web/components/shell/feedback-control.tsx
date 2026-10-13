@@ -31,8 +31,9 @@ import { FEEDBACK_MAX_LENGTH } from "@/lib/feedback-url"
  * feature (GitHub's image-upload flow is tied to its own web UI, not a
  * plain API call) than this fix, not a casual add-back.
  *
- * `name`/`email` are both optional (R23's follow-up) and fold into the
- * issue body — see `composeFeedbackBody`.
+ * `email` is optional and folds into the issue body — see
+ * `composeFeedbackBody`. It is the only contact field: the filed issue is
+ * public, so there is no Name field (#70), just enough for a reply.
  *
  * The 2,000-character cap is enforced in the textarea itself (`maxLength`)
  * with a live counter, not just at submit time, so typing past the limit is
@@ -42,13 +43,12 @@ import { FEEDBACK_MAX_LENGTH } from "@/lib/feedback-url"
  *
  * The popover's fields cascade in via `.stagger-section` (globals.css) on
  * open — the same reveal the onboarding intro dialog and the export dialog
- * use, applied here at direct user request: title/description, the name/
- * email row, the textarea, then the counter/submit row each land on their
- * own delay rather than popping in together.
+ * use, applied here at direct user request: title/description, the email
+ * row, the textarea, then the counter/submit row each land on their own
+ * delay rather than popping in together.
  */
 export function FeedbackControl() {
   const [open, setOpen] = useState(false)
-  const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [text, setText] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -67,7 +67,7 @@ export function FeedbackControl() {
     // `.add()` calls itself.
     try {
       await toastManager.promise(
-        submitFeedback({ feedback: text, contact: { name, email } }),
+        submitFeedback({ feedback: text, contact: { email } }),
         {
           loading: { title: "Sending feedback…", type: "loading" },
           success: {
@@ -84,7 +84,6 @@ export function FeedbackControl() {
         },
       )
 
-      setName("")
       setEmail("")
       setText("")
       setOpen(false)
@@ -118,19 +117,9 @@ export function FeedbackControl() {
               </Popover.Description>
             </div>
 
-            {/* Both optional (R23) — folded into the issue body on submit,
-                not sent anywhere on their own. Stacked, not side by side
-                (user-directed). */}
-            <div className="stagger-section flex flex-col gap-2 pb-2" style={stagger(1)}>
-              <input
-                type="text"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Name (optional)"
-                aria-label="Name (optional)"
-                disabled={submitting}
-                className="w-full rounded-lg border bg-background p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
-              />
+            {/* Optional — folded into the issue body on submit, not sent
+                anywhere on its own. */}
+            <div className="stagger-section pb-2" style={stagger(1)}>
               <input
                 type="email"
                 value={email}
@@ -180,7 +169,7 @@ const UNREACHABLE_MESSAGE = "Couldn't reach Loupe's server. Check your connectio
  *  (see `describeGitHubFailure` in the route), so the toast shows it as is. */
 class FeedbackError extends Error {}
 
-async function submitFeedback(payload: { feedback: string; contact: { name: string; email: string } }) {
+async function submitFeedback(payload: { feedback: string; contact: { email: string } }) {
   const response = await fetch("/api/feedback", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

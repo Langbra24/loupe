@@ -11,6 +11,8 @@
 // The contract:
 //   1. A 201 from GitHub shows "Feedback sent", closes the popover, and the
 //      issue GitHub received has the right title, body, and bearer token.
+//      The popover's only contact field is Email (#70: the issue is public,
+//      so there is no Name field), and an entered email reaches the body.
 //   2. Every failure shows a toast that says what happened, in the route's
 //      own words, and keeps the draft in the popover for a retry.
 
@@ -30,6 +32,7 @@ const SCENARIOS = [
     name: "201 created",
     github: { status: 201, body: { html_url: "https://github.com/Langbra24/loupe/issues/999" } },
     route: 201,
+    email: "reader@example.com",
     toast: ["Feedback sent", "We'll review your feedback in 2–3 business days."],
   },
   {
@@ -122,6 +125,12 @@ async function submit(appUrl, scenario) {
     if (scenario.offline) await page.route("**/api/feedback", (route) => route.abort("internetdisconnected"))
     await page.getByRole("button", { name: "Provide feedback" }).click()
     await page.getByPlaceholder("What's wrong, missing, or confusing?").fill(note)
+    if (scenario.email) {
+      const popup = page.getByRole("dialog", { name: "Send feedback" })
+      const nameFields = await popup.getByRole("textbox", { name: /name/i }).count()
+      check(nameFields === 0, `the feedback popover has no Name field (found ${nameFields})`)
+      await popup.getByRole("textbox", { name: /email/i }).fill(scenario.email)
+    }
     const routeResponse = scenario.offline
       ? Promise.resolve(null)
       : page.waitForResponse((response) => response.url().endsWith("/api/feedback"))
@@ -173,6 +182,10 @@ try {
           issue.body.title === "Feedback from the Loupe app" &&
           issue.body.body.includes(note),
         `GitHub received one issue on Langbra24/loupe with the note, title, and bearer token`,
+      )
+      check(
+        Boolean(issue?.body.body.includes(`Email: ${scenario.email}`)) && !/^Name:/m.test(issue?.body.body ?? ""),
+        `the issue body carries "Email: ${scenario.email}" and no Name line`,
       )
     }
   }
