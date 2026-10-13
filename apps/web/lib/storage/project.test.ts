@@ -25,8 +25,25 @@ const dbStub = {
   })),
 }
 
+/** What `getOpenedDb` hands the `pagehide` flush: a transaction whose `put`
+ *  and `commit` are recorded in call order, so a test can tell the write was
+ *  issued and committed synchronously rather than after an `await`. */
+const flushCalls: string[] = []
+const openedDbStub = {
+  transaction: vi.fn(() => ({
+    store: {
+      put: vi.fn(async (value: Project) => {
+        flushCalls.push(`put:${value.name}`)
+      }),
+    },
+    commit: vi.fn(() => flushCalls.push("commit")),
+    done: Promise.resolve(),
+  })),
+}
+
 vi.mock("@/lib/storage/db", () => ({
   getDb: vi.fn(async () => dbStub),
+  getOpenedDb: vi.fn(() => openedDbStub),
   isQuotaError: () => false,
   PROJECT_KEY: "current",
 }))
@@ -163,5 +180,30 @@ describe("loadProject", () => {
     expect(project.name).toBe("Current book")
     // No migration means no extra write beyond the read.
     expect(dbStub.put).not.toHaveBeenCalled()
+  })
+})
+
+describe("flushPendingSave", () => {
+  beforeEach(() => {
+    flushCalls.length = 0
+  })
+
+  // A reload tears the page down before an awaited write starts, so the flush
+  // must put and commit inside the `pagehide` handler itself.
+  it("writes and commits the pending project synchronously", async () => {
+    const { flushPendingSave, saveProjectDebounced } = await import("./project")
+    saveProjectDebounced({ ...currentRecord(), name: "Renamed" })
+
+    flushPendingSave()
+
+    expect(flushCalls).toEqual(["put:Renamed", "commit"])
+  })
+
+  it("does nothing when no write is pending", async () => {
+    const { flushPendingSave } = await import("./project")
+
+    flushPendingSave()
+
+    expect(flushCalls).toEqual([])
   })
 })
