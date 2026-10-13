@@ -2,7 +2,7 @@ import { PDFDocument } from "pdf-lib"
 
 import type { Asset, Frame } from "@loupe/core"
 
-import { EXPORT_BLEED_MM, renderFrameToCanvas } from "@/lib/export/render-frame"
+import { EXPORT_BLEED_MM, renderExportPages } from "@/lib/export/render-frame"
 
 /** 1mm in PDF points (1pt = 1/72in). */
 function mmToPt(mm: number): number {
@@ -29,7 +29,8 @@ function canvasToJpegBytes(canvas: HTMLCanvasElement, quality: number): Promise<
 }
 
 /**
- * A single flattened, print-ready PDF: every frame in reading order,
+ * A single flattened, print-ready PDF: every frame in reading order, plus
+ * any blank pages saddle stitch needs (`padForSaddleStitch` in core),
  * rasterized to `EXPORT_DPI` and embedded as one full-bleed JPEG per page.
  * Each page's MediaBox and BleedBox are trim plus `EXPORT_BLEED_MM` on every
  * edge, and its TrimBox is the page size inset by that bleed. (See the doc
@@ -59,17 +60,17 @@ export async function buildPrintPdf(
 ): Promise<Blob> {
   await document.fonts.ready
 
-  const ordered = [...frames].sort((a, b) => a.position - b.position)
   const pdf = await PDFDocument.create()
 
-  for (const [index, frame] of ordered.entries()) {
-    const canvas = await renderFrameToCanvas(frame, assets, typeBaseSize, typeRatio)
+  // Print order, with any blanks saddle stitch needs (#31).
+  let index = 0
+  for await (const { canvas, pageSize, total } of renderExportPages(frames, assets, typeBaseSize, typeRatio)) {
     const jpegBytes = await canvasToJpegBytes(canvas, 0.92)
     const image = await pdf.embedJpg(jpegBytes)
 
     const bleedPt = mmToPt(EXPORT_BLEED_MM)
-    const trimWidthPt = mmToPt(frame.pageSize.width)
-    const trimHeightPt = mmToPt(frame.pageSize.height)
+    const trimWidthPt = mmToPt(pageSize.width)
+    const trimHeightPt = mmToPt(pageSize.height)
     const widthPt = trimWidthPt + 2 * bleedPt
     const heightPt = trimHeightPt + 2 * bleedPt
     const page = pdf.addPage([widthPt, heightPt])
@@ -79,7 +80,8 @@ export async function buildPrintPdf(
     page.setBleedBox(0, 0, widthPt, heightPt)
     page.setTrimBox(bleedPt, bleedPt, trimWidthPt, trimHeightPt)
 
-    onProgress?.(index + 1, ordered.length)
+    index += 1
+    onProgress?.(index, total)
   }
 
   const bytes = await pdf.save()

@@ -85,6 +85,25 @@ const SCENES = {
     await settle(page)
     await placePhotoOnFirstPage(page)
   },
+  /** The Export dialog for a 10-page book: the "Adds 2 blank pages to reach
+   *  12" line, with its explanation open from keyboard focus (#31). */
+  "export-dialog": async (page) => {
+    await dismissIntroduction(page)
+    await importPhotos(page)
+    await setupBook(page, { preset: "A5 Portrait", pageCount: 10 })
+    await page.getByRole("banner").getByRole("button", { name: "Export" }).click()
+    const dialog = page.getByRole("dialog", { name: "Export book" })
+    await dialog.waitFor()
+    const info = dialog.getByRole("button", { name: "Why blank pages are added" })
+    if (await info.count()) {
+      for (let i = 0; i < 12; i++) {
+        await page.keyboard.press("Tab")
+        if (await info.evaluate((button) => document.activeElement === button)) break
+      }
+      await page.getByText(/sheets folded in half/).waitFor()
+    }
+    await page.waitForTimeout(400)
+  },
   /** A feedback submission the server can't file: the error toast over the
    *  popover with the draft kept. The route is stubbed in the browser so this
    *  can never file a real issue, even where a token is configured. */

@@ -9,7 +9,9 @@
 //      "Print-ready PDF" and confirming downloads a PDF.
 //   2. The PDF's page count is a multiple of 4 (saddle stitch) and at least the
 //      book's page count. The book is deliberately set up with a count that is
-//      NOT a multiple of 4, so this only passes if export pads with blank pages.
+//      NOT a multiple of 4, so this only passes if export pads with blank pages
+//      (#31); the added pages must be blank, and the dialog must say
+//      "Adds 2 blank pages to reach 12" with a keyboard-reachable explanation.
 //   3. Every page is drawn with 3mm bleed and says where to trim (issue #30):
 //      MediaBox = BleedBox = page size plus 3mm each side, and an explicit
 //      TrimBox of the page size at 3mm offsets.
@@ -23,8 +25,16 @@ import { mkdtemp, readFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { dismissIntroduction, FIXTURE_PHOTOS, importPhotos, openApp, setupBook } from "./lib/app.mjs"
-import { checkExportedPdf } from "./lib/pdf-checks.mjs"
+import {
+  dismissIntroduction,
+  FIXTURE_PHOTOS,
+  importPhotos,
+  openApp,
+  placePhotoOnFirstPage,
+  settle,
+  setupBook,
+} from "./lib/app.mjs"
+import { checkExportedPdf, pageImages } from "./lib/pdf-checks.mjs"
 import { repoRoot, startApp } from "./lib/server.mjs"
 
 const BOOK = { preset: "A5 Portrait", widthMm: 148, heightMm: 210, bleedMm: 3, pageCount: 10 }
@@ -44,10 +54,30 @@ try {
   console.log(`✓ imported ${FIXTURE_PHOTOS.length} fixture photos`)
   await setupBook(page, BOOK)
   console.log(`✓ set up a ${BOOK.pageCount}-page ${BOOK.preset} book`)
+  // A photo on page 1 gives the blank-page check something non-blank to tell apart.
+  await settle(page)
+  await placePhotoOnFirstPage(page)
+  console.log("✓ placed a photo on page 1")
 
   await page.getByRole("banner").getByRole("button", { name: "Export" }).click()
   const dialog = page.getByRole("dialog", { name: "Export book" })
   await dialog.waitFor()
+
+  // The dialog says what padding will happen, and why on keyboard focus (#31).
+  const padded = Math.ceil(BOOK.pageCount / 4) * 4
+  const blanks = padded - BOOK.pageCount
+  const note = `Adds ${blanks} blank page${blanks === 1 ? "" : "s"} to reach ${padded}`
+  check(await dialog.getByText(note).isVisible(), `the dialog says "${note}"`)
+  const info = dialog.getByRole("button", { name: "Why blank pages are added" })
+  let focused = false
+  for (let i = 0; i < 12 && !focused; i++) {
+    await page.keyboard.press("Tab")
+    focused = await info.evaluate((button) => document.activeElement === button)
+  }
+  const tooltip = page.getByText(/sheets folded in half/)
+  const tooltipShown = focused && (await tooltip.waitFor({ timeout: 3_000 }).then(() => true, () => false))
+  check(tooltipShown, `Tab reaches the info control and its tooltip explains the padding${focused ? "" : " (never focused)"}`)
+  await page.keyboard.press("Shift+Tab")
   await dialog.getByText("Print-ready PDF").click()
   const downloadPromise = page.waitForEvent("download", { timeout: 60_000 })
   await dialog.getByRole("button", { name: "Export", exact: true }).click()
@@ -66,7 +96,33 @@ try {
   console.log(`✓ downloaded ${download.suggestedFilename()} → ${pdfPath}`)
   check(pdfPath.toLowerCase().endsWith(".pdf"), `download has a .pdf filename (${download.suggestedFilename()})`)
 
-  for (const { ok, message } of await checkExportedPdf(await readFile(pdfPath), BOOK)) check(ok, message)
+  const pdfBytes = await readFile(pdfPath)
+  for (const { ok, message } of await checkExportedPdf(pdfBytes, BOOK)) check(ok, message)
+
+  // The padded pages are blank paper and the photo page isn't: decode each
+  // page's JPEG in the browser and look for anything darker than paper-white.
+  const images = await pageImages(pdfBytes)
+  const isBlank = (jpeg) =>
+    page.evaluate(async (base64) => {
+      const image = new Image()
+      image.src = `data:image/jpeg;base64,${base64}`
+      await image.decode()
+      const canvas = document.createElement("canvas")
+      canvas.width = 200
+      canvas.height = Math.round((200 * image.height) / image.width)
+      const ctx = canvas.getContext("2d")
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+      for (let i = 0; i < data.length; i += 4) if (Math.min(data[i], data[i + 1], data[i + 2]) < 245) return false
+      return true
+    }, Buffer.from(jpeg).toString("base64"))
+  const added = images.slice(BOOK.pageCount)
+  const addedBlank = (await Promise.all(added.map(isBlank))).every(Boolean)
+  check(
+    added.length === blanks && addedBlank,
+    `pages ${BOOK.pageCount + 1}–${padded} are blank paper (${added.length} added)`,
+  )
+  check(!(await isBlank(images[0])), "page 1, with its photo, is not blank (the blank check can tell)")
 
   check(errors.length === 0, `no uncaught page errors${errors.length ? `: ${errors.join("; ")}` : ""}`)
 } catch (error) {
