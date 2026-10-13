@@ -2,10 +2,12 @@
 
 import { useState } from "react"
 import { Dialog } from "@base-ui/react/dialog"
-import { CircleNotchIcon, ExportIcon, FileArchiveIcon, FilePdfIcon, type Icon } from "@phosphor-icons/react"
+import { CircleNotchIcon, ExportIcon, FileArchiveIcon, FilePdfIcon, InfoIcon, type Icon } from "@phosphor-icons/react"
+import { checkPageCount } from "@loupe/core"
 
 import { Button } from "@/components/ui/button"
 import { useToastManager } from "@/components/ui/toast"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { downloadBlob } from "@/lib/export/download"
 import { buildPrintPdf } from "@/lib/export/pdf"
 import { buildPngZip } from "@/lib/export/png-zip"
@@ -83,6 +85,9 @@ export function ExportDialog() {
   const project = useEditorStore((state) => state.project)
   const frameCount = project.frames.length
   const exporting = progress !== null
+  // Saddle stitch pads the exported file to a multiple of 4 (#31,
+  // `padForSaddleStitch` in core); the project itself keeps its count.
+  const blanks = frameCount > 0 ? checkPageCount(frameCount).blanksNeeded : 0
 
   const handleExport = async () => {
     if (frameCount === 0 || exporting) return
@@ -128,11 +133,12 @@ export function ExportDialog() {
         <Dialog.Popup className="fixed top-1/2 left-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-popover p-5 text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
           <div className="stagger-section" style={stagger(0)}>
             <Dialog.Title className="text-sm font-medium">Export book</Dialog.Title>
-            <Dialog.Description className="pt-0.5 pb-4 text-xs text-muted-foreground">
+            <Dialog.Description className={cn("pt-0.5 text-xs text-muted-foreground", blanks === 0 && "pb-4")}>
               {frameCount > 0
                 ? `${frameCount} page${frameCount === 1 ? "" : "s"}, rendered at 300 DPI with bleed.`
                 : "Add pages to your book before exporting."}
             </Dialog.Description>
+            {blanks > 0 ? <PaddingNote blanks={blanks} total={frameCount + blanks} /> : null}
           </div>
 
           <div className="flex flex-col gap-2">
@@ -185,5 +191,34 @@ export function ExportDialog() {
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
+  )
+}
+
+/** "Adds 2 blank pages to reach 12", with an info control that explains why
+ *  on hover or keyboard focus. */
+function PaddingNote({ blanks, total }: { blanks: number; total: number }) {
+  return (
+    <TooltipProvider>
+      <p className="flex items-center gap-1 pt-1 pb-4 text-xs text-muted-foreground">
+        Adds {blanks} blank page{blanks === 1 ? "" : "s"} to reach {total}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                aria-label="Why blank pages are added"
+                className="inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <InfoIcon className="size-3.5" />
+              </button>
+            }
+          />
+          <TooltipContent side="right">
+            Saddle-stitched books are made from sheets folded in half, so every sheet adds 4 pages. Blank pages go at
+            the end, before the back cover if there is one, so the count works out. Your book itself isn&apos;t changed.
+          </TooltipContent>
+        </Tooltip>
+      </p>
+    </TooltipProvider>
   )
 }

@@ -2,7 +2,7 @@
 // they can be exercised against synthetic PDFs while the export itself is
 // still being built (see pdf-checks.test.mjs).
 
-import { PDFDocument, PDFName } from "pdf-lib"
+import { PDFDict, PDFDocument, PDFName } from "pdf-lib"
 
 export const POINTS_PER_MM = 72 / 25.4
 /** Half a point (~0.18mm) — absorbs mm→pt rounding, nothing a printer would notice. */
@@ -84,4 +84,17 @@ function everyPage(pages, problemOf, messages) {
           `${messages.wrong} on ${wrong.length} page(s), first is page ${wrong[0].index + 1}: ` +
           `${wrong[0].problem}, expected ${messages.expected}`,
       }
+}
+
+/**
+ * The JPEG each page of the export draws (one full-page image per page; see
+ * `buildPrintPdf`), so a verifier can decode it and look at the pixels.
+ * @returns {Promise<Uint8Array[]>}
+ */
+export async function pageImages(bytes) {
+  const pdf = await PDFDocument.load(bytes)
+  return pdf.getPages().map((page) => {
+    const xobjects = page.node.Resources().lookup(PDFName.of("XObject"), PDFDict)
+    return pdf.context.lookup(xobjects.values()[0]).contents
+  })
 }

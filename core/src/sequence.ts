@@ -111,3 +111,30 @@ export function checkPageCount(pageCount: number): PageCountCheck {
 export function projectSpreads(project: Project): Spread[] {
   return toSpreads(project.pages)
 }
+
+/** One page of an exported book: a real page, or a blank added for binding. */
+export type ExportPage<T> = { kind: 'page'; frame: T } | { kind: 'blank' }
+
+/**
+ * The pages a saddle-stitched book actually prints, in order: every page,
+ * plus the blanks `checkPageCount` says are needed to reach a multiple of 4.
+ * Blanks go at the end of the book, or just before the back cover when the
+ * last page is a cover, so the cover stays on the outside.
+ *
+ * Export-only: the project keeps its own page count, and the blanks exist
+ * only in the exported file. Another binding would need its own rule here
+ * (perfect binding usually only needs an even count).
+ */
+export function padForSaddleStitch<T extends { position: number; isCover?: boolean }>(
+  frames: readonly T[],
+): ExportPage<T>[] {
+  const ordered = [...frames].sort((a, b) => a.position - b.position)
+  const pages = ordered.map((frame): ExportPage<T> => ({ kind: 'page', frame }))
+  if (pages.length === 0) return pages
+
+  const blanks = Array.from({ length: checkPageCount(pages.length).blanksNeeded }, (): ExportPage<T> => ({
+    kind: 'blank',
+  }))
+  const backCover = ordered.length > 1 && ordered[ordered.length - 1]?.isCover === true
+  return backCover ? [...pages.slice(0, -1), ...blanks, ...pages.slice(-1)] : [...pages, ...blanks]
+}

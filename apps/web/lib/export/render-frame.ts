@@ -1,4 +1,11 @@
-import { resolveTextSize, type Asset, type Frame, type ImageElement, type TextElement } from "@loupe/core"
+import {
+  padForSaddleStitch,
+  resolveTextSize,
+  type Asset,
+  type Frame,
+  type ImageElement,
+  type TextElement,
+} from "@loupe/core"
 
 import { BLEED_MM, DEFAULT_TEXT_COLOR } from "@/components/shell/inspector-panel"
 import { resolveTextFontFamily } from "@/lib/fonts"
@@ -86,6 +93,44 @@ export async function renderFrameToCanvas(
   }
 
   return canvas
+}
+
+/** A blank page for binding padding (`padForSaddleStitch`): paper-white at
+ *  `pageSize` plus the same bleed as every rendered page. */
+export function renderBlankPage(pageSize: { width: number; height: number }): HTMLCanvasElement {
+  const canvas = document.createElement("canvas")
+  canvas.width = Math.round(mmToPx(pageSize.width + 2 * EXPORT_BLEED_MM, EXPORT_DPI))
+  canvas.height = Math.round(mmToPx(pageSize.height + 2 * EXPORT_BLEED_MM, EXPORT_DPI))
+  const ctx = canvas.getContext("2d")
+  if (!ctx) throw new Error("Could not get a 2D drawing context")
+  ctx.fillStyle = "#ffffff"
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  return canvas
+}
+
+/** Renders each page of the exported book in print order, blanks included,
+ *  handing back the canvas and the trim size it was drawn at. A blank takes
+ *  the size of the page before it. */
+export async function* renderExportPages(
+  frames: readonly Frame[],
+  assets: readonly Asset[],
+  typeBaseSize: number,
+  typeRatio: number,
+): AsyncGenerator<{ canvas: HTMLCanvasElement; pageSize: { width: number; height: number }; total: number }> {
+  const pages = padForSaddleStitch(frames)
+  let pageSize = pages.find((page) => page.kind === "page")?.frame.pageSize
+  for (const page of pages) {
+    if (page.kind === "page") {
+      pageSize = page.frame.pageSize
+      yield {
+        canvas: await renderFrameToCanvas(page.frame, assets, typeBaseSize, typeRatio),
+        pageSize,
+        total: pages.length,
+      }
+    } else if (pageSize) {
+      yield { canvas: renderBlankPage(pageSize), pageSize, total: pages.length }
+    }
+  }
 }
 
 async function drawImageElement(
