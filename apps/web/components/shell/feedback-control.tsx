@@ -6,6 +6,7 @@ import { Popover } from "@base-ui/react/popover"
 
 import { Button } from "@/components/ui/button"
 import { useToastManager } from "@/components/ui/toast"
+import { modifierLabel, usePlatform } from "@/components/sequence/use-platform"
 import { cn, stagger } from "@/lib/utils"
 import { FEEDBACK_MAX_LENGTH } from "@/lib/feedback-url"
 
@@ -45,6 +46,10 @@ import { FEEDBACK_MAX_LENGTH } from "@/lib/feedback-url"
  * use, applied here at direct user request: title/description, the name/
  * email row, the textarea, then the counter/submit row each land on their
  * own delay rather than popping in together.
+ *
+ * Cmd/Ctrl+Enter in the textarea submits through the same `handleSubmit`
+ * (#56); the Submit button names the shortcut in a `<kbd>`, as the canvas
+ * toolbars' tooltips do.
  */
 export function FeedbackControl() {
   const [open, setOpen] = useState(false)
@@ -53,6 +58,8 @@ export function FeedbackControl() {
   const [text, setText] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const toastManager = useToastManager()
+  const modifier = modifierLabel(usePlatform())
+  const submitShortcut = modifier ? `${modifier} ↵` : null
 
   const canSubmit = text.trim().length > 0 && text.length <= FEEDBACK_MAX_LENGTH && !submitting
 
@@ -150,6 +157,13 @@ export function FeedbackControl() {
               aria-label="Feedback"
               rows={5}
               disabled={submitting}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) return
+                if (event.nativeEvent.isComposing) return
+                event.preventDefault()
+                void handleSubmit()
+              }}
+              aria-keyshortcuts="Meta+Enter Control+Enter"
               className="stagger-section w-full resize-none rounded-lg border bg-background p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
               style={stagger(2)}
             />
@@ -163,8 +177,21 @@ export function FeedbackControl() {
               >
                 {text.length} / {FEEDBACK_MAX_LENGTH}
               </span>
+              {/* Both labels share one grid cell and the hidden one keeps its
+                  space, so the button holds the wider label's width while
+                  sending instead of shrinking (#56). */}
               <Button size="sm" disabled={!canSubmit} onClick={handleSubmit}>
-                {submitting ? "Sending…" : "Submit feedback"}
+                <span className="grid justify-items-center">
+                  <span className={cn("col-start-1 row-start-1 flex items-center gap-1.5", submitting && "invisible")}>
+                    Submit feedback
+                    {submitShortcut && (
+                      <kbd data-slot="kbd" aria-hidden className="rounded bg-background/20 px-1 font-sans">
+                        {submitShortcut}
+                      </kbd>
+                    )}
+                  </span>
+                  <span className={cn("col-start-1 row-start-1", !submitting && "invisible")}>Sending…</span>
+                </span>
               </Button>
             </div>
           </Popover.Popup>
