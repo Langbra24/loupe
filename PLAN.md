@@ -23,7 +23,7 @@ only once that condition has been verified — not when the PR opens.
 - [x] [#31](https://github.com/Langbra24/loupe/issues/31) Export pads saddle-stitch books to a multiple of 4, explained in the dialog — PR #35, `npm run e2e` PASS (first full pass)
 - [x] [#34](https://github.com/Langbra24/loupe/issues/34) Feedback popup asks for more context instead of mentioning GitHub — PR #39
 - [x] [#40](https://github.com/Langbra24/loupe/issues/40) Page-selected sidebar: left-align the field text — PR #42
-- [ ] [#45](https://github.com/Langbra24/loupe/issues/45) Dialog focus: Tab never escapes the Export dialog or reaches what an overlay covers
+- [x] [#45](https://github.com/Langbra24/loupe/issues/45) Dialog focus: Tab never escapes the Export dialog or reaches what an overlay covers — PR #46, `npm run verify:dialog-focus`
 - [ ] [#9](https://github.com/Langbra24/loupe/issues/9) Whole-app `/emil-ui-review` + `/emil-ui-polish` → findings triaged into new issues — *after #6's token works*
 
 ## Backlog (no issue yet)
