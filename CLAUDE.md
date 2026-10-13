@@ -118,6 +118,7 @@ npm run verify:color-undo # build; a typed hex and a hue drag are one undo step
                      #   each; undo/redo move the color everywhere
 npm run verify:dialog-focus # build; fast Tab/Shift+Tab never leave the Export
                      #   dialog or reach what the intro/book-setup overlays cover
+npm run verify:top-nav # build; the top nav holds exactly one button, Export
 npm run verify:book-overview # build; a colored caption shows in the Book view
                      #   on a white page, in exactly the picked color
 ```

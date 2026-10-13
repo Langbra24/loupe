@@ -148,6 +148,12 @@ surprises). Newest entries at the bottom.
 - **Method:** code read of every UI file, every screenshot scene, and a Playwright audit of the production build. The audit covered Tab walks per state, inspector ARIA snapshots, context-menu focus, Escape, reduced-motion emulation, hit areas, token contrast, and a frame-by-frame reload capture (an empty project flashes for ~100ms on every reload).
 - Excluded as already decided: #25, #40, #30, #14, user-directed menus and stagger, Paper-referenced field styling, and the intro-modality question open on #46. The maintainer triages findings into issues.
 
+## 2026-10-13 — #58 remove the dead Share button (`issue-58-remove-share`)
+
+- The top nav's Share button had no handler (review finding S5). Removed until sharing exists; Export is the only top-right action. The now-unused `ArrowSquareOutIcon` and `Button` imports and the wrapper `div` went with it.
+- Nothing else named the button: no verifier, screenshot scene or CLAUDE.md text. The build brief's original "Share + Export" description in `docs/plans/` is left as history.
+- `npm run verify:top-nav` (new): the banner holds exactly one button, named "Export".
+
 ## 2026-10-13 — #54 book overview on white paper (`issue-54-book-overview-paper`)
 
 - Fixes S6 from `todos/2026-10-13-emil-ui-review.md`. Book view page previews are `bg-white` (were `bg-card`, zinc-900), and text takes `element.color ?? DEFAULT_TEXT_COLOR`, as the canvas and `render-frame.ts` do. Both changes ship together: the color alone on a dark card would hide default ink. An image slot whose thumbnail hasn't loaded is `bg-zinc-100` (was `bg-muted`, dark) so it still reads as a placeholder on paper.
