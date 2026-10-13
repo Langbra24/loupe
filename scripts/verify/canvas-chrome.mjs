@@ -268,7 +268,7 @@ try {
   await zoomAround(anchors.leftMid, 0.5)
   await page.getByRole("button", { name: "Zoom out" }).click()
   await page.waitForTimeout(200)
-  const readout = await page.getByRole("button", { name: /^\d+%$/ }).textContent()
+  const readout = await page.getByRole("button", { name: /^Zoom \d+%/ }).textContent()
   const afterZoomOut = await measure(ADD_PAGE_FILL, BUTTON_AREA)
   check(
     readout === "40%" && afterZoomOut && afterZoomOut.width >= 24 && afterZoomOut.height >= 24,

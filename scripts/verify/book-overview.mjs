@@ -37,7 +37,7 @@ try {
   await page.keyboard.press("Shift+Tab") // commits the hex, as in color-undo.mjs
   await page.keyboard.press("Escape")
   await popover.waitFor({ state: "hidden" })
-  const sidebar = page.getByRole("complementary").getByRole("button", { name: /^#[0-9a-f]{6}$/i })
+  const sidebar = page.getByRole("complementary").getByRole("button", { name: /^Color #[0-9a-f]{6}$/i })
   check(
     (await sidebar.textContent()).trim().toLowerCase() === COLOR,
     `the sidebar's Color field reads ${COLOR} before opening the Book view`,
