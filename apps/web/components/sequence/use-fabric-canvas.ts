@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import type { Canvas, FabricImage, FabricObject, TPointerEventInfo } from "fabric"
+import type { Canvas, FabricImage, FabricObject, Textbox, TPointerEventInfo } from "fabric"
 import {
   boundingBoxOf,
   frameAt,
@@ -23,7 +23,7 @@ import {
   type SpreadBoxLayout,
 } from "@/components/sequence/frame-grid"
 import { BLEED_MM, DEFAULT_TEXT_COLOR } from "@/components/shell/inspector-panel"
-import { selectableTextboxClass } from "@/components/sequence/selectable-textbox"
+import { editAtEnd, selectableTextboxClass } from "@/components/sequence/selectable-textbox"
 import { isTypingTarget } from "@/components/sequence/use-canvas-shortcuts"
 import { DEFAULT_TEXT_FONT, resolveTextFontFamily } from "@/lib/fonts"
 import { thumbnailUrl } from "@/lib/storage/assets"
@@ -478,10 +478,15 @@ export function useFabricCanvas(options: Options) {
        dialog or popover with Escape leaves the selection alone. Leaving a
        text box's editing is Fabric's own Escape on its hidden textarea, a
        typing target here, so the box stays selected; only a second Escape
-       deselects. */
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return
-      if (placingTextRef.current) {
+       deselects.
+
+       Enter on a selected text box starts editing with the caret at the end
+       (issue #20), under the same focus rule, so Enter in a field, dialog or
+       popover keeps its own meaning. While editing, Enter belongs to Fabric's
+       textarea and stays a newline. */
+    const onCanvasKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" && event.key !== "Enter") return
+      if (event.key === "Escape" && placingTextRef.current) {
         disarmTextPlacement()
         return
       }
@@ -491,10 +496,18 @@ export function useFabricCanvas(options: Options) {
       if (isTypingTarget(focus) || (focus !== document.body && !onCanvas)) return
       const active = target_canvas?.getActiveObject() as PlacedTextbox | undefined
       if (!target_canvas || !active || active.isEditing) return
-      target_canvas.discardActiveObject()
+      if (event.key === "Enter") {
+        if (!("enterEditing" in active)) return
+        // Cancelled, or Chrome delivers the Enter itself to the textarea
+        // that just took focus and the text gains a newline.
+        event.preventDefault()
+        editAtEnd(active as unknown as Textbox)
+      } else {
+        target_canvas.discardActiveObject()
+      }
       target_canvas.requestRenderAll()
     }
-    window.addEventListener("keydown", onEscape)
+    window.addEventListener("keydown", onCanvasKey)
 
     /**
      * Holding Space shows the familiar "hand tool" grab cursor and lets a
@@ -1322,7 +1335,7 @@ export function useFabricCanvas(options: Options) {
     return () => {
       disposed = true
       setReady(false)
-      window.removeEventListener("keydown", onEscape)
+      window.removeEventListener("keydown", onCanvasKey)
       window.removeEventListener("keydown", onSpaceKeyDown)
       window.removeEventListener("keyup", onSpaceKeyUp)
       objects.clear()
