@@ -148,6 +148,27 @@ surprises). Newest entries at the bottom.
 - **Method:** code read of every UI file, every screenshot scene, and a Playwright audit of the production build. The audit covered Tab walks per state, inspector ARIA snapshots, context-menu focus, Escape, reduced-motion emulation, hit areas, token contrast, and a frame-by-frame reload capture (an empty project flashes for ~100ms on every reload).
 - Excluded as already decided: #25, #40, #30, #14, user-directed menus and stagger, Paper-referenced field styling, and the intro-modality question open on #46. The maintainer triages findings into issues.
 
+## 2026-10-13 — #58 remove the dead Share button (`issue-58-remove-share`)
+
+- The top nav's Share button had no handler (review finding S5). Removed until sharing exists; Export is the only top-right action. The now-unused `ArrowSquareOutIcon` and `Button` imports and the wrapper `div` went with it.
+- Nothing else named the button: no verifier, screenshot scene or CLAUDE.md text. The build brief's original "Share + Export" description in `docs/plans/` is left as history.
+- `npm run verify:top-nav` (new): the banner holds exactly one button, named "Export".
+
+## 2026-10-13 — #54 book overview on white paper (`issue-54-book-overview-paper`)
+
+- Fixes S6 from `todos/2026-10-13-emil-ui-review.md`. Book view page previews are `bg-white` (were `bg-card`, zinc-900), and text takes `element.color ?? DEFAULT_TEXT_COLOR`, as the canvas and `render-frame.ts` do. Both changes ship together: the color alone on a dark card would hide default ink. An image slot whose thumbnail hasn't loaded is `bg-zinc-100` (was `bg-muted`, dark) so it still reads as a placeholder on paper.
+- Unchanged: bleed/margin overlays, selected outline, ring, page labels.
+- `npm run verify:book-overview` (new): picks `#c2410c` for a caption, opens the Book view, checks the preview's computed background is `rgb(255, 255, 255)` and the caption's computed color is `rgb(194, 65, 12)`. Negative control on `main`: both fail (dark background, near-white text). New screenshot scene `book-overview`; the existing `book` scene ends on the canvas.
+- Seen, not fixed: captions in the previews render at a 5px floor (`pointSize * 0.4`, not scaled to the preview width), so they are barely legible at review size.
+
+## 2026-10-13 — #57 book setup dialog (`issue-57-book-setup`)
+
+- Finding S12 from `todos/2026-10-13-emil-ui-review.md`. Copy now reads "Page count can change later; page size is set for this book." — the old "You can change this later" promised something the app can't do (both inspector states show page size read-only).
+- *Custom* gained `aria-pressed`; one `FIELD_CLASS` (the page-count field's Paper FL-0 style, plus `aria-invalid:border-destructive`) now styles the custom width, custom height and page-count inputs, focus ring included; both validation messages are wired to their inputs with `aria-invalid` + `aria-describedby` (`useId`).
+- **No-jump:** the card is anchored from the top (`top-[max(1.5rem,calc(50%-12rem))]`) instead of vertically centred, so the custom row and the error lines only ever grow it downward. 12rem ≈ half the preset-state card, so in that state it still sits where centring put it. Reserving the custom row's height instead would leave an empty band under the presets for every book that uses a preset — which is most of them.
+- `npm run verify:book-setup` (new, `scripts/verify/book-setup.mjs`) passes 23/23: copy, `aria-pressed`, identical computed field style and focus ring on all three inputs after Tab, `aria-invalid`/`aria-describedby` pointing at the visible message, and 0px top-edge movement on Custom on/off and on an error appearing (while the card itself grows 36px, so the check isn't vacuous). On `main` it fails 15 of those.
+- New screenshot scene `book-setup` (Custom chosen, width 0 → error). `npm run verify` and every other verifier pass.
+
 ## 2026-10-13 — #55 canvas selection color and screen-sized chrome (`issue-55-canvas-chrome`)
 
 - **S7:** one selection color, `#4176f6` — `--sidebar-primary`'s hue at oklch lightness 0.6 (the token itself is 2.6:1 on the pasteboard). It measures 4.34:1 on the `--canvas` pasteboard and 4.08:1 on a white page. Frames, images, text (incl. `editingBorderColor`), shift-click groups, the marquee and the frame-drag insertion indicator all use it, borders 2 screen px (`borderScaleFactor`). The indicator stroke is now `strokeUniform`. Print guides keep red bleed / sky-blue margin; the cover badge moved off the margin blue to `--primary`'s zinc; the frame stroke is zinc-400 instead of slate.
