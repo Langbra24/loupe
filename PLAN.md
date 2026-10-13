@@ -31,18 +31,20 @@ only once that condition has been verified — not when the PR opens.
 Reports: `todos/2026-10-13-emil-ui-review.md`, `todos/2026-10-13-emil-ui-polish.md`. Highest impact first.
 
 - [x] [#50](https://github.com/Langbra24/loupe/issues/50) A11y: name every inspector control and expose selected state (B1, S14) — PR #65, `npm run verify:a11y-names` PASS
-- [ ] [#51](https://github.com/Langbra24/loupe/issues/51) Set as cover: Cover toggle in the page sidebar (B2)
+- [x] [#51](https://github.com/Langbra24/loupe/issues/51) Set as cover: Cover toggle in the page sidebar (B2) — PR #67, `npm run verify:cover-toggle` PASS
 - [x] [#58](https://github.com/Langbra24/loupe/issues/58) Top nav: remove the dead Share button (S5) — PR #61, `npm run verify:top-nav` PASS
-- [ ] [#56](https://github.com/Langbra24/loupe/issues/56) Small fixes: toasts top-right, Escape closes intro, empty state not red, Cmd+Enter submits feedback (S9–S11, S13)
+- [x] [#56](https://github.com/Langbra24/loupe/issues/56) Small fixes: toasts top-right, Escape closes intro, empty state not red, Cmd+Enter submits feedback (S9–S11, S13) — PR #74, `npm run verify:small-fixes` PASS
 - [x] [#57](https://github.com/Langbra24/loupe/issues/57) Book setup dialog: honest copy, consistent fields, no jump (S12) — PR #63, `npm run verify:book-setup` PASS
-- [ ] [#52](https://github.com/Langbra24/loupe/issues/52) Motion: reduced motion, no inspector delay, no transition-all (S2–S4)
-- [ ] [#53](https://github.com/Langbra24/loupe/issues/53) Focus ring: one treatment, ≥ 3:1 (S1)
+- [x] [#52](https://github.com/Langbra24/loupe/issues/52) Motion: reduced motion, no inspector delay, no transition-all (S2–S4) — PR #68, `npm run verify:motion` PASS
+- [x] [#53](https://github.com/Langbra24/loupe/issues/53) Focus ring: one treatment, ≥ 3:1 (S1) — PR #69, `npm run verify:focus-ring` PASS
 - [x] [#54](https://github.com/Langbra24/loupe/issues/54) Book overview: white pages, real text colors (S6) — PR #62, `npm run verify:book-overview` 5/5
 - [x] [#55](https://github.com/Langbra24/loupe/issues/55) Canvas chrome: one selection color, screen-sized add-page buttons and cover badge (S7, S8) — PR #64, `npm run verify:canvas-chrome` 16/16
 - [ ] [#59](https://github.com/Langbra24/loupe/issues/59) Polish: stable widths, tabular numbers, hit areas, no faux italic, no reload flash (P1–P5)
 - [ ] [#70](https://github.com/Langbra24/loupe/issues/70) Feedback: drop the Name field, keep Email
 - [ ] [#71](https://github.com/Langbra24/loupe/issues/71) Book setup dialog: centre it again (reverses #57's top anchor)
 - [ ] [#72](https://github.com/Langbra24/loupe/issues/72) Add-page buttons sit outside a spread; gutter insert is an explicit sidebar action
+- [ ] [#75](https://github.com/Langbra24/loupe/issues/75) Space activates focused buttons; hold-Space pan only from the canvas
+- [ ] [#76](https://github.com/Langbra24/loupe/issues/76) Escape steps the selection back out to Book settings
 
 Nits from both reports stay in the reports for a later pass.
 
