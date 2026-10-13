@@ -104,6 +104,13 @@ const SCENES = {
     }
     await page.waitForTimeout(400)
   },
+  /** The feedback popover, open and empty. */
+  feedback: async (page) => {
+    await dismissIntroduction(page)
+    await page.getByRole("button", { name: "Provide feedback" }).click()
+    await page.getByPlaceholder("What's wrong, missing, or confusing?").waitFor()
+    await page.waitForTimeout(600) // the fields cascade in
+  },
   /** A feedback submission the server can't file: the error toast over the
    *  popover with the draft kept. The route is stubbed in the browser so this
    *  can never file a real issue, even where a token is configured. */

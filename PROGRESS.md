@@ -97,3 +97,9 @@ surprises). Newest entries at the bottom.
 - `renderExportPages` (`render-frame.ts`) yields canvases in print order. A blank is paper-white at the previous page's size, plus bleed. `pdf.ts` and `png-zip.ts` both use it, so blanks get the #30 trim/bleed boxes too.
 - Dialog: "Adds 2 blank pages to reach 12" (real numbers, singular/plural) and an info button ("Why blank pages are added") whose tooltip opens on hover and keyboard focus. It opens to the right so it doesn't cover the dialog title.
 - `npm run e2e` **passes fully** for the first time: 12 pages, every box right, pages 11–12 blank. A photo is placed on page 1 so the blank check can be seen to tell the difference. The dialog line and the keyboard tooltip are also checked. Both backlog lines in PLAN.md are now covered by #30/#31 and removed.
+
+## 2026-10-13 — #34 feedback popup asks for context (`issue-34-feedback-copy`)
+
+- The description line "Filed as a GitHub issue — no account needed." is now "The more detail, the better: what you were doing, what you expected, and what happened." It doesn't mention GitHub or screenshots (the maintainer decided against image storage for now).
+- The textarea placeholder ("What's wrong, missing, or confusing?") stays: it asks *what*, the line asks for *detail*. The success toast is unchanged.
+- New screenshot scene `feedback` (the open, empty popover). No verifier asserted the old copy; `verify:feedback` passes unchanged.
