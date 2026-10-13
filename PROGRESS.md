@@ -39,3 +39,11 @@ surprises). Newest entries at the bottom.
 - `npm run verify:text-selection` passes 15/15. Negative control: with Fabric's stock `Textbox` it fails 5 checks.
 - New screenshot scene `text-selected`. It finds page 1 from the canvas pixels, since screenshot builds have no hooks.
 - Open question for the maintainer: Enter on a selected text box to start editing (Figma does). Not built.
+
+## 2026-10-13 — #15 color picker focus rings (`issue-15-picker-focus-rings`)
+
+- `ColorChannelField` (R/G/B, C/M/Y/K) gets `NumberField`'s `focus-within` ring. The saturation/value square and hue slider were Tab-reachable with no focus style; they now get a `focus-visible` ring. The hex input already had a ring and now has an accessible name ("Hex color"). The RGB/CMYK tabs already had a ring.
+- **Keyboard trap found and fixed.** Frame Tab-cycling (`useFrameKeyboardShortcuts`) swallowed every Tab whenever focus wasn't in a text field, so you couldn't Tab off any button, tab, or slider anywhere in the app once a book had frames. It now claims Tab only while focus is on the page body. **Still open:** from the body, Tab cycles frames and never reaches the UI. This is a product question, raised with the manager.
+- The square and hue slider have `role="slider"` but no arrow-key handling. Noted, not built (per the issue).
+- `npm run verify:picker-focus` (new) passes 12/12. Negative control on `main`'s components: 9 failures.
+- New screenshot scene `color-picker-focus`. Shared helpers `firstPageCenter` / `openColorPicker` are in `scripts/verify/lib/app.mjs`. PR #16's `screenshot.mjs` has its own `firstPageCenter`; whichever merges second should import this one instead.

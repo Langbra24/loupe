@@ -148,6 +148,11 @@ export function useFrameKeyboardShortcuts({
       // focus isn't already inside an input, textarea, select, or editable
       // region — mirroring the guard the (now-removed) theme hotkey used.
       if (isTypingTarget(event.target)) return
+      // Once any control has focus (a button, a tab, a slider), Tab is that
+      // control's way out. Claiming it there trapped keyboard users inside
+      // whatever they had focused (issue #15), so frames only cycle while
+      // nothing in particular has focus.
+      if (event.key === "Tab" && event.target !== document.body) return
 
       handleFrameKeyDown(event, { frameCount, focusedFrameIndex, setFocusedFrameIndex, reorderFrameById })
     }

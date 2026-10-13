@@ -12,7 +12,16 @@
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
 
-import { DESKTOP_VIEWPORT, dismissIntroduction, importPhotos, openApp, settle, setupBook } from "./lib/app.mjs"
+import {
+  DESKTOP_VIEWPORT,
+  dismissIntroduction,
+  firstPageCenter,
+  importPhotos,
+  openApp,
+  openColorPicker,
+  settle,
+  setupBook,
+} from "./lib/app.mjs"
 import { repoRoot, startApp } from "./lib/server.mjs"
 
 const SCENES = {
@@ -27,6 +36,13 @@ const SCENES = {
     await dismissIntroduction(page)
     await importPhotos(page)
     await setupBook(page, { preset: "A5 Portrait", pageCount: 12 })
+  },
+  /** The text Color picker with the G channel field keyboard-focused (#15). */
+  "color-picker-focus": async (page) => {
+    const popover = await openColorPicker(page)
+    await popover.getByRole("textbox", { name: "Hex color" }).focus()
+    await page.keyboard.press("Tab")
+    await page.keyboard.press("Tab")
   },
   /** A placed text box after a single click: selected with handles, not
    *  editing, and the inspector showing its properties (issue #14). */
@@ -109,34 +125,3 @@ try {
 }
 process.exit(failed ? 1 : 0)
 
-/**
- * Center of the book's first page, found from the canvas's own pixels: the
- * first run of page-white in reading order. Screenshot builds have no test
- * hooks, so this reads what is drawn rather than the Fabric objects.
- */
-async function firstPageCenter(page) {
-  return page.evaluate(() => {
-    const canvas = document.querySelector("canvas.lower-canvas")
-    const { width, height } = canvas
-    const data = canvas.getContext("2d").getImageData(0, 0, width, height).data
-    const white = (x, y) => {
-      const i = (y * width + x) * 4
-      return data[i] === 255 && data[i + 1] === 255 && data[i + 2] === 255
-    }
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        if (!white(x, y)) continue
-        let right = x
-        while (right + 1 < width && white(right + 1, y)) right++
-        let bottom = y
-        while (bottom + 1 < height && white(x, bottom + 1)) bottom++
-        if (right - x < 20 || bottom - y < 20) continue
-        // A spread is two pages flush together; take the left half.
-        const rect = canvas.getBoundingClientRect()
-        const scale = rect.width / width
-        return { x: rect.left + (x + (right - x) / 4) * scale, y: rect.top + (y + (bottom - y) / 3) * scale }
-      }
-    }
-    throw new Error("No book page found on the canvas.")
-  })
-}
