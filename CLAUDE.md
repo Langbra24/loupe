@@ -92,9 +92,9 @@ npm run lint         # all workspaces
 npm test             # all workspaces (Vitest) + verifier self-tests
 npm run verify       # typecheck + lint + test + build — the baseline "done" gate
 npm run screenshot   # build, then save desktop PNGs to screenshots/ (gitignored)
-                     #   scenes: intro, shell, book, page-selected, image-selected, text-selected,
-                     #   export-dialog, feedback, feedback-error, book-setup, color-picker,
-                     #   color-picker-focus
+                     #   scenes: intro, shell, book, book-overview, book-setup, page-selected,
+                     #   image-selected, text-selected, export-dialog, feedback, feedback-error,
+                     #   color-picker, color-picker-focus
                      #   — `npm run screenshot -- shell`
 npm run e2e          # build, import fixture photos, export a PDF: padded to a multiple
                      #   of 4 with blank pages, trim/bleed boxes right (pdf-lib), and
@@ -118,6 +118,9 @@ npm run verify:color-undo # build; a typed hex and a hue drag are one undo step
                      #   each; undo/redo move the color everywhere
 npm run verify:dialog-focus # build; fast Tab/Shift+Tab never leave the Export
                      #   dialog or reach what the intro/book-setup overlays cover
+npm run verify:top-nav # build; the top nav holds exactly one button, Export
+npm run verify:book-overview # build; a colored caption shows in the Book view
+                     #   on a white page, in exactly the picked color
 npm run verify:book-setup # build; the book-setup dialog's copy, Custom's aria-pressed,
                      #   one field style and focus ring across all three inputs,
                      #   aria-invalid/aria-describedby on an invalid value, and a card

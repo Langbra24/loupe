@@ -38,6 +38,17 @@ const SCENES = {
     await importPhotos(page)
     await setupBook(page, { preset: "A5 Portrait", pageCount: 12 })
   },
+  /** The Book view with a colored caption on page 1: pages as white paper,
+   *  text in its own color (#54). */
+  "book-overview": async (page) => {
+    const popover = await openColorPicker(page)
+    await popover.getByRole("textbox", { name: "Hex color" }).fill("#c2410c")
+    await page.keyboard.press("Shift+Tab")
+    await page.keyboard.press("Escape")
+    await popover.waitFor({ state: "hidden" })
+    await page.getByRole("tab", { name: "Book" }).click()
+    await page.locator("button").getByText("Ink", { exact: true }).waitFor()
+  },
   /** Book setup with Custom chosen and an invalid size: the custom row, its
    *  error line and the field styling (#57). */
   "book-setup": async (page) => {

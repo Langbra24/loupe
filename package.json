@@ -28,6 +28,8 @@
     "verify:separators": "npm run build && node scripts/verify/sidebar-separators.mjs",
     "verify:color-undo": "npm run build && node scripts/verify/color-undo.mjs",
     "verify:dialog-focus": "npm run build && node scripts/verify/dialog-focus.mjs",
+    "verify:top-nav": "npm run build && node scripts/verify/top-nav.mjs",
+    "verify:book-overview": "npm run build && node scripts/verify/book-overview.mjs",
     "verify:book-setup": "npm run build && node scripts/verify/book-setup.mjs"
   },
   "devDependencies": {
