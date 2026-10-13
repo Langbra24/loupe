@@ -43,25 +43,55 @@ const ADD_PAGE_BUTTON_FILL = "#09090b"
 const ADD_PAGE_BUTTON_HOVER_FILL = "#18181b"
 
 /**
- * A text element's selection border/corner color — the same blue as the
- * content-margin guide (`syncPrintOverlay` below), per direct user
- * feedback: Fabric's own default selection tint reads as a barely-visible
- * near-white against a frame's white page, effectively invisible right
- * where it matters most. Frame-owned image elements already get their own
- * deliberate selection color (`#6366f1`, set where their Fabric object is
- * created below) — text gets its own rather than reusing that one, matching
- * the specific blue the user pointed at rather than the nearest existing
- * one.
- *
- * Applied as both `borderColor` and `editingBorderColor`, not just the
- * former: `IText`'s editing machinery swaps `borderColor` to
- * `editingBorderColor` the moment editing starts and restores it from a
- * snapshot on exit (see Fabric's `ITextBehavior`), so a freshly placed box —
- * which enters editing immediately, per `armTextTool` — would otherwise
- * show Fabric's own near-invisible default the whole time it's actually
- * being typed into, the exact moment this needs to be visible most.
+ * Canvas chrome sized in *screen* pixels, not scene units (issue #55). One
+ * scene unit is one source-image pixel, so anything sized in scene units
+ * shrinks with zoom — at the 6–10% people actually work at, a 48-unit
+ * add-page button was a ~4px dot. `fitChromeToZoom` divides these back out
+ * by the zoom on every render, the same decoupling `syncDotGrid` does for the
+ * dot grid. The button stays at least 24px, a usable hit area.
  */
-const TEXT_SELECTION_COLOR = "#18a0fb"
+const ADD_PAGE_BUTTON_SIZE_PX = 28
+const ADD_PAGE_BUTTON_GAP_PX = 12
+/** The cover badge's glyph height on screen. Lucide's bookmark spans 18 of
+ *  its 24-unit grid vertically, hence the `/ 18` where it's scaled; its
+ *  notched bottom tapers to points, so it reads a few pixels shorter. */
+const COVER_BADGE_HEIGHT_PX = 22
+const COVER_BADGE_GAP_PX = 6
+
+/**
+ * The one selection color for everything selectable on the canvas — frames,
+ * images, text (including while editing), the multi-select marquee — and the
+ * frame-drag insertion indicator (issue #55; it used to be four unrelated
+ * blues, and frames got Fabric's default near-white that vanished on a white
+ * page). It's `--sidebar-primary`'s hue (globals.css, oklch(0.488 0.243
+ * 264.376)) raised to lightness 0.6: oklch(0.6 0.2 264.376). That token
+ * itself is too dark to read on the `--canvas` pasteboard (2.6:1), and one
+ * color has to clear 3:1 against both the pasteboard (#18181b) and a white
+ * page, which only a mid-luminance color can — this one is 4.3:1 and 4.1:1.
+ * Fabric draws to a 2D context and can't read CSS custom properties, so it's
+ * spelled out here.
+ *
+ * Kept clear of the print guides: the bleed is red, the margin guide is a
+ * lighter, dashed sky blue (`syncPrintOverlay`).
+ */
+const SELECTION_COLOR = "#4176f6"
+/** Fabric draws selection borders in screen space, so `borderScaleFactor` is
+ *  the border's width in screen pixels at any zoom. */
+const SELECTION_STYLE = {
+  borderColor: SELECTION_COLOR,
+  cornerColor: SELECTION_COLOR,
+  borderScaleFactor: 2,
+}
+/**
+ * Text adds `editingBorderColor`: `IText`'s editing machinery swaps
+ * `borderColor` to `editingBorderColor` the moment editing starts and
+ * restores it from a snapshot on exit (see Fabric's `ITextBehavior`), so a
+ * freshly placed box — which enters editing immediately, per `armTextTool` —
+ * would otherwise show Fabric's own near-invisible default the whole time
+ * it's actually being typed into, the exact moment this needs to be visible
+ * most.
+ */
+const TEXT_SELECTION_STYLE = { ...SELECTION_STYLE, editingBorderColor: SELECTION_COLOR }
 
 /** Width a plain click (not a click-and-drag) gives a new text box —
  *  dragging instead sizes it explicitly, see `armTextTool`. */
@@ -136,6 +166,29 @@ type PlacedFrame = FabricObject & { frameId: string }
  * which frame's normalized `Box` it's positioned against.
  */
 type PlacedElement = FabricObject & { frameId: string; elementId: string; elementKind: "image" | "text" }
+
+/**
+ * Chrome drawn at a fixed screen size (the add-page buttons, the cover
+ * badge). `x`/`y` is the scene point it hangs off — a frame edge — and
+ * `offsetX`/`offsetY` its distance from there in screen pixels; `scale` is
+ * the object's own scale at 100% zoom.
+ */
+type ScreenChrome = FabricObject & {
+  screenAnchor: { x: number; y: number; offsetX: number; offsetY: number; scale: number }
+}
+
+/** Re-sizes and re-positions one piece of `ScreenChrome` for `zoom`.
+ *  `setCoords` keeps hover/click hit-testing on what's drawn. */
+function fitChromeToZoom(object: ScreenChrome, zoom: number) {
+  const { x, y, offsetX, offsetY, scale } = object.screenAnchor
+  object.set({
+    left: x + offsetX / zoom,
+    top: y + offsetY / zoom,
+    scaleX: scale / zoom,
+    scaleY: scale / zoom,
+  })
+  object.setCoords()
+}
 
 export interface CanvasControls {
   zoom: number
@@ -298,7 +351,7 @@ export function useFabricCanvas(options: Options) {
    *  corner while `Frame.isCover` is set — one per cover frame, a Figma
    *  dev-mode-style tag that just sits there rather than needing a click to
    *  reveal. */
-  const coverBadgesRef = useRef(new Map<string, FabricObject>())
+  const coverBadgesRef = useRef(new Map<string, ScreenChrome>())
   /** One solid rect behind each spread's two frames — visually separates a
    *  pair of facing pages from the rest of the canvas (user-directed), same
    *  gray/border tokens as the rest of the app's surfaces, no shadow. Keyed
@@ -306,9 +359,9 @@ export function useFabricCanvas(options: Options) {
    *  makes it stable across reorders — a spread is always identified by
    *  whichever frame currently occupies its left half. */
   const spreadBoxesRef = useRef(new Map<string, FabricObject>())
-  /** The low-opacity "add a paired page" buttons beside the *selected* frame
-   *  only — there is never more than one pair on screen at a time. */
-  const pageButtonsRef = useRef<{ left: FabricObject; right: FabricObject; frameId: string } | null>(null)
+  /** The "add a paired page" buttons beside the *selected* frame only —
+   *  there is never more than one pair on screen at a time. */
+  const pageButtonsRef = useRef<{ left: ScreenChrome; right: ScreenChrome; frameId: string } | null>(null)
   /** Set by the create-canvas effect to the real `syncAddPageButtons`, so
    *  `syncFrames` (a separate `useCallback`, run on every frame-list change)
    *  can reposition an already-open button pair when the selected frame's
@@ -598,6 +651,10 @@ export function useFabricCanvas(options: Options) {
         // clearing it removes the escape hatch into non-uniform scaling.
         uniformScaling: true,
         uniScaleKey: null,
+        // The drag-to-select marquee, in the same selection color — the
+        // fill is `SELECTION_COLOR` at 12%.
+        selectionBorderColor: SELECTION_COLOR,
+        selectionColor: "rgba(65, 118, 246, 0.12)",
       })
 
       canvasRef.current = canvas
@@ -642,15 +699,30 @@ export function useFabricCanvas(options: Options) {
       canvas.on("after:render", syncDotGrid)
       syncDotGrid()
 
+      // Every pan/zoom path (wheel, the zoom buttons, fit, image cycling)
+      // ends in a render, so fitting the screen-sized chrome here covers
+      // them all without each one having to remember to. A handful of
+      // objects, so doing it every render costs nothing worth guarding.
+      canvas.on("before:render", () => {
+        const target = canvasRef.current
+        if (!target) return
+        const zoom = target.getZoom()
+        const buttons = pageButtonsRef.current
+        if (buttons) {
+          fitChromeToZoom(buttons.left, zoom)
+          fitChromeToZoom(buttons.right, zoom)
+        }
+        for (const badge of coverBadgesRef.current.values()) fitChromeToZoom(badge, zoom)
+      })
+
       /**
        * The insertion-point indicator shown while a frame is being dragged:
        * a dashed highlight over the slot the frame would land in if dropped
        * now. Chosen over a thin line between slots because a highlighted
        * rect reads unambiguously as "this slot" at a glance, whereas a line
        * at a boundary is easy to misread as belonging to either neighbor.
-       * Cyan with a visible stroke width — deliberately not the muted tones
-       * already in use elsewhere on the canvas, so it stays legible once the
-       * canvas background goes black in a later unit (U10).
+       * `SELECTION_COLOR`, at a stroke width fixed in screen pixels
+       * (`strokeUniform`) so it doesn't thin to nothing when zoomed out.
        */
       function showInsertionIndicator(target: FrameLayout) {
         const target_canvas = canvasRef.current
@@ -668,8 +740,9 @@ export function useFabricCanvas(options: Options) {
             originX: "center",
             originY: "center",
             fill: "transparent",
-            stroke: "#22d3ee",
-            strokeWidth: 4,
+            stroke: SELECTION_COLOR,
+            strokeWidth: 3,
+            strokeUniform: true,
             strokeDashArray: [10, 6],
             selectable: false,
             evented: false,
@@ -766,9 +839,7 @@ export function useFabricCanvas(options: Options) {
           fontFamily: resolveTextFontFamily(DEFAULT_TEXT_FONT),
           fill: PASTEBOARD_TEXT_FILL,
           textAlign: "left",
-          borderColor: TEXT_SELECTION_COLOR,
-          cornerColor: TEXT_SELECTION_COLOR,
-          editingBorderColor: TEXT_SELECTION_COLOR,
+          ...TEXT_SELECTION_STYLE,
         })
 
         target_canvas.add(textbox)
@@ -913,8 +984,9 @@ export function useFabricCanvas(options: Options) {
         const layout = layoutFrames(currentFrames, originY).find((l) => l.frameId === frameId)
         if (!layout) return
 
-        const size = 48
-        const gap = 16
+        // Drawn at 100%-zoom screen size; `fitChromeToZoom` scales the group
+        // by 1/zoom so it stays this size on screen.
+        const size = ADD_PAGE_BUTTON_SIZE_PX
         const centerY = layout.bounds.y + layout.bounds.height / 2
 
         // Solid black background with a white plus sign — a primary-button
@@ -927,18 +999,18 @@ export function useFabricCanvas(options: Options) {
         // usual primary-button hover treatment. Grouped into one object so
         // the tag/hover/click handling below only has to deal with a single
         // target.
-        const makeButton = (side: "before" | "after", x: number) => {
+        const makeButton = (side: "before" | "after", edgeX: number, offsetX: number) => {
           const bg = new fabric.Rect({
             width: size,
             height: size,
             originX: "center",
             originY: "center",
-            rx: 8,
-            ry: 8,
+            rx: 6,
+            ry: 6,
             fill: ADD_PAGE_BUTTON_FILL,
           })
           const barLength = size * 0.45
-          const barThickness = 4
+          const barThickness = 2
           const hBar = new fabric.Rect({
             width: barLength,
             height: barThickness,
@@ -954,8 +1026,6 @@ export function useFabricCanvas(options: Options) {
             fill: "#ffffff",
           })
           const group = new fabric.Group([bg, hBar, vBar], {
-            left: x,
-            top: centerY,
             originX: "center",
             originY: "center",
             selectable: false,
@@ -963,10 +1033,12 @@ export function useFabricCanvas(options: Options) {
             lockMovementY: true,
             hoverCursor: "pointer",
             excludeFromExport: true,
-          }) as unknown as FabricObject & { isAddPageButton?: boolean; frameId?: string; side?: "before" | "after" }
+          }) as unknown as ScreenChrome & { isAddPageButton?: boolean; frameId?: string; side?: "before" | "after" }
           group.isAddPageButton = true
           group.frameId = frameId
           group.side = side
+          group.screenAnchor = { x: edgeX, y: centerY, offsetX, offsetY: 0, scale: 1 }
+          fitChromeToZoom(group, target_canvas.getZoom())
           group.on("mouseover", () => {
             bg.set({ fill: ADD_PAGE_BUTTON_HOVER_FILL })
             canvasRef.current?.requestRenderAll()
@@ -978,8 +1050,9 @@ export function useFabricCanvas(options: Options) {
           return group
         }
 
-        const left = makeButton("before", layout.bounds.x - gap - size / 2)
-        const right = makeButton("after", layout.bounds.x + layout.bounds.width + gap + size / 2)
+        const offset = ADD_PAGE_BUTTON_GAP_PX + size / 2
+        const left = makeButton("before", layout.bounds.x, -offset)
+        const right = makeButton("after", layout.bounds.x + layout.bounds.width, offset)
         target_canvas.add(left, right)
         pageButtonsRef.current = { left, right, frameId }
         target_canvas.requestRenderAll()
@@ -1008,6 +1081,10 @@ export function useFabricCanvas(options: Options) {
         const active = canvasRef.current?.getActiveObject() as
           | (PlacedFrame & Partial<PlacedElement> & Partial<PlacedObject>)
           | undefined
+
+        // A shift-click group is created by Fabric itself, with Fabric's
+        // default border, so it's recolored here.
+        if (active instanceof fabric.ActiveSelection) active.set(SELECTION_STYLE)
 
         if (active?.elementId && active.frameId) {
           handlers.current.onSelectElement(active.frameId, active.elementId)
@@ -1464,8 +1541,7 @@ export function useFabricCanvas(options: Options) {
         angle: placement.rotation,
         scaleX: naturalScale * placement.scale,
         scaleY: naturalScale * placement.scale,
-        borderColor: "#6366f1",
-        cornerColor: "#6366f1",
+        ...SELECTION_STYLE,
         cornerSize: 8,
         transparentCorners: false,
         // The model stores position and one uniform scale. Fabric's default
@@ -1643,8 +1719,12 @@ export function useFabricCanvas(options: Options) {
      * The "this is the cover" badge — a small filled bookmark glyph (Lucide's
      * `bookmark` icon path, drawn directly as a `fabric.Path` since this is
      * the canvas, not DOM — Phosphor/React icons don't apply here) pinned
-     * just above a cover frame's top-left corner. Persistent, not a hover
-     * reveal, matching the "sits there like Figma dev-mode" request.
+     * just above a cover frame's top-left corner, clear of its bleed line.
+     * Persistent, not a hover reveal, matching the "sits there like Figma
+     * dev-mode" request. Sized in screen pixels (`COVER_BADGE_HEIGHT_PX`,
+     * via `fitChromeToZoom`) so it stays legible at working zoom, and filled
+     * with `--primary`'s light zinc (oklch(0.92 0.004 286.32)) rather than
+     * the margin guide's blue, which it used to share.
      */
     function syncCoverBadge(fabric: typeof import("fabric"), layout: FrameLayout, frame: Frame | undefined) {
       if (!frame || !canvas) return
@@ -1658,28 +1738,32 @@ export function useFabricCanvas(options: Options) {
         return
       }
 
-      const badgeLeft = layout.bounds.x
-      const badgeBottom = layout.bounds.y - 12
+      const bleedY = (BLEED_MM / frame.pageSize.height) * layout.bounds.height
+      const screenAnchor = {
+        x: layout.bounds.x,
+        y: layout.bounds.y - bleedY,
+        offsetX: 0,
+        offsetY: -COVER_BADGE_GAP_PX,
+        scale: COVER_BADGE_HEIGHT_PX / 18,
+      }
 
       if (existing) {
-        existing.set({ left: badgeLeft, top: badgeBottom })
+        existing.screenAnchor = screenAnchor
+        fitChromeToZoom(existing, canvas.getZoom())
         canvas.bringObjectToFront(existing)
         return
       }
 
-      const size = 36
       const badge = new fabric.Path("m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z", {
-        left: badgeLeft,
-        top: badgeBottom,
         originX: "left",
         originY: "bottom",
-        scaleX: size / 24,
-        scaleY: size / 24,
-        fill: "#18a0fb",
+        fill: "#e4e4e7",
         selectable: false,
         evented: false,
         excludeFromExport: true,
-      })
+      }) as unknown as ScreenChrome
+      badge.screenAnchor = screenAnchor
+      fitChromeToZoom(badge, canvas.getZoom())
       canvas.add(badge)
       coverBadges.set(frame.id, badge)
     }
@@ -1756,8 +1840,11 @@ export function useFabricCanvas(options: Options) {
           originX: "center",
           originY: "center",
           fill: "#ffffff",
-          stroke: "#94a3b8",
+          // Tailwind's zinc-400, from the zinc scale the rest of the app's
+          // neutrals are drawn from.
+          stroke: "#a1a1aa",
           strokeWidth: 2,
+          ...SELECTION_STYLE,
           lockScalingX: true,
           lockScalingY: true,
           lockRotation: true,
@@ -2059,9 +2146,7 @@ export function useFabricCanvas(options: Options) {
             lockRotation: true,
             lockSkewingX: true,
             lockSkewingY: true,
-            borderColor: TEXT_SELECTION_COLOR,
-            cornerColor: TEXT_SELECTION_COLOR,
-            editingBorderColor: TEXT_SELECTION_COLOR,
+            ...TEXT_SELECTION_STYLE,
           }) as unknown as PlacedElement
           textbox.frameId = frame.id
           textbox.elementId = element.id
@@ -2120,8 +2205,7 @@ export function useFabricCanvas(options: Options) {
               originY: "top",
               scaleX: transform.scaleX,
               scaleY: transform.scaleY,
-              borderColor: "#6366f1",
-              cornerColor: "#6366f1",
+              ...SELECTION_STYLE,
               cornerSize: 8,
               transparentCorners: false,
               lockRotation: true,

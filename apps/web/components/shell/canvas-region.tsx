@@ -10,7 +10,7 @@ import {
   type Project,
 } from "@loupe/core"
 
-import { BLEED_MM } from "@/components/shell/inspector-panel"
+import { BLEED_MM, DEFAULT_TEXT_COLOR } from "@/components/shell/inspector-panel"
 import { LightTable } from "@/components/sequence/light-table"
 import { useThumbnail } from "@/components/sequence/use-thumbnail"
 import { cn } from "@/lib/utils"
@@ -86,7 +86,7 @@ function FramePreview({ frame, project }: { frame: Frame; project: Project }) {
         aria-label={`Page ${frame.position + 1}`}
         aria-current={isSelected || undefined}
         className={cn(
-          "relative block w-full cursor-pointer bg-card shadow-sm ring-1 ring-border transition-shadow hover:shadow-md",
+          "relative block w-full cursor-pointer bg-white shadow-sm ring-1 ring-border transition-shadow hover:shadow-md",
           isSelected && "outline-2 outline-ring",
         )}
         style={{ aspectRatio: aspect }}
@@ -143,7 +143,7 @@ function FrameElementBox({ element, project }: { element: PageElement; project: 
 
   return (
     <div
-      style={{ ...style, fontSize, textAlign: element.align }}
+      style={{ ...style, fontSize, textAlign: element.align, color: element.color ?? DEFAULT_TEXT_COLOR }}
       className={cn(
         "absolute overflow-hidden leading-snug",
         element.role === "title" || element.role === "subtitle" ? "font-heading" : "font-sans",
@@ -203,7 +203,7 @@ function FrameImage({ element, style }: { element: ImageElement; style: React.CS
   const url = useThumbnail(element.assetId)
 
   return (
-    <div style={style} className="absolute overflow-hidden bg-muted">
+    <div style={style} className="absolute overflow-hidden bg-zinc-100">
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
