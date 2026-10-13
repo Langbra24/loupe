@@ -298,6 +298,8 @@ function TextElementSettings({ frameId, elementId }: { frameId: string; elementI
   )
   const project = useEditorStore((state) => state.project)
   const updateTextElement = useEditorStore((state) => state.updateTextElement)
+  const beginTextColorGesture = useEditorStore((state) => state.beginTextColorGesture)
+  const endTextColorGesture = useEditorStore((state) => state.endTextColorGesture)
   const updateElementBox = useEditorStore((state) => state.updateElementBox)
 
   if (!element || element.kind !== "text") return <Hint>This element no longer exists.</Hint>
@@ -350,6 +352,8 @@ function TextElementSettings({ frameId, elementId }: { frameId: string; elementI
         <ColorField
           value={element.color ?? DEFAULT_TEXT_COLOR}
           onChange={(color) => updateTextElement(frameId, elementId, { color })}
+          onGestureStart={() => beginTextColorGesture(frameId, elementId)}
+          onGestureEnd={endTextColorGesture}
         />
       </Section>
       <Separator />

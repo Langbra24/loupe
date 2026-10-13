@@ -98,6 +98,20 @@ surprises). Newest entries at the bottom.
 - Dialog: "Adds 2 blank pages to reach 12" (real numbers, singular/plural) and an info button ("Why blank pages are added") whose tooltip opens on hover and keyboard focus. It opens to the right so it doesn't cover the dialog title.
 - `npm run e2e` **passes fully** for the first time: 12 pages, every box right, pages 11–12 blank. A photo is placed on page 1 so the blank check can be seen to tell the difference. The dialog line and the keyboard tooltip are also checked. Both backlog lines in PLAN.md are now covered by #30/#31 and removed.
 
+## 2026-10-13 — #34 feedback popup asks for context (`issue-34-feedback-copy`)
+
+- The description line "Filed as a GitHub issue — no account needed." is now "The more detail, the better: what you were doing, what you expected, and what happened." It doesn't mention GitHub or screenshots (the maintainer decided against image storage for now).
+- The textarea placeholder ("What's wrong, missing, or confusing?") stays: it asks *what*, the line asks for *detail*. The success toast is unchanged.
+- New screenshot scene `feedback` (the open, empty popover). No verifier asserted the old copy; `verify:feedback` passes unchanged.
+
+## 2026-10-13 — #27 color changes are undoable (`issue-27-color-undo`)
+
+- `updateTextElement` pushes an undo step when `color` changes, through a `colorCommand` that sets the color back or forward. Re-setting the same color pushes nothing.
+- Gestures: `beginTextColorGesture` / `endTextColorGesture` coalesce everything in between into one step, pushed at the end only if the color moved. They nest with a depth counter, because a press on the hue slider begins before the hex field it took focus from has blurred.
+- Picker wiring (`color-picker.tsx`): a square or hue drag is a gesture (pointerdown → pointerup/pointercancel). The hex and channel fields are gestures from focus to blur, so typing a hex char by char is one step. Arrow keys: **one step per keypress**, not coalesced (a held key gives one step per repeat).
+- Still not undoable: `role`, `align`, `fontSize` and `fontFamily` on text. Listed for the maintainer, not fixed here.
+- Tests: 3 store tests (single change, coalesced gesture, no-op), each undone and redone. `npm run verify:color-undo` (new) passes 7/7: one undo reverts a 20-step drag, a second reverts the typed hex, and redo reapplies both. It fails on `main`.
+
 ## 2026-10-13 — #7 color picker matches the Paper reference (`issue-7-color-picker-paper`)
 
 - Reference: `docs/design/paper/colorpicker.png` (698×761). Measured, it's the same 290px popover at ~2.297×: the square comes out at exactly 160px.

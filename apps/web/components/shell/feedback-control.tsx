@@ -113,7 +113,7 @@ export function FeedbackControl() {
             <div className="stagger-section" style={stagger(0)}>
               <Popover.Title className="text-sm font-medium">Send feedback</Popover.Title>
               <Popover.Description className="pt-0.5 pb-2 text-xs text-muted-foreground">
-                Filed as a GitHub issue — no account needed.
+                The more detail, the better: what you were doing, what you expected, and what happened.
               </Popover.Description>
             </div>
 

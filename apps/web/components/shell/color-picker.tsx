@@ -40,7 +40,22 @@ type ColorInputMode = "rgb" | "cmyk"
  * value — CMYK exists because this is a print layout tool, and CMYK is how
  * a print professional actually thinks about ink, not a screen's RGB.
  */
-export function ColorField({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
+export function ColorField({
+  value,
+  onChange,
+  onGestureStart,
+  onGestureEnd,
+}: {
+  value: string
+  onChange: (hex: string) => void
+  /** Bracket one color gesture — a drag on the square or hue slider, or a
+   *  spell of typing in the hex or channel fields — so undo treats it as one
+   *  step (#27). Arrow keys on the sliders aren't bracketed: each press is a
+   *  step of its own. */
+  onGestureStart?: () => void
+  onGestureEnd?: () => void
+}) {
+  const typing = { onFocus: onGestureStart, onBlur: onGestureEnd }
   const [mode, setMode] = useState<ColorInputMode>("rgb")
   const [hexDraft, setHexDraft] = useState(value)
   const [lastCommittedValue, setLastCommittedValue] = useState(value)
@@ -127,7 +142,12 @@ export function ColorField({ value, onChange }: { value: string; onChange: (hex:
               </TabsList>
             </Tabs>
 
-            <SaturationValuePicker hsv={hsv} onChange={commitHsv} />
+            <SaturationValuePicker
+              hsv={hsv}
+              onChange={commitHsv}
+              onGestureStart={onGestureStart}
+              onGestureEnd={onGestureEnd}
+            />
 
             <div className="mt-3 flex items-center gap-2">
               <span
@@ -136,6 +156,7 @@ export function ColorField({ value, onChange }: { value: string; onChange: (hex:
               />
               <input
                 type="text"
+                {...typing}
                 aria-label="Hex color"
                 value={hexDraft}
                 onChange={(event) => commitHex(event.target.value)}
@@ -153,16 +174,16 @@ export function ColorField({ value, onChange }: { value: string; onChange: (hex:
             <div className="mt-3 flex items-stretch justify-between gap-2">
               {mode === "rgb" ? (
                 <>
-                  <ColorChannelField label="R" value={rgb.r} max={255} onChange={(r) => setRgbChannel({ r })} />
-                  <ColorChannelField label="G" value={rgb.g} max={255} onChange={(g) => setRgbChannel({ g })} />
-                  <ColorChannelField label="B" value={rgb.b} max={255} onChange={(b) => setRgbChannel({ b })} />
+                  <ColorChannelField label="R" {...typing} value={rgb.r} max={255} onChange={(r) => setRgbChannel({ r })} />
+                  <ColorChannelField label="G" {...typing} value={rgb.g} max={255} onChange={(g) => setRgbChannel({ g })} />
+                  <ColorChannelField label="B" {...typing} value={rgb.b} max={255} onChange={(b) => setRgbChannel({ b })} />
                 </>
               ) : (
                 <>
-                  <ColorChannelField label="C" value={cmyk.c} max={100} onChange={(c) => setCmykChannel({ c })} />
-                  <ColorChannelField label="M" value={cmyk.m} max={100} onChange={(m) => setCmykChannel({ m })} />
-                  <ColorChannelField label="Y" value={cmyk.y} max={100} onChange={(y) => setCmykChannel({ y })} />
-                  <ColorChannelField label="K" value={cmyk.k} max={100} onChange={(k) => setCmykChannel({ k })} />
+                  <ColorChannelField label="C" {...typing} value={cmyk.c} max={100} onChange={(c) => setCmykChannel({ c })} />
+                  <ColorChannelField label="M" {...typing} value={cmyk.m} max={100} onChange={(m) => setCmykChannel({ m })} />
+                  <ColorChannelField label="Y" {...typing} value={cmyk.y} max={100} onChange={(y) => setCmykChannel({ y })} />
+                  <ColorChannelField label="K" {...typing} value={cmyk.k} max={100} onChange={(k) => setCmykChannel({ k })} />
                 </>
               )}
             </div>
@@ -188,7 +209,11 @@ function ColorChannelField({
   value,
   max,
   onChange,
+  onFocus,
+  onBlur,
 }: {
+  onFocus?: () => void
+  onBlur?: () => void
   label: string
   value: number
   max: number
@@ -199,6 +224,8 @@ function ColorChannelField({
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <input
         type="number"
+        onFocus={onFocus}
+        onBlur={onBlur}
         step={1}
         min={0}
         max={max}
@@ -245,7 +272,17 @@ const HUE_TRACK_WIDTH_PX = 14
  * bounds mid-drag (dragging the handle to the edge and past it, a normal
  * gesture), without needing to attach/detach global listeners by hand.
  */
-function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (next: HsvColor) => void }) {
+function SaturationValuePicker({
+  hsv,
+  onChange,
+  onGestureStart,
+  onGestureEnd,
+}: {
+  hsv: HsvColor
+  onChange: (next: HsvColor) => void
+  onGestureStart?: () => void
+  onGestureEnd?: () => void
+}) {
   const squareRef = useRef<HTMLDivElement>(null)
   const hueRef = useRef<HTMLDivElement>(null)
 
@@ -284,6 +321,7 @@ function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (ne
     const square = squareRef.current
     if (!square) return
     square.setPointerCapture(event.pointerId)
+    onGestureStart?.()
 
     const update = (clientX: number, clientY: number) => {
       const rect = square.getBoundingClientRect()
@@ -299,15 +337,19 @@ function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (ne
     const onUp = () => {
       square.removeEventListener("pointermove", onMove)
       square.removeEventListener("pointerup", onUp)
+      square.removeEventListener("pointercancel", onUp)
+      onGestureEnd?.()
     }
     square.addEventListener("pointermove", onMove)
     square.addEventListener("pointerup", onUp)
+    square.addEventListener("pointercancel", onUp)
   }
 
   const handleHuePointer = (event: ReactPointerEvent<HTMLDivElement>) => {
     const track = hueRef.current
     if (!track) return
     track.setPointerCapture(event.pointerId)
+    onGestureStart?.()
 
     const update = (clientY: number) => {
       const rect = track.getBoundingClientRect()
@@ -323,9 +365,12 @@ function SaturationValuePicker({ hsv, onChange }: { hsv: HsvColor; onChange: (ne
     const onUp = () => {
       track.removeEventListener("pointermove", onMove)
       track.removeEventListener("pointerup", onUp)
+      track.removeEventListener("pointercancel", onUp)
+      onGestureEnd?.()
     }
     track.addEventListener("pointermove", onMove)
     track.addEventListener("pointerup", onUp)
+    track.addEventListener("pointercancel", onUp)
   }
 
   return (
