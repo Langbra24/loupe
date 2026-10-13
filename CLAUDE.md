@@ -95,6 +95,8 @@ npm run screenshot   # build, then save desktop PNGs to screenshots/ (gitignored
                      #   scenes: intro, shell, book — `npm run screenshot -- shell`
 npm run e2e          # build, import fixture photos, export a PDF, check page count
                      #   is a multiple of 4 and trim size matches (pdf-lib)
+npm run verify:feedback # build, submit feedback through the real control and
+                     #   route against a stand-in GitHub; every status → toast
 ```
 
 Verifiers live in `scripts/verify/` and drive the real production build with Playwright (pinned to 1.56.1 to match the cloud image's Chromium; locally run `npx playwright install chromium` once). `npm run e2e` drives the real Export dialog; its header comment states the contract the PDF must meet. Set `LOUPE_URL=http://localhost:3000` to point a verifier at an already-running server.

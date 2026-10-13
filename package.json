@@ -18,7 +18,8 @@
     "test": "npm run test --workspaces --if-present && node --test \"scripts/verify/**/*.test.mjs\"",
     "verify": "npm run typecheck && npm run lint && npm test && npm run build",
     "screenshot": "npm run build && node scripts/verify/screenshot.mjs",
-    "e2e": "npm run build && node scripts/verify/e2e-export.mjs"
+    "e2e": "npm run build && node scripts/verify/e2e-export.mjs",
+    "verify:feedback": "npm run build && node scripts/verify/feedback.mjs"
   },
   "devDependencies": {
     "pdf-lib": "^1.17.1",

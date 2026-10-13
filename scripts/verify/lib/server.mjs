@@ -14,8 +14,11 @@ import { fileURLToPath } from "node:url"
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 const webDir = path.join(repoRoot, "apps/web")
 
-export async function startApp() {
+/** `env` is added to the server's environment; a verifier that depends on it
+ *  can't reuse a LOUPE_URL server it didn't start. */
+export async function startApp({ env } = {}) {
   if (process.env.LOUPE_URL) {
+    if (env) throw new Error("This verifier sets server environment variables, so it can't use LOUPE_URL. Unset it.")
     return { url: process.env.LOUPE_URL, stop: async () => {} }
   }
 
@@ -30,7 +33,7 @@ export async function startApp() {
     stdio: ["ignore", "pipe", "pipe"],
     // Own process group, so stop() takes down npx *and* the next server it spawned.
     detached: true,
-    env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1" },
+    env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1", ...env },
   })
 
   let output = ""

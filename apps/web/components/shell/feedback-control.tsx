@@ -67,14 +67,7 @@ export function FeedbackControl() {
     // `.add()` calls itself.
     try {
       await toastManager.promise(
-        fetch("/api/feedback", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ feedback: text, contact: { name, email } }),
-        }).then((response) => {
-          if (!response.ok) throw new Error(`feedback route returned ${response.status}`)
-          return response
-        }),
+        submitFeedback({ feedback: text, contact: { name, email } }),
         {
           loading: { title: "Sending feedback…", type: "loading" },
           success: {
@@ -82,11 +75,11 @@ export function FeedbackControl() {
             description: "Filed on GitHub. Thanks — will be reviewed in 2–3 business days.",
             type: "success",
           },
-          error: {
+          error: (error: unknown) => ({
             title: "Couldn't send feedback",
-            description: "Something went wrong on our end. Please try again in a moment.",
+            description: error instanceof FeedbackError ? error.message : UNREACHABLE_MESSAGE,
             type: "error",
-          },
+          }),
         },
       )
 
@@ -133,6 +126,7 @@ export function FeedbackControl() {
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="Name (optional)"
+                aria-label="Name (optional)"
                 disabled={submitting}
                 className="w-full rounded-lg border bg-background p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
               />
@@ -141,6 +135,7 @@ export function FeedbackControl() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="Email (optional)"
+                aria-label="Email (optional)"
                 disabled={submitting}
                 className="w-full rounded-lg border bg-background p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
               />
@@ -151,6 +146,7 @@ export function FeedbackControl() {
               onChange={(event) => setText(event.target.value)}
               maxLength={FEEDBACK_MAX_LENGTH}
               placeholder="What's wrong, missing, or confusing?"
+              aria-label="Feedback"
               rows={5}
               disabled={submitting}
               className="stagger-section w-full resize-none rounded-lg border bg-background p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
@@ -174,5 +170,25 @@ export function FeedbackControl() {
         </Popover.Positioner>
       </Popover.Portal>
     </Popover.Root>
+  )
+}
+
+const UNREACHABLE_MESSAGE = "Couldn't reach Loupe's server. Check your connection; your note is still here."
+
+/** A failure the route explained. Its message is written for the bookmaker
+ *  (see `describeGitHubFailure` in the route), so the toast shows it as is. */
+class FeedbackError extends Error {}
+
+async function submitFeedback(payload: { feedback: string; contact: { name: string; email: string } }) {
+  const response = await fetch("/api/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  if (response.ok) return response
+
+  const { error } = (await response.json().catch(() => ({}))) as { error?: unknown }
+  throw new FeedbackError(
+    typeof error === "string" ? error : `Feedback couldn't be sent (error ${response.status}). Please try again.`,
   )
 }

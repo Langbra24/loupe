@@ -63,15 +63,20 @@ export async function POST(request: Request) {
     email: typeof contactObject.email === "string" ? contactObject.email : undefined,
   }
 
-  const token = process.env.GITHUB_FEEDBACK_TOKEN
+  const token = process.env.GITHUB_FEEDBACK_TOKEN?.trim()
   if (!token) {
-    console.error("GITHUB_FEEDBACK_TOKEN is not set — feedback cannot be filed.")
-    return NextResponse.json({ error: "Feedback isn't configured on the server yet." }, { status: 500 })
+    console.error(
+      "[feedback] GITHUB_FEEDBACK_TOKEN is not set, so feedback cannot be filed. " +
+        `Create a fine-grained personal access token for ${GITHUB_REPO} with Issues: Read and write, ` +
+        "then set it in apps/web/.env.local (local) or the Vercel project's environment variables (deployed) and redeploy. " +
+        "Full steps: \"Feedback setup\" in README.md.",
+    )
+    return NextResponse.json({ error: NOT_CONFIGURED_MESSAGE }, { status: 503 })
   }
 
   let response: Response
   try {
-    response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/issues`, {
+    response = await fetch(`${githubApiUrl()}/repos/${GITHUB_REPO}/issues`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -86,15 +91,104 @@ export async function POST(request: Request) {
       }),
     })
   } catch (error) {
-    console.error("Network error reaching GitHub while filing feedback:", error)
-    return NextResponse.json({ error: "Couldn't reach GitHub. Please try again." }, { status: 502 })
+    console.error("[feedback] Network error reaching GitHub while filing feedback:", error)
+    return NextResponse.json({ error: "Couldn't reach GitHub. Please try again in a moment." }, { status: 502 })
   }
 
   if (!response.ok) {
-    console.error("GitHub rejected the feedback issue:", response.status, await response.text())
-    return NextResponse.json({ error: "GitHub rejected the issue. Please try again." }, { status: 502 })
+    const failure = describeGitHubFailure(response, await response.text())
+    console.error(`[feedback] GitHub returned ${response.status}: ${failure.log}`)
+    return NextResponse.json({ error: failure.message }, { status: failure.status })
   }
 
   const issue = (await response.json()) as { html_url?: string }
   return NextResponse.json({ url: issue.html_url }, { status: 201 })
+}
+
+const NOT_CONFIGURED_MESSAGE =
+  "Feedback isn't set up on this server yet, so it couldn't be sent. Your note is still here."
+
+/** A setup problem on the maintainer's side: nothing the bookmaker can do
+ *  except come back later, so they are told that rather than "try again". */
+const SETUP_PROBLEM_MESSAGE =
+  "Feedback couldn't be filed because of a setup problem on our side, not yours. Your note is still here; please try again later."
+
+/**
+ * Overridable only so `scripts/verify/feedback.mjs` can point the real route
+ * at a local stand-in for GitHub. Server-only, like the token.
+ */
+function githubApiUrl(): string {
+  return (process.env.GITHUB_API_URL || "https://api.github.com").replace(/\/$/, "")
+}
+
+/**
+ * Maps a GitHub rejection to what the server log needs (which setup step to
+ * fix) and what the bookmaker is told. The token problems all read the same
+ * to the bookmaker; the log is where they differ.
+ */
+function describeGitHubFailure(
+  response: Response,
+  bodyText: string,
+): { log: string; message: string; status: number } {
+  const detail = githubMessage(bodyText)
+  const rateLimited =
+    response.status === 429 || (response.status === 403 && response.headers.get("x-ratelimit-remaining") === "0")
+
+  if (rateLimited) {
+    return {
+      log: `rate limited (${detail}). Nothing to fix; submissions resume when the limit resets.`,
+      message: "GitHub is limiting requests right now. Your note is still here; please try again in a few minutes.",
+      status: 503,
+    }
+  }
+
+  switch (response.status) {
+    case 401:
+      return {
+        log: `GITHUB_FEEDBACK_TOKEN is invalid, expired, or revoked (${detail}). Generate a new token and replace it where it is set.`,
+        message: SETUP_PROBLEM_MESSAGE,
+        status: 502,
+      }
+    case 403:
+      return {
+        log: `GITHUB_FEEDBACK_TOKEN lacks permission to create issues (${detail}). Give it Issues: Read and write on ${GITHUB_REPO}.`,
+        message: SETUP_PROBLEM_MESSAGE,
+        status: 502,
+      }
+    case 404:
+      return {
+        log: `${GITHUB_REPO} is not visible to GITHUB_FEEDBACK_TOKEN (${detail}). Add the repo to the token's "Repository access", or check GITHUB_REPO.`,
+        message: SETUP_PROBLEM_MESSAGE,
+        status: 502,
+      }
+    case 410:
+      return {
+        log: `issues are disabled on ${GITHUB_REPO} (${detail}). Turn them on in the repo's Settings → Features.`,
+        message: SETUP_PROBLEM_MESSAGE,
+        status: 502,
+      }
+    case 422:
+      return {
+        log: `GitHub refused the issue as invalid (${detail}).`,
+        message: "GitHub couldn't accept this feedback. Your note is still here; please try again in a moment.",
+        status: 502,
+      }
+    default:
+      return {
+        log: `unexpected response (${detail}).`,
+        message: "GitHub had a problem filing this feedback. Your note is still here; please try again in a moment.",
+        status: 502,
+      }
+  }
+}
+
+/** GitHub's own `message` field when the body is its usual JSON error. */
+function githubMessage(bodyText: string): string {
+  try {
+    const parsed = JSON.parse(bodyText) as { message?: unknown }
+    if (typeof parsed.message === "string") return parsed.message
+  } catch {
+    // Not JSON; fall through to the raw text.
+  }
+  return bodyText.slice(0, 200) || "no body"
 }
