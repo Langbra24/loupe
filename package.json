@@ -24,7 +24,7 @@
     "verify:text-selection": "LOUPE_TEST_HOOKS=1 npm run build && node scripts/verify/text-selection.mjs",
     "verify:picker-focus": "npm run build && node scripts/verify/color-picker-focus.mjs",
     "verify:picker-keys": "npm run build && node scripts/verify/color-picker-keys.mjs",
-    "verify:frame-cycling": "LOUPE_TEST_HOOKS=1 npm run build && node scripts/verify/frame-cycling.mjs"
+    "verify:image-cycling": "LOUPE_TEST_HOOKS=1 npm run build && node scripts/verify/image-cycling.mjs"
   },
   "devDependencies": {
     "pdf-lib": "^1.17.1",

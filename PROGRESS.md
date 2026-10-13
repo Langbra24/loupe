@@ -48,13 +48,13 @@ surprises). Newest entries at the bottom.
 - `npm run verify:picker-focus` (new) passes 12/12. Negative control on `main`'s components: 9 failures.
 - New screenshot scene `color-picker-focus`. Shared helpers `firstPageCenter` / `openColorPicker` are in `scripts/verify/lib/app.mjs`. PR #16's `screenshot.mjs` has its own `firstPageCenter`; whichever merges second should import this one instead.
 
-## 2026-10-13 — #19 frame cycling on `[` / `]` (`issue-19-bracket-frame-cycling`)
+## 2026-10-13 — #19 `[` / `]` step through page images; Tab reaches the UI (`issue-19-bracket-frame-cycling`)
 
-- Frame cycling (R30) moved from Tab to `]` (next) / `[` (previous), wrapping at both ends. Tab is never handled, so #17's body-only guard is gone. Cmd/Ctrl+Arrow reorder is unchanged.
-- The typing guard moved into the pure `handleFrameKeyDown` (as an `isTypingTarget` flag) so it's unit-tested. Ctrl/Cmd/Alt + bracket is left to the browser, except AltGr: Windows reports it as Ctrl+Alt, and German-style layouts need it to type brackets. Mac layouts that type brackets with Option are still excluded by the Alt rule.
-- Nothing on the canvas shows the focused frame (a bare index in `app-shell.tsx`). This is a separate design question. `window.__loupeFocusedFrameIndex` exposes it in `LOUPE_TEST_HOOKS=1` builds only.
-- `npm run verify:frame-cycling` (new) passes. Negative control with `main`'s shortcut code: 3 failures. The unit tests (25) cover brackets with wrap, Tab never claimed, inert while typing, and modifiers.
-- The plan doc's "Tab-based element cycling" (2026-08-22 plan, U-unit file list) is historical and left as written.
+- First version (page cycling on `[`/`]`) was reworked on the same PR after the maintainer's direction change on #19: "it's the images that matter."
+- `]` / `[` select the next / previous image placed in a page, in reading order (page position, then element order), wrapping. Pure helpers in `use-canvas-shortcuts.ts`: `pageImagesInReadingOrder` and `nextPageImage`.
+- Selecting goes through `selectElementOnCanvas` (`use-fabric-canvas.ts`): `setActiveObject` fires the same selection events as a click, so the store and inspector follow. If the image isn't wholly in view, the viewport centers it and the zoom is unchanged. Nothing synced store → canvas before; the wiring moved from `app-shell.tsx` to `light-table.tsx`, where the canvas hook lives.
+- `focusedFrameIndex` and its test hook are gone. Cmd/Ctrl+Arrow reorders the page holding the selection. Tab is never handled. The typing guard, the Ctrl/Cmd/Alt rule and the AltGr exception are unchanged.
+- `npm run verify:image-cycling` (renamed from `verify:frame-cycling`) passes 11/11. Negative control with panning disabled: the off-screen check fails. 30 unit tests.
 
 ## 2026-10-13 — #20 Enter on a selected text box starts editing (`issue-20-enter-to-edit`)
 

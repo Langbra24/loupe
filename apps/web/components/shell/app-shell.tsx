@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 
 import { CanvasRegion } from "@/components/shell/canvas-region"
 import { ErrorBanner } from "@/components/shell/error-banner"
@@ -9,7 +9,6 @@ import { InspectorPanel } from "@/components/shell/inspector-panel"
 import { Introduction, IntroductionReopenButton } from "@/components/shell/introduction"
 import { LayersPanel } from "@/components/shell/layers-panel"
 import { TopNav } from "@/components/shell/top-nav"
-import { useFrameKeyboardShortcuts } from "@/components/sequence/use-canvas-shortcuts"
 import { ToastProvider, ToastViewport } from "@/components/ui/toast"
 import { registerSaveFlush } from "@/lib/storage/project"
 import { useEditorStore } from "@/state/editor-store"
@@ -30,8 +29,6 @@ export function AppShell() {
   const leftPanelOpen = useEditorStore((state) => state.leftPanelOpen)
   const rightPanelOpen = useEditorStore((state) => state.rightPanelOpen)
   const hydrate = useEditorStore((state) => state.hydrate)
-  const frameCount = useEditorStore((state) => state.project.frames.length)
-  const reorderFrameById = useEditorStore((state) => state.reorderFrameById)
 
   // IndexedDB is client-only, so the store starts as a valid empty project and
   // real state arrives after mount. Doing this any earlier is a hydration
@@ -40,29 +37,6 @@ export function AppShell() {
     void hydrate()
     return registerSaveFlush()
   }, [hydrate])
-
-  // Keyboard parity for frame reorder (R30) — see use-canvas-shortcuts.ts.
-  // There is no visible frame grid to focus yet (that lands with the canvas
-  // worktree's frame rendering), so this tracks a bare focused-index and wires
-  // it straight to the store; it composes once the grid exists to draw the
-  // focus ring against.
-  const [focusedFrameIndex, setFocusedFrameIndex] = useState<number | null>(null)
-  useFrameKeyboardShortcuts({
-    enabled: true,
-    frameCount,
-    focusedFrameIndex,
-    setFocusedFrameIndex,
-    reorderFrameById,
-  })
-
-  // Nothing on the canvas shows the focused frame yet, so verifiers read it
-  // here (scripts/verify/frame-cycling.mjs). Compiled out of ordinary builds;
-  // see `LOUPE_TEST_HOOKS` in next.config.ts.
-  useEffect(() => {
-    if (process.env.LOUPE_TEST_HOOKS === "1") {
-      ;(window as unknown as { __loupeFocusedFrameIndex?: number | null }).__loupeFocusedFrameIndex = focusedFrameIndex
-    }
-  }, [focusedFrameIndex])
 
   return (
     <ToastProvider>

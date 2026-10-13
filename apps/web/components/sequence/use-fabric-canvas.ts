@@ -2325,9 +2325,39 @@ export function useFabricCanvas(options: Options) {
     canvas.requestRenderAll()
   }, [isTextEditing])
 
+  /**
+   * Selects a page element the way a click on it would: `setActiveObject`
+   * fires the same selection events, so the store and the sidebar follow
+   * through `notifyFrameSelection`. If the element isn't wholly in view the
+   * viewport pans to center it, keeping the zoom (`]`/`[`, issue #19).
+   */
+  const selectElementOnCanvas = useCallback((elementId: string) => {
+    const canvas = canvasRef.current
+    const object = elementsRef.current.get(elementId)
+    if (!canvas || !object) return
+    canvas.setActiveObject(object)
+
+    const vpt = canvas.viewportTransform
+    const box = object.getBoundingRect()
+    const left = vpt[0] * box.left + vpt[4]
+    const top = vpt[3] * box.top + vpt[5]
+    const inView =
+      left >= 0 &&
+      top >= 0 &&
+      left + box.width * vpt[0] <= canvas.width &&
+      top + box.height * vpt[3] <= canvas.height
+    if (!inView) {
+      const center = object.getCenterPoint()
+      vpt[4] = canvas.width / 2 - vpt[0] * center.x
+      vpt[5] = canvas.height / 2 - vpt[3] * center.y
+      canvas.setViewportTransform(vpt)
+    }
+    canvas.requestRenderAll()
+  }, [])
+
   const controls: CanvasControls = { zoom, ready, zoomIn, zoomOut, resetZoom, fitToView }
 
-  return { containerRef, canvasElementRef, controls, armTextTool, isTextEditing }
+  return { containerRef, canvasElementRef, controls, armTextTool, isTextEditing, selectElementOnCanvas }
 }
 
 function clampZoom(value: number): number {

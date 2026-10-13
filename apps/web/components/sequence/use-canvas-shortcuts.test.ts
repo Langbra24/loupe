@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { handleFrameKeyDown, shouldCreateTextbox } from "@/components/sequence/use-canvas-shortcuts"
+import type { Frame } from "@loupe/core"
+
+import {
+  handleFrameKeyDown,
+  nextPageImage,
+  pageImagesInReadingOrder,
+  shouldCreateTextbox,
+} from "@/components/sequence/use-canvas-shortcuts"
 
 /**
  * Exercises the pure decision logic directly, bypassing a real DOM keydown —
@@ -30,191 +37,162 @@ function fakeEvent(
   }
 }
 
+/** A page with just what the stepping logic reads: id, position, and the
+ *  kind/id of each element in order. */
+function page(id: string, position: number, elements: [string, "image" | "text"][]): Frame {
+  return { id, position, elements: elements.map(([elementId, kind]) => ({ id: elementId, kind })) } as unknown as Frame
+}
+
+// Array order deliberately differs from reading order: p2 is first in the
+// array but second by position.
+const PAGES = [
+  page("p2", 1, [["b1", "image"], ["t2", "text"], ["b2", "image"]]),
+  page("p1", 0, [["t1", "text"], ["a1", "image"]]),
+  page("p3", 2, []),
+  page("p4", 3, [["d1", "image"]]),
+]
+
+function options(overrides: Partial<Parameters<typeof handleFrameKeyDown>[1]> = {}) {
+  return {
+    frames: PAGES,
+    selectedFrameId: null,
+    selectedElementId: null,
+    selectImage: vi.fn(),
+    reorderFrameById: vi.fn(),
+    ...overrides,
+  }
+}
+
+describe("pageImagesInReadingOrder", () => {
+  it("orders images by page position, then element order, skipping text and empty pages", () => {
+    expect(pageImagesInReadingOrder(PAGES).map((image) => image.elementId)).toEqual(["a1", "b1", "b2", "d1"])
+  })
+
+  it("never includes pasteboard photos, which aren't page elements", () => {
+    expect(pageImagesInReadingOrder([page("p1", 0, [["t1", "text"]])])).toEqual([])
+  })
+})
+
+describe("nextPageImage", () => {
+  const images = pageImagesInReadingOrder(PAGES)
+
+  it("steps forward and backward", () => {
+    expect(nextPageImage(images, "b1", 1)?.elementId).toBe("b2")
+    expect(nextPageImage(images, "b1", -1)?.elementId).toBe("a1")
+  })
+
+  it("wraps at both ends", () => {
+    expect(nextPageImage(images, "d1", 1)?.elementId).toBe("a1")
+    expect(nextPageImage(images, "a1", -1)?.elementId).toBe("d1")
+  })
+
+  it("from nothing selected, ] goes to the first image and [ to the last", () => {
+    expect(nextPageImage(images, null, 1)?.elementId).toBe("a1")
+    expect(nextPageImage(images, null, -1)?.elementId).toBe("d1")
+  })
+
+  it("from a selected text element, starts over as if nothing were selected", () => {
+    expect(nextPageImage(images, "t2", 1)?.elementId).toBe("a1")
+  })
+
+  it("returns null when no page holds an image", () => {
+    expect(nextPageImage([], null, 1)).toBeNull()
+  })
+})
+
 describe("handleFrameKeyDown", () => {
-  it("does nothing when there are no frames", () => {
-    const setFocusedFrameIndex = vi.fn()
-    const reorderFrameById = vi.fn()
-    handleFrameKeyDown(fakeEvent({ key: "]" }), {
-      frameCount: 0,
-      focusedFrameIndex: null,
-      setFocusedFrameIndex,
-      reorderFrameById,
-    })
-    expect(setFocusedFrameIndex).not.toHaveBeenCalled()
-    expect(reorderFrameById).not.toHaveBeenCalled()
-  })
-
-  it("] focuses the first frame when nothing is focused yet", () => {
-    const setFocusedFrameIndex = vi.fn()
+  it("] selects the next image, with its page", () => {
+    const opts = options({ selectedFrameId: "p1", selectedElementId: "a1" })
     const event = fakeEvent({ key: "]" })
-    handleFrameKeyDown(event, {
-      frameCount: 3,
-      focusedFrameIndex: null,
-      setFocusedFrameIndex,
-      reorderFrameById: vi.fn(),
-    })
+    handleFrameKeyDown(event, opts)
     expect(event.preventDefault).toHaveBeenCalled()
-    expect(setFocusedFrameIndex).toHaveBeenCalledWith(0)
+    expect(opts.selectImage).toHaveBeenCalledWith({ frameId: "p2", elementId: "b1" })
   })
 
-  it("[ focuses the last frame when nothing is focused yet", () => {
-    const setFocusedFrameIndex = vi.fn()
-    handleFrameKeyDown(fakeEvent({ key: "[" }), {
-      frameCount: 3,
-      focusedFrameIndex: null,
-      setFocusedFrameIndex,
-      reorderFrameById: vi.fn(),
-    })
-    expect(setFocusedFrameIndex).toHaveBeenCalledWith(2)
+  it("[ from nothing selected selects the last image", () => {
+    const opts = options()
+    handleFrameKeyDown(fakeEvent({ key: "[" }), opts)
+    expect(opts.selectImage).toHaveBeenCalledWith({ frameId: "p4", elementId: "d1" })
   })
 
-  it("] cycles forward and wraps at the end", () => {
-    const setFocusedFrameIndex = vi.fn()
-    handleFrameKeyDown(fakeEvent({ key: "]" }), {
-      frameCount: 3,
-      focusedFrameIndex: 2,
-      setFocusedFrameIndex,
-      reorderFrameById: vi.fn(),
-    })
-    expect(setFocusedFrameIndex).toHaveBeenCalledWith(0)
-  })
-
-  it("[ cycles backward and wraps at the start", () => {
-    const setFocusedFrameIndex = vi.fn()
-    handleFrameKeyDown(fakeEvent({ key: "[" }), {
-      frameCount: 3,
-      focusedFrameIndex: 0,
-      setFocusedFrameIndex,
-      reorderFrameById: vi.fn(),
-    })
-    expect(setFocusedFrameIndex).toHaveBeenCalledWith(2)
+  it("does nothing, and leaves the key alone, when no page holds an image", () => {
+    const opts = options({ frames: [page("p1", 0, [["t1", "text"]])] })
+    const event = fakeEvent({ key: "]" })
+    handleFrameKeyDown(event, opts)
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(opts.selectImage).not.toHaveBeenCalled()
   })
 
   it.each([{}, { shiftKey: true }])("never claims Tab (%o), so it stays browser focus movement", (modifiers) => {
-    const setFocusedFrameIndex = vi.fn()
+    const opts = options({ selectedFrameId: "p1", selectedElementId: "a1" })
     const event = fakeEvent({ key: "Tab", ...modifiers })
-    handleFrameKeyDown(event, {
-      frameCount: 3,
-      focusedFrameIndex: 1,
-      setFocusedFrameIndex,
-      reorderFrameById: vi.fn(),
-    })
+    handleFrameKeyDown(event, opts)
     expect(event.preventDefault).not.toHaveBeenCalled()
-    expect(setFocusedFrameIndex).not.toHaveBeenCalled()
+    expect(opts.selectImage).not.toHaveBeenCalled()
   })
 
   it.each(["[", "]"])("%s is inert while typing in a field or text box", (key) => {
-    const setFocusedFrameIndex = vi.fn()
+    const opts = options()
     const event = fakeEvent({ key, isTypingTarget: true })
-    handleFrameKeyDown(event, {
-      frameCount: 3,
-      focusedFrameIndex: 1,
-      setFocusedFrameIndex,
-      reorderFrameById: vi.fn(),
-    })
+    handleFrameKeyDown(event, opts)
     expect(event.preventDefault).not.toHaveBeenCalled()
-    expect(setFocusedFrameIndex).not.toHaveBeenCalled()
+    expect(opts.selectImage).not.toHaveBeenCalled()
   })
 
-  it.each([{ ctrlKey: true }, { metaKey: true }, { altKey: true }])(
-    "leaves a bracket with %o to the browser",
-    (modifiers) => {
-      const setFocusedFrameIndex = vi.fn()
-      const event = fakeEvent({ key: "]", ...modifiers })
-      handleFrameKeyDown(event, {
-        frameCount: 3,
-        focusedFrameIndex: 1,
-        setFocusedFrameIndex,
-        reorderFrameById: vi.fn(),
-      })
-      expect(event.preventDefault).not.toHaveBeenCalled()
-      expect(setFocusedFrameIndex).not.toHaveBeenCalled()
-    },
-  )
+  it.each([{ ctrlKey: true }, { metaKey: true }, { altKey: true }])("leaves a bracket with %o to the browser", (modifiers) => {
+    const opts = options()
+    const event = fakeEvent({ key: "]", ...modifiers })
+    handleFrameKeyDown(event, opts)
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(opts.selectImage).not.toHaveBeenCalled()
+  })
 
   it("claims a bracket typed with AltGr (reported as Ctrl+Alt), as on a German layout", () => {
-    const setFocusedFrameIndex = vi.fn()
-    handleFrameKeyDown(fakeEvent({ key: "]", ctrlKey: true, altKey: true, altGraph: true }), {
-      frameCount: 3,
-      focusedFrameIndex: 1,
-      setFocusedFrameIndex,
-      reorderFrameById: vi.fn(),
-    })
-    expect(setFocusedFrameIndex).toHaveBeenCalledWith(2)
-  })
-
-  it("Ctrl+ArrowRight is inert while typing", () => {
-    const reorderFrameById = vi.fn()
-    handleFrameKeyDown(fakeEvent({ key: "ArrowRight", ctrlKey: true, isTypingTarget: true }), {
-      frameCount: 3,
-      focusedFrameIndex: 1,
-      setFocusedFrameIndex: vi.fn(),
-      reorderFrameById,
-    })
-    expect(reorderFrameById).not.toHaveBeenCalled()
+    const opts = options()
+    handleFrameKeyDown(fakeEvent({ key: "]", ctrlKey: true, altKey: true, altGraph: true }), opts)
+    expect(opts.selectImage).toHaveBeenCalledWith({ frameId: "p1", elementId: "a1" })
   })
 
   it("a bare ArrowLeft/ArrowRight (no modifier) does nothing", () => {
-    const reorderFrameById = vi.fn()
-    handleFrameKeyDown(fakeEvent({ key: "ArrowRight" }), {
-      frameCount: 3,
-      focusedFrameIndex: 1,
-      setFocusedFrameIndex: vi.fn(),
-      reorderFrameById,
-    })
-    expect(reorderFrameById).not.toHaveBeenCalled()
+    const opts = options({ selectedFrameId: "p1" })
+    handleFrameKeyDown(fakeEvent({ key: "ArrowRight" }), opts)
+    expect(opts.reorderFrameById).not.toHaveBeenCalled()
   })
 
-  it("Ctrl+ArrowRight reorders the focused frame one position later", () => {
-    const reorderFrameById = vi.fn()
-    const setFocusedFrameIndex = vi.fn()
-    handleFrameKeyDown(fakeEvent({ key: "ArrowRight", ctrlKey: true }), {
-      frameCount: 3,
-      focusedFrameIndex: 1,
-      setFocusedFrameIndex,
-      reorderFrameById,
-    })
-    expect(reorderFrameById).toHaveBeenCalledWith(1, 2)
-    expect(setFocusedFrameIndex).toHaveBeenCalledWith(2)
+  it("Ctrl+ArrowRight moves the page holding the selection one position later", () => {
+    // p1 is index 1 in the array the store reorders by.
+    const opts = options({ selectedFrameId: "p1", selectedElementId: "a1" })
+    handleFrameKeyDown(fakeEvent({ key: "ArrowRight", ctrlKey: true }), opts)
+    expect(opts.reorderFrameById).toHaveBeenCalledWith(1, 2)
   })
 
-  it("Cmd+ArrowLeft reorders the focused frame one position earlier", () => {
-    const reorderFrameById = vi.fn()
-    handleFrameKeyDown(fakeEvent({ key: "ArrowLeft", metaKey: true }), {
-      frameCount: 3,
-      focusedFrameIndex: 1,
-      setFocusedFrameIndex: vi.fn(),
-      reorderFrameById,
-    })
-    expect(reorderFrameById).toHaveBeenCalledWith(1, 0)
+  it("Cmd+ArrowLeft moves a selected page one position earlier", () => {
+    const opts = options({ selectedFrameId: "p1" })
+    handleFrameKeyDown(fakeEvent({ key: "ArrowLeft", metaKey: true }), opts)
+    expect(opts.reorderFrameById).toHaveBeenCalledWith(1, 0)
   })
 
   it("does not reorder past the first or last position", () => {
-    const reorderFrameById = vi.fn()
-    handleFrameKeyDown(fakeEvent({ key: "ArrowLeft", ctrlKey: true }), {
-      frameCount: 3,
-      focusedFrameIndex: 0,
-      setFocusedFrameIndex: vi.fn(),
-      reorderFrameById,
-    })
-    handleFrameKeyDown(fakeEvent({ key: "ArrowRight", ctrlKey: true }), {
-      frameCount: 3,
-      focusedFrameIndex: 2,
-      setFocusedFrameIndex: vi.fn(),
-      reorderFrameById,
-    })
-    expect(reorderFrameById).not.toHaveBeenCalled()
+    const first = options({ selectedFrameId: "p2" })
+    handleFrameKeyDown(fakeEvent({ key: "ArrowLeft", ctrlKey: true }), first)
+    const last = options({ selectedFrameId: "p4" })
+    handleFrameKeyDown(fakeEvent({ key: "ArrowRight", ctrlKey: true }), last)
+    expect(first.reorderFrameById).not.toHaveBeenCalled()
+    expect(last.reorderFrameById).not.toHaveBeenCalled()
   })
 
-  it("does nothing on a reorder key when no frame is focused", () => {
-    const reorderFrameById = vi.fn()
-    handleFrameKeyDown(fakeEvent({ key: "ArrowRight", ctrlKey: true }), {
-      frameCount: 3,
-      focusedFrameIndex: null,
-      setFocusedFrameIndex: vi.fn(),
-      reorderFrameById,
-    })
-    expect(reorderFrameById).not.toHaveBeenCalled()
+  it("Ctrl+Arrow does nothing with nothing selected", () => {
+    const opts = options()
+    const event = fakeEvent({ key: "ArrowRight", ctrlKey: true })
+    handleFrameKeyDown(event, opts)
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(opts.reorderFrameById).not.toHaveBeenCalled()
+  })
+
+  it("Ctrl+ArrowRight is inert while typing", () => {
+    const opts = options({ selectedFrameId: "p1" })
+    handleFrameKeyDown(fakeEvent({ key: "ArrowRight", ctrlKey: true, isTypingTarget: true }), opts)
+    expect(opts.reorderFrameById).not.toHaveBeenCalled()
   })
 })
 
