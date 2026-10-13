@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import type { Frame } from "@loupe/core"
 
 interface Options {
   enabled: boolean
@@ -68,33 +69,80 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   )
 }
 
+/** An image element placed in a page, addressed the way `selectElement` takes it. */
+export interface PageImage {
+  frameId: string
+  elementId: string
+}
+
+/** Every image placed in a page, in reading order: by page `position`, then
+ *  by each page's element order. Text and pasteboard photos aren't in pages'
+ *  image lists, so they never appear. */
+export function pageImagesInReadingOrder(frames: readonly Frame[]): PageImage[] {
+  return [...frames]
+    .sort((a, b) => a.position - b.position)
+    .flatMap((frame) =>
+      frame.elements
+        .filter((element) => element.kind === "image")
+        .map((element) => ({ frameId: frame.id, elementId: element.id })),
+    )
+}
+
+/** The image `step` places from `currentElementId`, wrapping at both ends.
+ *  From nothing (or from something that isn't a page image), forward starts
+ *  at the first image and backward at the last. `null` when there are none. */
+export function nextPageImage(
+  images: readonly PageImage[],
+  currentElementId: string | null,
+  step: 1 | -1,
+): PageImage | null {
+  if (images.length === 0) return null
+  const index = currentElementId ? images.findIndex((image) => image.elementId === currentElementId) : -1
+  if (index === -1) return step > 0 ? images[0] : images[images.length - 1]
+  return images[(index + step + images.length) % images.length]
+}
+
 export interface FrameKeyboardOptions {
   enabled: boolean
-  /** Total number of frames — reorder and Tab-cycling both need the bound. */
-  frameCount: number
-  /** Which frame Tab-cycling currently has landed on. `null` means none. */
-  focusedFrameIndex: number | null
-  setFocusedFrameIndex: (index: number | null) => void
+  frames: readonly Frame[]
+  /** The page holding the current selection (a selected page, or the page a
+   *  selected element sits in), and the selected element if there is one. */
+  selectedFrameId: string | null
+  selectedElementId: string | null
+  /** Selects an image the way a click on it would. */
+  selectImage: (image: PageImage) => void
   reorderFrameById: (from: number, to: number) => void
 }
 
 /** The DOM-facing half of {@link handleFrameKeyDown} — everything below the
  *  event-listener wiring is deliberately separated out so it can be called
  *  directly in a test without simulating a real keydown. */
-type FrameKeyEvent = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey"> & {
+type FrameKeyEvent = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey"> & {
   preventDefault: () => void
+  /** `isTypingTarget(event.target)`, resolved by the caller so this stays
+   *  testable without a DOM. Fabric's text editing counts: it types into a
+   *  hidden textarea. */
+  isTypingTarget: boolean
+  /** AltGr is held. Windows reports it as Ctrl+Alt, and layouts such as
+   *  German type `[`/`]` with it, so it doesn't count as a modifier. */
+  altGraph: boolean
 }
 
 /**
- * Keyboard reach for the two drag-only frame actions (R30): reordering a
- * frame, and selecting/cycling which frame is focused.
+ * Keyboard reach for the canvas's drag-only actions (R30): selecting what's
+ * in the pages, and reordering a page.
  *
- * - `Tab` / `Shift+Tab` cycles the focused frame, wrapping at both ends —
- *   this is the keyboard equivalent of clicking a frame to select it.
- * - `Cmd/Ctrl+ArrowLeft` / `Cmd/Ctrl+ArrowRight` moves the focused frame one
- *   position earlier/later — the modifier is required so a bare arrow key
- *   stays free for whatever normal focus movement ends up wanting it, and so
- *   this never fires while someone is just navigating with the arrow keys.
+ * - `]` / `[` selects the next / previous image placed in a page, in reading
+ *   order, wrapping at both ends (issue #19: "it's the images that matter").
+ *   The selection itself is the visible focus; there is no separate page
+ *   focus. This was page cycling on Tab before #19: claiming Tab meant
+ *   keyboard users could never Tab into the toolbar, panels, or dialogs, so
+ *   Tab is never handled here. With Ctrl/Cmd/Alt held, the brackets are left
+ *   to the browser (AltGr aside, see `FrameKeyEvent.altGraph`).
+ * - `Cmd/Ctrl+ArrowLeft` / `Cmd/Ctrl+ArrowRight` moves the page holding the
+ *   selection one position earlier/later — the modifier is required so a
+ *   bare arrow key stays free for normal focus movement. With nothing
+ *   selected it does nothing.
  *
  * Exported as a pure function (`handleFrameKeyDown`) plus a thin hook
  * (`useFrameKeyboardShortcuts`) that wires it to `window`'s keydown stream —
@@ -102,64 +150,65 @@ type FrameKeyEvent = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftK
  * dispatching a real DOM event.
  */
 export function handleFrameKeyDown(event: FrameKeyEvent, options: Omit<FrameKeyboardOptions, "enabled">): void {
-  const { frameCount, focusedFrameIndex, setFocusedFrameIndex, reorderFrameById } = options
-  if (frameCount === 0) return
+  const { frames, selectedFrameId, selectedElementId, selectImage, reorderFrameById } = options
+  if (event.isTypingTarget) return
 
-  if (event.key === "Tab") {
+  if (event.key === "]" || event.key === "[") {
+    if (!event.altGraph && (event.ctrlKey || event.metaKey || event.altKey)) return
+    const next = nextPageImage(pageImagesInReadingOrder(frames), selectedElementId, event.key === "]" ? 1 : -1)
+    if (!next) return
     event.preventDefault()
-    const step = event.shiftKey ? -1 : 1
-    const base = focusedFrameIndex ?? (event.shiftKey ? 0 : -1)
-    const next = ((base + step) % frameCount + frameCount) % frameCount
-    setFocusedFrameIndex(next)
+    selectImage(next)
     return
   }
 
   const hasReorderModifier = event.ctrlKey || event.metaKey
-  if (!hasReorderModifier || focusedFrameIndex === null) return
+  // `reorderFrameById` moves by array index (positions are re-derived from it).
+  const from = frames.findIndex((frame) => frame.id === selectedFrameId)
+  if (!hasReorderModifier || from === -1) return
 
   if (event.key === "ArrowLeft") {
     event.preventDefault()
-    const to = Math.max(0, focusedFrameIndex - 1)
-    if (to === focusedFrameIndex) return
-    reorderFrameById(focusedFrameIndex, to)
-    setFocusedFrameIndex(to)
+    if (from > 0) reorderFrameById(from, from - 1)
   } else if (event.key === "ArrowRight") {
     event.preventDefault()
-    const to = Math.min(frameCount - 1, focusedFrameIndex + 1)
-    if (to === focusedFrameIndex) return
-    reorderFrameById(focusedFrameIndex, to)
-    setFocusedFrameIndex(to)
+    if (from < frames.length - 1) reorderFrameById(from, from + 1)
   }
 }
 
 export function useFrameKeyboardShortcuts({
   enabled,
-  frameCount,
-  focusedFrameIndex,
-  setFocusedFrameIndex,
+  frames,
+  selectedFrameId,
+  selectedElementId,
+  selectImage,
   reorderFrameById,
 }: FrameKeyboardOptions): void {
   useEffect(() => {
     if (!enabled) return
 
     const onKeyDown = (event: KeyboardEvent) => {
-      // Tab and Ctrl/Cmd+Arrow are both keys the rest of the app relies on for
-      // normal focus movement and text editing, so this only claims them when
-      // focus isn't already inside an input, textarea, select, or editable
-      // region — mirroring the guard the (now-removed) theme hotkey used.
-      if (isTypingTarget(event.target)) return
-      // Once any control has focus (a button, a tab, a slider), Tab is that
-      // control's way out. Claiming it there trapped keyboard users inside
-      // whatever they had focused (issue #15), so frames only cycle while
-      // nothing in particular has focus.
-      if (event.key === "Tab" && event.target !== document.body) return
-
-      handleFrameKeyDown(event, { frameCount, focusedFrameIndex, setFocusedFrameIndex, reorderFrameById })
+      // The brackets and Ctrl/Cmd+Arrow are both keys text editing relies on,
+      // so none of this applies while focus is in an input, textarea, select,
+      // or editable region (`handleFrameKeyDown` checks the flag).
+      handleFrameKeyDown(
+        {
+          key: event.key,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          altKey: event.altKey,
+          shiftKey: event.shiftKey,
+          preventDefault: () => event.preventDefault(),
+          isTypingTarget: isTypingTarget(event.target),
+          altGraph: event.getModifierState("AltGraph"),
+        },
+        { frames, selectedFrameId, selectedElementId, selectImage, reorderFrameById },
+      )
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [enabled, frameCount, focusedFrameIndex, setFocusedFrameIndex, reorderFrameById])
+  }, [enabled, frames, selectedFrameId, selectedElementId, selectImage, reorderFrameById])
 }
 
 /**

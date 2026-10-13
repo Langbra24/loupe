@@ -108,6 +108,8 @@ npm run verify:picker-focus # build, open the text Color picker, Tab through eve
                      #   channel field and slider; each must show a focus ring
 npm run verify:picker-keys # build; arrow/Shift/Home/End on the hue slider and the
                      #   saturation/value square move the color everywhere
+npm run verify:image-cycling # build with test hooks; ] / [ select the images in
+                     #   pages in reading order, pan to them; Tab reaches the UI
 npm run verify:separators # build; in all four inspector states every divider
                      #   spans the right panel's full inner width
 ```
