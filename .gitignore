@@ -34,3 +34,6 @@ next-env.d.ts
 .idea/
 
 .worktrees/
+
+# verifier output (npm run screenshot / npm run e2e)
+screenshots/
