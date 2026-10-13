@@ -147,3 +147,10 @@ surprises). Newest entries at the bottom.
 - **Blocking:** (1) most inspector controls and every book-overview page button have no accessible name; (2) the canvas context menus are mouse-only, not real menus, and *Set as cover* has no other entry point.
 - **Method:** code read of every UI file, every screenshot scene, and a Playwright audit of the production build. The audit covered Tab walks per state, inspector ARIA snapshots, context-menu focus, Escape, reduced-motion emulation, hit areas, token contrast, and a frame-by-frame reload capture (an empty project flashes for ~100ms on every reload).
 - Excluded as already decided: #25, #40, #30, #14, user-directed menus and stagger, Paper-referenced field styling, and the intro-modality question open on #46. The maintainer triages findings into issues.
+
+## 2026-10-13 — #54 book overview on white paper (`issue-54-book-overview-paper`)
+
+- Fixes S6 from `todos/2026-10-13-emil-ui-review.md`. Book view page previews are `bg-white` (were `bg-card`, zinc-900), and text takes `element.color ?? DEFAULT_TEXT_COLOR`, as the canvas and `render-frame.ts` do. Both changes ship together: the color alone on a dark card would hide default ink. An image slot whose thumbnail hasn't loaded is `bg-zinc-100` (was `bg-muted`, dark) so it still reads as a placeholder on paper.
+- Unchanged: bleed/margin overlays, selected outline, ring, page labels.
+- `npm run verify:book-overview` (new): picks `#c2410c` for a caption, opens the Book view, checks the preview's computed background is `rgb(255, 255, 255)` and the caption's computed color is `rgb(194, 65, 12)`. Negative control on `main`: both fail (dark background, near-white text). New screenshot scene `book-overview`; the existing `book` scene ends on the canvas.
+- Seen, not fixed: captions in the previews render at a 5px floor (`pointSize * 0.4`, not scaled to the preview width), so they are barely legible at review size.
