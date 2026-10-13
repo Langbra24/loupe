@@ -47,3 +47,10 @@ surprises). Newest entries at the bottom.
 - The square and hue slider have `role="slider"` but no arrow-key handling. Noted, not built (per the issue).
 - `npm run verify:picker-focus` (new) passes 12/12. Negative control on `main`'s components: 9 failures.
 - New screenshot scene `color-picker-focus`. Shared helpers `firstPageCenter` / `openColorPicker` are in `scripts/verify/lib/app.mjs`. PR #16's `screenshot.mjs` has its own `firstPageCenter`; whichever merges second should import this one instead.
+
+## 2026-10-13 — #21 arrow keys on the color picker's sliders (`issue-21-picker-arrow-keys`)
+
+- `SaturationValuePicker` (`color-picker.tsx`): the hue slider takes ↑/→ +1°, ↓/← −1°, Shift ×10, and Home/End 0°/359° (clamped, no wrap). The square takes ←/→ for saturation and ↑/↓ for brightness, with the same steps, and Home/End set saturation 0/100. Handled keys are `preventDefault`ed.
+- Keys commit through the same `onChange` as a drag. Color changes go through `updateTextElement({ color })`, which never pushes an undo step, so both drags and keys record none (the issue's "at most one per keystroke" holds).
+- `aria-valuetext`: "Hue 165 degrees" and "Saturation 71%, brightness 78%". The hue's `aria-valuemax` is now 359, matching End. The square gained `aria-valuemin`/`aria-valuemax`.
+- `npm run verify:picker-keys` (new) passes 13/13. Negative control on `main`'s picker: fails.
