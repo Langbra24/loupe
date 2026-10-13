@@ -147,3 +147,9 @@ surprises). Newest entries at the bottom.
 - **Blocking:** (1) most inspector controls and every book-overview page button have no accessible name; (2) the canvas context menus are mouse-only, not real menus, and *Set as cover* has no other entry point.
 - **Method:** code read of every UI file, every screenshot scene, and a Playwright audit of the production build. The audit covered Tab walks per state, inspector ARIA snapshots, context-menu focus, Escape, reduced-motion emulation, hit areas, token contrast, and a frame-by-frame reload capture (an empty project flashes for ~100ms on every reload).
 - Excluded as already decided: #25, #40, #30, #14, user-directed menus and stagger, Paper-referenced field styling, and the intro-modality question open on #46. The maintainer triages findings into issues.
+
+## 2026-10-13 — #58 remove the dead Share button (`issue-58-remove-share`)
+
+- The top nav's Share button had no handler (review finding S5). Removed until sharing exists; Export is the only top-right action. The now-unused `ArrowSquareOutIcon` and `Button` imports and the wrapper `div` went with it.
+- Nothing else named the button: no verifier, screenshot scene or CLAUDE.md text. The build brief's original "Share + Export" description in `docs/plans/` is left as history.
+- `npm run verify:top-nav` (new): the banner holds exactly one button, named "Export".
