@@ -97,3 +97,14 @@ surprises). Newest entries at the bottom.
 - `renderExportPages` (`render-frame.ts`) yields canvases in print order. A blank is paper-white at the previous page's size, plus bleed. `pdf.ts` and `png-zip.ts` both use it, so blanks get the #30 trim/bleed boxes too.
 - Dialog: "Adds 2 blank pages to reach 12" (real numbers, singular/plural) and an info button ("Why blank pages are added") whose tooltip opens on hover and keyboard focus. It opens to the right so it doesn't cover the dialog title.
 - `npm run e2e` **passes fully** for the first time: 12 pages, every box right, pages 11–12 blank. A photo is placed on page 1 so the blank check can be seen to tell the difference. The dialog line and the keyboard tooltip are also checked. Both backlog lines in PLAN.md are now covered by #30/#31 and removed.
+
+## 2026-10-13 — #7 color picker matches the Paper reference (`issue-7-color-picker-paper`)
+
+- Reference: `docs/design/paper/colorpicker.png` (698×761). Measured, it's the same 290px popover at ~2.297×: the square comes out at exactly 160px.
+- Changes in `color-picker.tsx`:
+  - the CMYK channel boxes overflowed the popover; fixed with `min-w-0` on each box;
+  - 20px (was 8px) above the hex row and the channel row;
+  - the hex field is 30px tall to match the swatch, in sans `text-sm` (was mono `text-xs`);
+  - the segmented control has a visible track (`bg-input/70`, 3px inset, `rounded-sm` pill);
+  - popover `rounded-xl` → `rounded-lg`; square `rounded-lg` → `rounded-md`.
+- Kept: #15's focus rings, #21's arrow keys, all tokens. New scene `color-picker` (CMYK, #37bf7b) also saves the popover alone as `color-picker-popover.png`.
