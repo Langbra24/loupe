@@ -110,7 +110,8 @@ try {
   await importPhotos(page)
   await setupBook(page, { preset: "A5 Portrait", pageCount: PAGES })
   await settle(page)
-  const original = await storedBook()
+  // Saves are debounced: wait for the set-up book to be stored before taking it as the baseline.
+  const original = await storedBookWhere((book) => book.ids.length === PAGES)
 
   // 1. Page 3 by keyboard: focus starts on the page itself, not a control.
   await page.evaluate(() => document.activeElement?.blur())

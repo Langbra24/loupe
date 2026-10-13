@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useId, useState } from "react"
+import { useId, useState } from "react"
 import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, CheckIcon } from "lucide-react"
 import {
   checkPageCount,
@@ -94,47 +94,26 @@ export const DEFAULT_TEXT_COLOR = "#18181b"
  * (U7), replacing the old per-mode Design/Print property panels — there is
  * only one canvas now (the light table), not three mode-scoped surfaces.
  *
- * Cross-fades between variants: `phase` drives an opacity transition on the
- * content wrapper (200ms ease-out entering, 150ms ease-in leaving), gated
- * behind `motion-reduce:` so a user who has asked for reduced motion gets an
- * instant swap instead. No animation library is installed in this project —
- * see CLAUDE.md/the plan — so this is deliberately plain CSS, not a mount/
- * unmount crossfade with true overlap (that would need something like
- * Framer Motion's `AnimatePresence` to keep the outgoing content painted
- * while the incoming content fades in); the exit phase here just fades the
- * *old* variant's content out in place before swapping to the new one.
+ * Swaps variants immediately: the new variant's content renders in the same
+ * commit as the selection change, so nothing waits on a timer. The wrapper is
+ * keyed by variant, so `.inspector-fade-in` (globals.css) replays a 150ms
+ * opacity-only fade on each variant change; under reduced motion the swap
+ * has no fade. Changes within one variant (another text element, the same
+ * frame's margins) update in place without re-keying. The first render
+ * doesn't fade: content already at rest has nothing to announce.
  */
 export function InspectorPanel() {
   const selection = useEditorStore((state) => state.selection)
   const variant = sidebarVariantFor(selection)
 
-  const [displayed, setDisplayed] = useState(selection)
-  const [phase, setPhase] = useState<"idle" | "leaving">("idle")
-  const displayedVariant = sidebarVariantFor(displayed)
-
-  // Adjusting state during render (not in an effect) for the two synchronous
-  // cases, per https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes —
-  // this is a pure response to the store's `selection` changing, not a side
-  // effect on an external system, so it belongs in the render body.
-  if (variant === displayedVariant && displayed !== selection) {
-    // Same variant (e.g. one text element's fields changing, or the same
-    // frame's margins) — update in place without animating; only a variant
-    // *change* is worth a transition.
-    setDisplayed(selection)
-  } else if (variant !== displayedVariant && phase === "idle") {
-    setPhase("leaving")
+  // Adjusting state during render, per https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes:
+  // only a variant change after mount turns the fade on.
+  const [lastVariant, setLastVariant] = useState(variant)
+  const [fade, setFade] = useState(false)
+  if (variant !== lastVariant) {
+    setLastVariant(variant)
+    setFade(true)
   }
-
-  // The actual timer is a real effect: it schedules a callback against the
-  // clock (an external system), which is what effects are for.
-  useEffect(() => {
-    if (phase !== "leaving") return
-    const timer = setTimeout(() => {
-      setDisplayed(selection)
-      setPhase("idle")
-    }, 150)
-    return () => clearTimeout(timer)
-  }, [phase, selection])
 
   return (
     <aside className="flex h-full w-72 flex-col border-l bg-background">
@@ -145,13 +124,14 @@ export function InspectorPanel() {
             `w-auto` lets the negative margins widen it, where `w-full` would
             only shift it. */}
         <div
+          key={variant}
           className={cn(
-            "flex flex-col gap-6 px-3 pt-14 pb-4 transition-opacity motion-reduce:transition-none",
+            "flex flex-col gap-6 px-3 pt-14 pb-4",
             "[&_[data-slot=separator][data-orientation=horizontal]]:-mx-3 [&_[data-slot=separator][data-orientation=horizontal]]:w-auto",
-            phase === "leaving" ? "opacity-0 duration-150 ease-in" : "opacity-100 duration-200 ease-out",
+            fade && "inspector-fade-in",
           )}
         >
-          <SidebarContent selection={displayed} />
+          <SidebarContent selection={selection} />
         </div>
       </ScrollArea>
     </aside>
@@ -195,7 +175,7 @@ function BookSettings() {
           <button
             type="button"
             onClick={() => addFrame(project.pageSize)}
-            className="mt-2 flex h-7 items-center justify-center rounded-md border bg-input/30 px-1.5 text-[0.7rem] leading-tight font-medium text-foreground transition-colors hover:bg-input/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+            className="mt-2 flex h-7 items-center justify-center rounded-md border bg-input/30 px-1.5 text-[0.7rem] leading-tight font-medium text-foreground transition-colors hover:bg-input/60 outline-none focus-ring"
           >
             Add page
           </button>
@@ -206,7 +186,10 @@ function BookSettings() {
         <p
           className={cn(
             "px-0 text-xs leading-relaxed",
-            check.isValidForSaddleStitch ? "text-muted-foreground" : "text-destructive",
+            // No pages yet is a starting point, not an error (#56).
+            check.isValidForSaddleStitch || project.frames.length === 0
+              ? "text-muted-foreground"
+              : "text-destructive",
           )}
         >
           {check.message}
@@ -316,7 +299,7 @@ function CoverToggle({ checked, onChange }: { checked: boolean; onChange: (check
             checked={checked}
             onChange={(event) => onChange(event.target.checked)}
             aria-describedby={hintId}
-            className="peer size-4 appearance-none rounded-[4px] border border-muted-foreground bg-input/30 transition-colors checked:border-primary checked:bg-primary focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+            className="peer size-4 appearance-none rounded-[4px] border border-muted-foreground bg-input/30 transition-colors checked:border-primary checked:bg-primary outline-none focus-ring"
           />
           <CheckIcon
             aria-hidden
@@ -501,10 +484,10 @@ function ImageElementSettings({ frameId, elementId }: { frameId: string; element
               aria-pressed={preset === activePreset}
               onClick={() => applyImagePreset(frameId, elementId, preset)}
               className={cn(
-                "flex h-7 items-center justify-center rounded-md border px-1.5 text-center text-[0.7rem] leading-tight font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                "flex h-7 items-center justify-center rounded-md border px-1.5 text-center text-[0.7rem] leading-tight font-medium transition-colors outline-none focus-ring",
                 preset === activePreset
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "bg-input/30 text-foreground hover:bg-input/60 focus-visible:border-ring",
+                  : "bg-input/30 text-foreground hover:bg-input/60",
               )}
             >
               {IMAGE_PRESET_LABELS[preset]}
@@ -729,7 +712,7 @@ function TextContentField({ value, onChange }: { value: string; onChange: (value
       value={value}
       onChange={(event) => onChange(event.target.value)}
       rows={3}
-      className="w-full resize-none rounded-md border bg-input/30 px-2 py-1 text-sm leading-snug text-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      className="w-full resize-none rounded-md border bg-input/30 px-2 py-1 text-sm leading-snug text-foreground transition-colors outline-none focus-ring"
     />
   )
 }

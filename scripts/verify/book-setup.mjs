@@ -38,7 +38,7 @@ const FIELD_PROPS = [
   "fontFamily",
   "height",
 ]
-const FOCUS_PROPS = ["boxShadow", "borderTopColor", "outlineStyle"]
+const FOCUS_PROPS = ["boxShadow", "borderTopColor", "outlineStyle", "outlineColor", "outlineWidth", "outlineOffset"]
 
 const styleOf = (locator, props) =>
   locator.evaluate((element, names) => {
@@ -108,11 +108,14 @@ try {
     check(focused, `3. Tab reaches ${await field.getAttribute("aria-label") ?? "Starting page count"} with :focus-visible`)
     focusStyles.push(await styleOf(field, FOCUS_PROPS))
   }
-  const ringShown = focusStyles.every((s) => s.boxShadow && s.boxShadow !== "none")
+  // A box-shadow ring, or the shared outline ring (#53).
+  const ringOf = (s) =>
+    s.outlineStyle !== "none" ? `outline ${s.outlineStyle} ${s.outlineWidth} ${s.outlineColor}` : s.boxShadow
+  const ringShown = focusStyles.every((s) => ringOf(s) && ringOf(s) !== "none")
   check(
     ringShown && same(focusStyles),
     `3. all three show the same focus ring` +
-      (ringShown && same(focusStyles) ? ` (${focusStyles[0].boxShadow})` : `: ${JSON.stringify(focusStyles)}`),
+      (ringShown && same(focusStyles) ? ` (${ringOf(focusStyles[0])})` : `: ${JSON.stringify(focusStyles)}`),
   )
 
   // 4 + 5. Errors are tied to their inputs and don't move the card.

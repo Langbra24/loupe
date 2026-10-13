@@ -155,7 +155,7 @@ export function ExportDialog() {
                 className={cn(
                   "stagger-section flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors",
                   // The radio itself is sr-only, so its card shows keyboard focus.
-                  "has-[input:focus-visible]:ring-3 has-[input:focus-visible]:ring-ring/50",
+                  "focus-ring-within",
                   format === option.id ? "border-ring bg-muted" : "border-border hover:bg-muted/50",
                   exporting && "pointer-events-none opacity-60",
                 )}
@@ -217,7 +217,7 @@ function PaddingNote({ blanks, total }: { blanks: number; total: number }) {
               <button
                 type="button"
                 aria-label="Why blank pages are added"
-                className="inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-ring"
               >
                 <InfoIcon className="size-3.5" />
               </button>

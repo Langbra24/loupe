@@ -71,7 +71,7 @@ export function NumberField({
   }
 
   return (
-    <div className="group relative flex w-20 items-center rounded-md border bg-muted py-1 pr-5 pl-2 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+    <div className="group relative flex w-20 items-center rounded-md border bg-muted py-1 pr-5 pl-2 transition-colors focus-ring-within">
       <input
         type="number"
         aria-labelledby={labelledBy}

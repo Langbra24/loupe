@@ -190,6 +190,26 @@ function fitChromeToZoom(object: ScreenChrome, zoom: number) {
   object.setCoords()
 }
 
+/** Snaps a frame onto its grid slot. Tweens with ease-in-out (it is already
+ *  on screen, moving), unless the user asked for reduced motion: then it
+ *  lands there in one render. Read at tween time, not once on mount, so
+ *  changing the OS setting takes effect without a reload. */
+function snapFrameTo(
+  fabric: typeof import("fabric"),
+  object: FabricObject,
+  to: { left: number; top: number },
+  duration: number,
+  render: () => void,
+) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    object.set(to)
+    object.setCoords()
+    render()
+    return
+  }
+  object.animate(to, { duration, easing: fabric.util.ease.easeInOutQuad, onChange: render })
+}
+
 export interface CanvasControls {
   zoom: number
   ready: boolean
@@ -1294,9 +1314,12 @@ export function useFabricCanvas(options: Options) {
             // grid directly so it doesn't rest wherever the pointer let go.
             const own = layouts[from]
             if (own) {
-              placed.animate(
+              snapFrameTo(
+                fabric,
+                placed,
                 { left: own.bounds.x + own.bounds.width / 2, top: own.bounds.y + own.bounds.height / 2 },
-                { duration: 200, easing: fabric.util.ease.easeInOutQuad, onChange: () => canvasRef.current?.requestRenderAll() },
+                200,
+                () => canvasRef.current?.requestRenderAll(),
               )
             }
           }
@@ -1876,14 +1899,9 @@ export function useFabricCanvas(options: Options) {
 
       // Motion convention (see the `animations` skill): under 300ms,
       // ease-in-out, using Fabric's own tween rather than a hand-rolled RAF
-      // loop.
-      existing.animate(
-        { left: centerX, top: centerY },
-        {
-          duration: 250,
-          easing: fabric.util.ease.easeInOutQuad,
-          onChange: () => canvasRef.current?.requestRenderAll(),
-        },
+      // loop; none under reduced motion.
+      snapFrameTo(fabric, existing, { left: centerX, top: centerY }, 250, () =>
+        canvasRef.current?.requestRenderAll(),
       )
     }
 

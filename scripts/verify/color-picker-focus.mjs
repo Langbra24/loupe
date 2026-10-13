@@ -5,8 +5,9 @@
 //   LOUPE_URL=http://localhost:3000 node scripts/verify/color-picker-focus.mjs
 //
 // The contract: Tab into each RGB channel field, then each CMYK one, and the
-// focused field's wrapper shows a ring, meaning a non-`none` box-shadow or a
-// border color that differs from an unfocused sibling's. The hex field and,
+// focused field's wrapper shows a ring, meaning a visible outline (the shared
+// focus ring, #53), a non-`none` box-shadow, or a border color that differs
+// from an unfocused sibling's. The hex field and,
 // reached with Shift+Tab, the hue slider and saturation/value square do too,
 // and Tab moves on from a focused slider instead of being swallowed.
 
@@ -41,10 +42,15 @@ const ringOn = (page, { wrapper }) =>
         const spread = Number(layer.match(/(-?[\d.]+)px\s*$/)?.[1] ?? 0)
         return !transparent && spread > 0
       })
+    // The shared focus ring (#53) is an outline.
+    const outline =
+      style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0
+        ? `outline ${style.outlineStyle} ${style.outlineWidth} ${style.outlineColor}`
+        : null
     return {
       name: focused.getAttribute("aria-label") ?? box.textContent.trim().slice(0, 1),
-      ring: ringLayers.length > 0 || borderChanged,
-      boxShadow: ringLayers.join(", ") || "no visible ring layer",
+      ring: ringLayers.length > 0 || borderChanged || Boolean(outline),
+      boxShadow: outline ?? (ringLayers.join(", ") || "no visible ring layer"),
     }
   }, wrapper)
 
