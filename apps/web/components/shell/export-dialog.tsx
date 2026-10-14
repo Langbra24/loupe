@@ -181,7 +181,7 @@ export function ExportDialog() {
           </div>
 
           <div className="stagger-section flex items-center justify-between pt-4" style={stagger(EXPORT_FORMATS.length + 1)}>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs tabular-nums text-muted-foreground">
               {progress ? `Rendering page ${progress.done} of ${progress.total}…` : null}
             </span>
             <div className="flex items-center gap-2">
@@ -192,9 +192,19 @@ export function ExportDialog() {
                   </Button>
                 }
               />
+              {/* Both labels share one grid cell, as the feedback Submit does
+                  (#56), so the button keeps the busy label's width and Cancel
+                  doesn't jump when the export starts. */}
               <Button size="sm" disabled={frameCount === 0 || exporting} onClick={handleExport}>
-                {exporting ? <CircleNotchIcon className="animate-spin" /> : null}
-                {exporting ? "Exporting…" : "Export"}
+                <span className="grid justify-items-center">
+                  <span className={cn("col-start-1 row-start-1", exporting && "invisible")}>Export</span>
+                  <span className={cn("col-start-1 row-start-1 flex items-center gap-1", !exporting && "invisible")}>
+                    {/* A same-size blank at rest, so no infinite spin runs
+                        while hidden. */}
+                    {exporting ? <CircleNotchIcon className="animate-spin" /> : <span className="size-3.5" />}
+                    Exporting…
+                  </span>
+                </span>
               </Button>
             </div>
           </div>
@@ -217,7 +227,8 @@ function PaddingNote({ blanks, total }: { blanks: number; total: number }) {
               <button
                 type="button"
                 aria-label="Why blank pages are added"
-                className="inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-ring"
+                // 20px visually; the pseudo-element takes the target to 28px.
+                className="relative inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground transition-colors outline-none before:absolute before:-inset-1 hover:text-foreground focus-ring"
               >
                 <InfoIcon className="size-3.5" />
               </button>

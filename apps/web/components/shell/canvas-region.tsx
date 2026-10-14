@@ -52,7 +52,10 @@ export function CanvasRegion() {
 
 function BookOverview() {
   const project = useEditorStore((state) => state.project)
+  const hydrated = useEditorStore((state) => state.hydrated)
   const frames = [...project.frames].sort((a, b) => a.position - b.position)
+
+  if (!hydrated) return null
 
   if (frames.length === 0) {
     return (

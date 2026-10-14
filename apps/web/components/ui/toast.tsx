@@ -155,7 +155,7 @@ function ToastClose({ className, ...props }: ToastPrimitive.Close.Props) {
       data-slot="toast-close"
       aria-label="Dismiss"
       className={cn(
-        "shrink-0 rounded-md p-1 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-ring",
+        "relative shrink-0 rounded-md p-1 text-muted-foreground outline-none transition-colors before:absolute before:-inset-1 hover:bg-muted hover:text-foreground focus-ring",
         className
       )}
       {...props}

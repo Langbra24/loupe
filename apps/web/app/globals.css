@@ -197,8 +197,11 @@
   :focus-visible {
     outline-style: solid;
     }
+  /* No faked styles: a weight or italic that isn't loaded (lib/fonts.ts)
+   * renders upright and regular instead of being smeared or slanted. */
   body {
     @apply bg-background text-foreground;
+    font-synthesis: none;
     }
   button:not(:disabled), [role="button"]:not(:disabled) {
     cursor: pointer;

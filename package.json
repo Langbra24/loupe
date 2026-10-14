@@ -39,7 +39,8 @@
     "verify:cover-toggle": "LOUPE_TEST_HOOKS=1 npm run build && node scripts/verify/cover-toggle.mjs",
     "verify:add-page": "LOUPE_TEST_HOOKS=1 npm run build && node scripts/verify/add-page.mjs",
     "verify:space-keys": "LOUPE_TEST_HOOKS=1 npm run build && node scripts/verify/space-keys.mjs",
-    "verify:escape-selection": "LOUPE_TEST_HOOKS=1 npm run build && node scripts/verify/escape-selection.mjs"
+    "verify:escape-selection": "LOUPE_TEST_HOOKS=1 npm run build && node scripts/verify/escape-selection.mjs",
+    "verify:polish": "npm run build && node scripts/verify/polish.mjs"
   },
   "devDependencies": {
     "pdf-lib": "^1.17.1",

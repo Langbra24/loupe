@@ -104,6 +104,7 @@ export const DEFAULT_TEXT_COLOR = "#18181b"
  */
 export function InspectorPanel() {
   const selection = useEditorStore((state) => state.selection)
+  const hydrated = useEditorStore((state) => state.hydrated)
   const variant = sidebarVariantFor(selection)
 
   // Adjusting state during render, per https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes:
@@ -131,7 +132,8 @@ export function InspectorPanel() {
             fade && "inspector-fade-in",
           )}
         >
-          <SidebarContent selection={selection} />
+          {/* The placeholder project's "Pages 0" isn't the book's (#59). */}
+          {hydrated && <SidebarContent selection={selection} />}
         </div>
       </ScrollArea>
     </aside>
@@ -185,7 +187,7 @@ function BookSettings() {
       <Section title="Saddle stitch">
         <p
           className={cn(
-            "px-0 text-xs leading-relaxed",
+            "px-0 text-xs leading-relaxed tabular-nums",
             // No pages yet is a starting point, not an error (#56).
             check.isValidForSaddleStitch || project.frames.length === 0
               ? "text-muted-foreground"
@@ -517,18 +519,23 @@ function ImageElementSettings({ frameId, elementId }: { frameId: string; element
       </Section>
       <Separator />
       <Section title="Position">
-        <PercentField label="X" value={element.frame.x} onChange={(x) => updateElementBox(frameId, elementId, { x })} />
-        <PercentField label="Y" value={element.frame.y} onChange={(y) => updateElementBox(frameId, elementId, { y })} />
-        <PercentField
-          label="W"
-          value={element.frame.width}
-          onChange={(width) => updateElementBox(frameId, elementId, { width })}
-        />
-        <PercentField
-          label="H"
-          value={element.frame.height}
-          onChange={(height) => updateElementBox(frameId, elementId, { height })}
-        />
+        {/* 12px between fields: a hovered field's stepper targets reach 11px
+            past its edge (number-field.tsx), and must stop short of the
+            next field. */}
+        <div className="flex flex-col gap-2">
+          <PercentField label="X" value={element.frame.x} onChange={(x) => updateElementBox(frameId, elementId, { x })} />
+          <PercentField label="Y" value={element.frame.y} onChange={(y) => updateElementBox(frameId, elementId, { y })} />
+          <PercentField
+            label="W"
+            value={element.frame.width}
+            onChange={(width) => updateElementBox(frameId, elementId, { width })}
+          />
+          <PercentField
+            label="H"
+            value={element.frame.height}
+            onChange={(height) => updateElementBox(frameId, elementId, { height })}
+          />
+        </div>
       </Section>
     </>
   )
@@ -740,7 +747,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3 py-0.5 text-sm">
       <span className="text-muted-foreground">{label}</span>
-      <span className="truncate text-xs text-foreground">{value}</span>
+      <span className="truncate text-xs tabular-nums text-foreground">{value}</span>
     </div>
   )
 }

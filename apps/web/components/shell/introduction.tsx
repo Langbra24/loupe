@@ -62,7 +62,7 @@ export function Introduction() {
           variant="ghost"
           size="icon-xs"
           aria-label="Dismiss introduction"
-          className="absolute top-2 right-2"
+          className="absolute top-2 right-2 before:absolute before:-inset-1"
           onClick={dismissIntroduction}
         >
           <XIcon />
@@ -76,8 +76,10 @@ export function Introduction() {
           </p>
         </div>
 
+        {/* Geist is loaded without an italic, so the name is emphasised by
+            colour and weight, not a slant the browser would have to fake. */}
         <p className="stagger-section text-sm leading-relaxed text-muted-foreground" style={stagger(1)}>
-          Built in the open by <em className="text-foreground">Brandon Lang</em>.
+          Built in the open by <em className="font-medium text-foreground not-italic">Brandon Lang</em>.
         </p>
 
         <p className="stagger-section text-sm leading-relaxed text-muted-foreground" style={stagger(2)}>
@@ -116,9 +118,12 @@ export function IntroductionReopenButton() {
 /** Whether the introduction overlay is up. app-shell.tsx uses it to make
  *  the panels and canvas it covers inert. */
 export function useIntroductionShowing(): boolean {
+  // Before hydration the store holds a placeholder empty project, which says
+  // nothing about whether this bookmaker has a book (#59).
+  const hydrated = useEditorStore((state) => state.hydrated)
   const dismissed = useEditorStore((state) => state.introductionDismissed)
   const isEmptyProject = useEditorStore(
     (state) => state.project.frames.length === 0 && state.project.assets.length === 0,
   )
-  return !dismissed && isEmptyProject
+  return hydrated && !dismissed && isEmptyProject
 }

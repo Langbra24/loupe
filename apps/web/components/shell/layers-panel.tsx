@@ -26,19 +26,24 @@ import { useEditorStore, type PanelView } from "@/state/editor-store"
  */
 export function LayersPanel() {
   const project = useEditorStore((state) => state.project)
+  const hydrated = useEditorStore((state) => state.hydrated)
   const view = useEditorStore((state) => state.panelView)
   const setView = useEditorStore((state) => state.setPanelView)
 
   return (
     <aside className="flex h-full w-60 flex-col border-r bg-background">
       <div className="flex h-10 shrink-0 items-center px-3">
-        <ProjectNameField name={project.name} />
+        {/* Blank until IndexedDB answers, rather than the placeholder
+            project's name and empty-state copy (#59). */}
+        {hydrated && <ProjectNameField name={project.name} />}
       </div>
 
       <PanelViewSwitcher view={view} onChange={setView} />
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="px-2 pb-3">{view === "canvas" ? <CanvasOverview /> : <FrameOverviewList />}</div>
+        <div className="px-2 pb-3">
+          {!hydrated ? null : view === "canvas" ? <CanvasOverview /> : <FrameOverviewList />}
+        </div>
       </ScrollArea>
     </aside>
   )
@@ -118,9 +123,12 @@ function ProjectNameField({ name }: { name: string }) {
         setDraft(name)
         setEditing(true)
       }}
-      className="w-full truncate rounded-sm text-left text-sm font-medium outline-none hover:bg-muted focus-ring"
+      // 20px of text in a 40px header row: the pseudo-element takes the
+      // target to 36px tall. The truncation sits on the inner span, since
+      // `overflow: hidden` on the button would clip its own hit area.
+      className="relative block w-full rounded-sm text-left text-sm font-medium outline-none before:absolute before:inset-x-0 before:-inset-y-2 hover:bg-muted focus-ring"
     >
-      {name}
+      <span className="block truncate">{name}</span>
     </button>
   )
 }
