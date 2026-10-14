@@ -17,17 +17,17 @@ export const GITHUB_REPO = "Langbra24/loupe"
 export const FEEDBACK_ISSUE_TITLE = "Feedback from the Loupe app"
 
 /**
- * Optional identity a bookmaker can attach to their feedback — both fields
- * are voluntary (R23's follow-up: "make it optional to provide their name
- * and email"). Folded into the issue body rather than sent anywhere else —
- * this is still the only place either value goes. No confirmation email is
+ * Optional contact a bookmaker can attach to their feedback, so the
+ * maintainer can reply. Email only: the filed issue is public, so the
+ * control asks for no more than a reply needs (#70 dropped the Name field).
+ * Folded into the issue body rather than sent anywhere else — this is still
+ * the only place the address goes. No confirmation email is
  * sent for a given email address: that's a distinct, bigger feature (an
  * outbound mailer) than "file the issue for me," which is all this route
  * does; email here is contact info the maintainer can read in the filed
  * issue and reply to by hand.
  */
 export interface FeedbackContact {
-  name?: string
   email?: string
 }
 
@@ -45,20 +45,16 @@ const BODY_FOOTER =
 
 /**
  * The exact composed issue body: static template boilerplate, the
- * bookmaker's own text, an optional contact block if they gave a name and/or
- * email, and nothing else. No project name, filenames, or asset metadata are
+ * bookmaker's own text, an optional contact line if they gave an email, and
+ * nothing else. No project name, filenames, or asset metadata are
  * ever appended here — this function doesn't even accept a `Project`, so
- * there is nothing else it could include (KTD9). Blank/whitespace-only
- * `name`/`email` are treated as not given, same as omitting `contact`
- * entirely — a field the user focused and left empty shouldn't produce an
+ * there is nothing else it could include (KTD9). A blank/whitespace-only
+ * `email` is treated as not given, same as omitting `contact` entirely — a field the user focused and left empty shouldn't produce an
  * empty "Email:" line in the filed issue.
  */
 export function composeFeedbackBody(feedback: string, contact?: FeedbackContact): string {
-  const lines = [
-    contact?.name?.trim() ? `Name: ${contact.name.trim()}` : null,
-    contact?.email?.trim() ? `Email: ${contact.email.trim()}` : null,
-  ].filter((line): line is string => line !== null)
-  const contactBlock = lines.length > 0 ? `\n\n---\n${lines.join("\n")}` : ""
+  const email = contact?.email?.trim()
+  const contactBlock = email ? `\n\n---\nEmail: ${email}` : ""
 
   return `${BODY_HEADER}${feedback}${contactBlock}${BODY_FOOTER}`
 }

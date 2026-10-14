@@ -241,3 +241,9 @@ surprises). Newest entries at the bottom.
 
 - Maintainer's call, reversing one part of #57: the book-setup card is vertically centred again (overlay `flex items-center justify-center`, card in normal flow), and the card shifts up by half a row when Custom or an error line grows it. No transition added. Everything else from #57 is unchanged: the copy, `aria-pressed`, `FIELD_CLASS`, `aria-invalid`/`aria-describedby`, and the DOM depth `dialog-focus.mjs` relies on.
 - `verify:book-setup` now checks that the card is centred in its overlay (within 1px) with a preset chosen, with Custom chosen, with one and with both error lines showing, and after toggling Custom off and on. It no longer checks that the top edge stays put. Against main's top-anchored card it fails 6 checks (off by -3px with a preset chosen, up to 35px with both errors showing).
+
+## 2026-10-13 — #70 Feedback: drop the Name field, keep Email (`issue-70-feedback-email-only`)
+
+- The feedback popover's only contact field is now **Email (optional)**, same style, same stagger slot. The filed issue is public, so it asks for no more than a reply needs (maintainer's call).
+- `composeFeedbackBody` writes only an `Email:` line; `/api/feedback` reads only `contact.email`. A `contact.name` from a tab opened before this change is ignored, not rejected. Unit tests cover that it never reaches the body.
+- `npm run verify:feedback` now asserts the popover has no textbox named like "Name" and that an entered email reaches the issue body the stand-in GitHub receives. On main's app code it fails: "no Name field (found 1)".

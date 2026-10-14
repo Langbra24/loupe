@@ -57,9 +57,10 @@ export async function POST(request: Request) {
     )
   }
 
+  // Only `email` is read. A `contact.name` from a tab opened before the Name
+  // field was removed (#70) is ignored, not rejected, so that note still files.
   const contactObject = typeof rawContact === "object" && rawContact !== null ? (rawContact as Record<string, unknown>) : {}
   const contact: FeedbackContact = {
-    name: typeof contactObject.name === "string" ? contactObject.name : undefined,
     email: typeof contactObject.email === "string" ? contactObject.email : undefined,
   }
 

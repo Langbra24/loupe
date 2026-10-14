@@ -101,15 +101,30 @@ describe("POST /api/feedback", () => {
     expect(sentBody.body).toContain("It would be great if I could export a PDF.")
   })
 
-  it("folds an optional name/email into the filed issue's body", async () => {
+  it("folds an optional email into the filed issue's body", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ html_url: "https://x" }), { status: 201 }))
     vi.stubGlobal("fetch", fetchMock)
 
-    await POST(postRequest({ feedback: "hi", contact: { name: "Jane Doe", email: "jane@example.com" } }))
+    await POST(postRequest({ feedback: "hi", contact: { email: "jane@example.com" } }))
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     const sentBody = JSON.parse(init.body as string) as { body: string }
-    expect(sentBody.body).toContain("Name: Jane Doe")
+    expect(sentBody.body).toContain("Email: jane@example.com")
+  })
+
+  it("ignores a stray contact.name from an old tab instead of rejecting it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ html_url: "https://x" }), { status: 201 }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const response = await POST(
+      postRequest({ feedback: "hi", contact: { name: "Jane Doe", email: "jane@example.com" } }),
+    )
+
+    expect(response.status).toBe(201)
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const sentBody = JSON.parse(init.body as string) as { body: string }
+    expect(sentBody.body).not.toContain("Jane Doe")
+    expect(sentBody.body).not.toContain("Name:")
     expect(sentBody.body).toContain("Email: jane@example.com")
   })
 
