@@ -26,7 +26,7 @@ import {
 } from "@/components/sequence/frame-grid"
 import { BLEED_MM, DEFAULT_TEXT_COLOR } from "@/components/shell/inspector-panel"
 import { editAtEnd, selectableTextboxClass } from "@/components/sequence/selectable-textbox"
-import { isTypingTarget } from "@/components/sequence/use-canvas-shortcuts"
+import { hasOpenPopup, isTypingTarget } from "@/components/sequence/use-canvas-shortcuts"
 import { DEFAULT_TEXT_FONT, resolveTextFontFamily } from "@/lib/fonts"
 import { thumbnailUrl } from "@/lib/storage/assets"
 
@@ -590,7 +590,8 @@ export function useFabricCanvas(options: Options) {
      * *drag* cursor reads "grabbing" instead of "grab" — the pan itself
      * doesn't need it once `skipTargetFind` is on.
      *
-     * Only armed with focus on the canvas or nowhere (`spaceCanPan`). Also
+     * Only armed where `spaceCanPan` allows: the canvas, nowhere, or a
+     * mouse-focused control — never with an open popup. Also
      * guarded against typing targets and an actively-edited text box (Space
      * has to type a literal space there, not arm panning) and against an
      * armed text placement (which already owns `skipTargetFind` for its own
@@ -617,17 +618,49 @@ export function useFabricCanvas(options: Options) {
       canvas.upperCanvasEl.style.cursor = cursor
     }
 
-    /* Space arms the pan only with focus on the canvas or on nothing in
-       particular. Anywhere else it keeps its native meaning: it activates a
-       focused button, tab, Select trigger or checkbox, and cancelling its
-       keydown would swallow that (#75). A click on the canvas leaves focus on
-       `document.body`, since no Fabric element is focusable. */
-    const spaceCanPan = (focus: EventTarget | null) =>
-      focus === document.body || (focus instanceof Node && Boolean(containerRef.current?.contains(focus)))
+    /* Space arms the pan with focus on the canvas, on nothing in particular
+       (a click on the canvas leaves focus on `document.body`, since no Fabric
+       element is focusable), or on a control that took focus from a mouse
+       click (#85, the way Figma does it). A control reached by keyboard
+       matches `:focus-visible`, and there Space keeps its native meaning: it
+       activates the button, tab, Select trigger or checkbox (#75). Text
+       fields always match `:focus-visible` and are excluded anyway. A
+       checkbox or radio is an `<input>` but not somewhere to type, so it
+       follows the control rule. While a dialog, popover, listbox or menu is
+       open, Space belongs to it.
+
+       `:focus-visible` is read when focus arrives, not on the Space keydown:
+       Chromium flips a focused element to `:focus-visible` on any keydown,
+       before listeners run, so by then every control matches. */
+    const isToggleInput = (focus: EventTarget | null) =>
+      focus instanceof HTMLInputElement && (focus.type === "checkbox" || focus.type === "radio")
+
+    const pointerFocusOf = (focus: Element | null) =>
+      focus && focus !== document.body && !focus.matches(":focus-visible") ? focus : null
+
+    // Whatever already holds focus when the canvas mounts, such as the
+    // Canvas tab clicked from the Book view.
+    let pointerFocused = pointerFocusOf(document.activeElement)
+    const onFocusIn = (event: FocusEvent) => {
+      pointerFocused = pointerFocusOf(event.target instanceof Element ? event.target : null)
+    }
+    window.addEventListener("focusin", onFocusIn, true)
+
+    const spaceCanPan = (focus: EventTarget | null) => {
+      if (focus === document.body) return true
+      if (!(focus instanceof Element)) return false
+      if (containerRef.current?.contains(focus)) return !isTypingTarget(focus)
+      if (isTypingTarget(focus) && !isToggleInput(focus)) return false
+      return focus === pointerFocused
+    }
 
     const onSpaceKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== "Space" || event.repeat || spacePressed) return
-      if (!spaceCanPan(event.target) || isTypingTarget(event.target)) return
+      if (event.code !== "Space") return
+      if (spacePressed) {
+        event.preventDefault() // Auto-repeat while held; its default scrolls.
+        return
+      }
+      if (event.repeat || !spaceCanPan(event.target) || hasOpenPopup()) return
       if (placingTextRef.current) return
       const target_canvas = canvasRef.current
       if (!target_canvas) return
@@ -635,6 +668,16 @@ export function useFabricCanvas(options: Options) {
       if (active?.isEditing) return
 
       event.preventDefault() // Space's browser default is to scroll the page.
+      if (event.target === pointerFocused && pointerFocused instanceof HTMLElement) {
+        // A mouse-focused control. Keep the keydown from React's handlers
+        // (this listener is capture-phase on `window`, so it runs first),
+        // and move focus off the control: the keyup, which is when a native
+        // button or checkbox clicks, then lands on the page, and the control
+        // doesn't pick up the focus ring Chromium gives a focused element on
+        // any keydown. Focus ends where a click on the canvas leaves it.
+        event.stopPropagation()
+        pointerFocused.blur()
+      }
       spacePressed = true
       target_canvas.skipTargetFind = true
       setPanCursor(target_canvas, "grab")
@@ -653,8 +696,8 @@ export function useFabricCanvas(options: Options) {
       target_canvas.requestRenderAll()
     }
 
-    window.addEventListener("keydown", onSpaceKeyDown)
-    window.addEventListener("keyup", onSpaceKeyUp)
+    window.addEventListener("keydown", onSpaceKeyDown, true)
+    window.addEventListener("keyup", onSpaceKeyUp, true)
 
     void (async () => {
       const fabric = await import("fabric")
@@ -1440,8 +1483,9 @@ export function useFabricCanvas(options: Options) {
       disposed = true
       setReady(false)
       window.removeEventListener("keydown", onCanvasKey)
-      window.removeEventListener("keydown", onSpaceKeyDown)
-      window.removeEventListener("keyup", onSpaceKeyUp)
+      window.removeEventListener("keydown", onSpaceKeyDown, true)
+      window.removeEventListener("keyup", onSpaceKeyUp, true)
+      window.removeEventListener("focusin", onFocusIn, true)
       objects.clear()
       inFlight.clear()
       drawnFrames.clear()

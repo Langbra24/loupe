@@ -300,7 +300,7 @@ const OPEN_POPUP = ["dialog", "alertdialog", "listbox", "menu"]
   .map((role) => `[role="${role}"]:not([data-closed])`)
   .join(", ")
 
-function hasOpenPopup(): boolean {
+export function hasOpenPopup(): boolean {
   return document.querySelector(OPEN_POPUP) !== null
 }
 

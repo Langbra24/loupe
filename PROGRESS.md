@@ -275,6 +275,14 @@ surprises). Newest entries at the bottom.
 - On the combined tree (identical to `main` after the merges): `npm run verify` passes (118 core / 104 web tests); all 21 verifiers pass, including the new `space-keys` and `escape-selection`, plus e2e; all screenshot scenes render.
 - The maintainer answered yes to both follow-ups: Figma-style Space pan when a control holds focus from a mouse click (#85), and Escape in the Book view (#86).
 
+## 2026-10-14 — #85 Space pans when a mouse-clicked control holds focus (`issue-85-space-mouse-focus`)
+
+- Hold-Space pan now also arms when focus is on a control that took it from a mouse click (no `:focus-visible`), Figma-style. A control reached by keyboard still gets Space's native activation (#75). Typing targets, an editing text box, an armed `T`, and any open dialog/popover/listbox/menu (`hasOpenPopup`, now exported from `use-canvas-shortcuts.ts`) still keep Space. The Book view has no canvas, so nothing changed there.
+- Chromium makes a focused element match `:focus-visible` on any keydown, before listeners run, so `:focus-visible` is read at `focusin` (and on canvas mount for whatever already has focus) rather than on the Space keydown.
+- On a mouse-focused control the Space keydown is cancelled and stopped in the window capture phase (before React/Base UI see it), and the control is blurred, so the keyup that would click a native button or checkbox lands on the page, and Chromium's keydown focus ring never appears. Focus ends where a canvas click leaves it.
+- Native checkboxes and radios count as controls for this rule only (`isToggleInput` beside `spaceCanPan`); `isTypingTarget` and its other call sites are unchanged.
+- `npm run verify:space-keys` extended: a mouse click, then a Space press, and a fresh click, then Space+drag, on "Add page after", Export, the Canvas tab (Book would unmount the canvas) and Cover: pans, doesn't activate, no ring. Clicked text fields (inspector Text, feedback) still type a space. Against main's app code it fails 11 checks.
+
 ## 2026-10-14 — #86 Escape steps the selection out in the Book view too (`issue-86-escape-book-view`)
 
 - `useEscapeSelection` now takes the two step targets (`stepToFrame`, `stepToNothing`). The canvas-only guards (`isTextEditing`, `isTextToolArmed`, `hasCanvasSelection`) are optional and default to false. `LightTable` passes its Fabric paths. `BookOverview` passes the store's `selectFrame` / `clearSelection` (the store-only path, since no canvas is mounted). `escapeStep` stays the one rule. `CanvasRegion` renders either `LightTable` or `BookOverview`, never both, so only one listener is ever registered. The `defaultPrevented`, typing-target and `hasOpenPopup` guards are the same code.
