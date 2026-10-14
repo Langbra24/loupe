@@ -45,6 +45,8 @@ Reports: `todos/2026-10-13-emil-ui-review.md`, `todos/2026-10-13-emil-ui-polish.
 - [x] [#72](https://github.com/Langbra24/loupe/issues/72) Add-page buttons sit outside a spread; gutter insert is an explicit sidebar action — PR #80, `npm run verify:add-page` 19/19
 - [x] [#75](https://github.com/Langbra24/loupe/issues/75) Space activates focused buttons; hold-Space pan only from the canvas — PR #82, `npm run verify:space-keys` PASS
 - [x] [#76](https://github.com/Langbra24/loupe/issues/76) Escape steps the selection back out to Book settings — PR #83, `npm run verify:escape-selection` 34/34
+- [ ] [#85](https://github.com/Langbra24/loupe/issues/85) Space pans when a mouse-clicked control holds focus (Figma-style)
+- [ ] [#86](https://github.com/Langbra24/loupe/issues/86) Escape steps the selection out in the Book view too
 
 Nits from both reports stay in the reports for a later pass.
 
