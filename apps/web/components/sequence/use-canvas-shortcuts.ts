@@ -300,25 +300,33 @@ const OPEN_POPUP = ["dialog", "alertdialog", "listbox", "menu"]
   .map((role) => `[role="${role}"]:not([data-closed])`)
   .join(", ")
 
-function hasOpenPopup(): boolean {
+export function hasOpenPopup(): boolean {
   return document.querySelector(OPEN_POPUP) !== null
 }
+
+const never = () => false
 
 export interface EscapeSelectionOptions {
   enabled: boolean
   selection: Selection
-  isTextEditing: () => boolean
-  isTextToolArmed: () => boolean
-  hasCanvasSelection: () => boolean
-  selectFrameOnCanvas: (frameId: string) => void
-  clearCanvasSelection: () => void
+  /** Take the selection to a page, and to nothing. The canvas goes through
+   *  Fabric the way the matching click does (on the page's background, then
+   *  on empty canvas); the Book view, with no canvas mounted, calls the
+   *  store's `selectFrame` and `clearSelection` (issue #86). */
+  stepToFrame: (frameId: string) => void
+  stepToNothing: () => void
+  /** Canvas-only facts. The Book view has no text box, no text tool, and no
+   *  selection beyond the store's, so it leaves these out. */
+  isTextEditing?: () => boolean
+  isTextToolArmed?: () => boolean
+  hasCanvasSelection?: () => boolean
 }
 
 /**
  * Escape steps the selection out one level, the keyboard route back to Book
- * settings (issue #76): element, then its page, then nothing. Each step goes
- * through the canvas the way the matching click does (on the page's
- * background, then on empty canvas).
+ * settings (issue #76): element, then its page, then nothing. Whichever of
+ * the canvas (`LightTable`) and the Book view (`BookOverview`) is showing
+ * mounts this, never both at once; `escapeStep` is the rule for both.
  *
  * Escape belongs to whatever has it first, so this only acts on one nothing
  * else claimed: not `defaultPrevented` (a closing popup, the canvas context
@@ -329,11 +337,11 @@ export interface EscapeSelectionOptions {
 export function useEscapeSelection({
   enabled,
   selection,
-  isTextEditing,
-  isTextToolArmed,
-  hasCanvasSelection,
-  selectFrameOnCanvas,
-  clearCanvasSelection,
+  stepToFrame,
+  stepToNothing,
+  isTextEditing = never,
+  isTextToolArmed = never,
+  hasCanvasSelection = never,
 }: EscapeSelectionOptions): void {
   useEffect(() => {
     if (!enabled) return
@@ -345,13 +353,13 @@ export function useEscapeSelection({
       const step = escapeStep(selection, hasCanvasSelection())
       if (!step) return
       event.preventDefault()
-      if (step.kind === "select-frame") selectFrameOnCanvas(step.frameId)
-      else clearCanvasSelection()
+      if (step.kind === "select-frame") stepToFrame(step.frameId)
+      else stepToNothing()
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [enabled, selection, isTextEditing, isTextToolArmed, hasCanvasSelection, selectFrameOnCanvas, clearCanvasSelection])
+  }, [enabled, selection, stepToFrame, stepToNothing, isTextEditing, isTextToolArmed, hasCanvasSelection])
 }
 
 export interface CopyPasteShortcutOptions {

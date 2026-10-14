@@ -134,7 +134,8 @@ npm run verify:a11y-names # build; every inspector control is named after its
                      #   visible label in all four states; selected page/preset exposed
 npm run verify:escape-selection # build with test hooks; Escape steps out one level
                      #   (text/image → its page → Book settings); an open popover,
-                     #   listbox, context menu, dialog or armed T takes it first
+                     #   listbox, context menu, dialog or armed T takes it first;
+                     #   the same on the Book tab, with no canvas mounted
 npm run verify:small-fixes # build; toasts top-right under the nav (stack, hover,
                      #   swipe), Escape closes the intro, empty saddle-stitch
                      #   line not red, Cmd/Ctrl+Enter submits feedback
@@ -154,7 +155,9 @@ npm run verify:add-page # build with test hooks; a spread's canvas "+" buttons s
                      #   each is one undo step
 npm run verify:space-keys # build with test hooks; Space activates a Tab-focused
                      #   top-nav button, tab, inspector button, Select trigger and
-                     #   checkbox; after a click on empty canvas, Space+drag pans
+                     #   checkbox; after a click on empty canvas, Space+drag pans;
+                     #   on a mouse-clicked button, tab or checkbox Space pans and
+                     #   doesn't activate it; clicked text fields still type a space
 npm run verify:polish # build; Export/Import buttons keep one width while busy,
                      #   changing numbers are tabular, small controls hit >= 24x24,
                      #   no font synthesis, a reload never flashes the intro or

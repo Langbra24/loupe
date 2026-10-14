@@ -172,11 +172,11 @@ export function LightTable() {
   useEscapeSelection({
     enabled: true,
     selection,
+    stepToFrame: selectFrameOnCanvas,
+    stepToNothing: clearCanvasSelection,
     isTextEditing,
     isTextToolArmed,
     hasCanvasSelection,
-    selectFrameOnCanvas,
-    clearCanvasSelection,
   })
   // Cmd/Ctrl+Z undoes the last reorder/move/create/delete/text-edit (U8);
   // Cmd/Ctrl+Shift+Z / Cmd/Ctrl+Y redoes it.

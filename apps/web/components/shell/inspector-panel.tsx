@@ -301,9 +301,9 @@ function FrameSettings({ frameId }: { frameId: string }) {
  * turning it on moves the page to the front of the book, turning it off
  * leaves the page where it is, and either is one undo step.
  *
- * A native checkbox, not a button-based switch: the canvas's window-level
- * Space handler (hold-to-pan) skips inputs but not buttons, so Space only
- * toggles a control that's a real `<input>`.
+ * A native checkbox. Space toggles it when it's reached by keyboard; after a
+ * mouse click it arms the canvas's hold-to-pan instead, like every other
+ * control (`spaceCanPan` in use-fabric-canvas.ts).
  */
 function CoverToggle({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
   const hintId = useId()
