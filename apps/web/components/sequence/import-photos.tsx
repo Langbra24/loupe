@@ -22,6 +22,11 @@ export function ImportPhotosButton({ variant = "primary" }: { variant?: Variant 
   const progress = useEditorStore((state) => state.importProgress)
 
   const busy = progress !== null
+  // The widest the progress label gets, in tabular 8s: every count up to
+  // 999 fits, so the button is already this wide at rest and doesn't grow
+  // when an import starts or as the count ticks.
+  const digits = Math.max(String(progress?.total ?? 0).length, 3)
+  const widest = `Importing ${"8".repeat(digits)} of ${"8".repeat(digits)}…`
 
   return (
     <>
@@ -45,7 +50,7 @@ export function ImportPhotosButton({ variant = "primary" }: { variant?: Variant 
             render={
               <Button
                 variant="ghost"
-                size="icon-xs"
+                size="icon-sm"
                 aria-label="Import photos"
                 disabled={busy}
                 onClick={() => inputRef.current?.click()}
@@ -58,7 +63,14 @@ export function ImportPhotosButton({ variant = "primary" }: { variant?: Variant 
         </Tooltip>
       ) : (
         <Button size="sm" disabled={busy} onClick={() => inputRef.current?.click()}>
-          {busy ? `Importing ${progress.done} of ${progress.total}…` : "Import photos"}
+          <span className="grid justify-items-center tabular-nums">
+            <span aria-hidden className="invisible col-start-1 row-start-1">
+              {widest}
+            </span>
+            <span className="col-start-1 row-start-1">
+              {busy ? `Importing ${progress.done} of ${progress.total}…` : "Import photos"}
+            </span>
+          </span>
         </Button>
       )}
     </>

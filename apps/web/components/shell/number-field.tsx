@@ -85,7 +85,7 @@ export function NumberField({
           onChange(clamp(next))
         }}
         className={cn(
-          "min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none",
+          "min-w-0 flex-1 bg-transparent text-xs tabular-nums text-foreground outline-none",
           align === "left" ? "text-left" : "text-right",
           "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
         )}
@@ -98,9 +98,14 @@ export function NumberField({
       {/* Hidden from assistive tech: the input's own arrow keys step it, and
           inside a wrapping <label> these buttons' names would otherwise be
           read as part of the field's ("Top Increase Decrease", #50). */}
+      {/* Each chevron is drawn at 10px but its pseudo-element target is
+          24×24: the upper one reaches 11px above the field, the lower one
+          11px below, and they meet at the field's midline. Live only while
+          the pointer is over this field, so a neighbouring field's targets
+          are never live at the same time and two never overlap. */}
       <div
         aria-hidden
-        className="absolute inset-y-0 right-0.5 flex flex-col justify-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+        className="pointer-events-none absolute inset-y-0 right-0.5 flex flex-col justify-center opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:opacity-100"
       >
         <button
           type="button"
@@ -109,7 +114,7 @@ export function NumberField({
           onMouseDown={(event) => event.preventDefault()}
           aria-label="Increase"
           onClick={() => onChange(clamp(value + step))}
-          className="flex items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="relative flex items-center justify-center rounded-sm text-muted-foreground transition-colors before:absolute before:-inset-x-[7px] before:-top-3.5 before:bottom-0 hover:bg-accent hover:text-foreground"
         >
           <ChevronUpIcon className="size-2.5" />
         </button>
@@ -119,7 +124,7 @@ export function NumberField({
           onMouseDown={(event) => event.preventDefault()}
           aria-label="Decrease"
           onClick={() => onChange(clamp(value - step))}
-          className="flex items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="relative flex items-center justify-center rounded-sm text-muted-foreground transition-colors before:absolute before:-inset-x-[7px] before:top-0 before:-bottom-3.5 hover:bg-accent hover:text-foreground"
         >
           <ChevronDownIcon className="size-2.5" />
         </button>

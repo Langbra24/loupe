@@ -71,6 +71,7 @@ export function LightTable() {
   const pageSize = useEditorStore((state) => state.project.pageSize)
   const typeBaseSize = useEditorStore((state) => state.project.typeBaseSize)
   const typeRatio = useEditorStore((state) => state.project.typeRatio)
+  const hydrated = useEditorStore((state) => state.hydrated)
   const movePlacement = useEditorStore((state) => state.movePlacement)
   const scalePlacement = useEditorStore((state) => state.scalePlacement)
   const reorderFrameById = useEditorStore((state) => state.reorderFrameById)
@@ -222,7 +223,9 @@ export function LightTable() {
           <canvas ref={canvasElementRef} className="absolute inset-0" />
         </div>
 
-        {assets.length === 0 ? <EmptyTable /> : <ImportAffordance armTextTool={armTextTool} />}
+        {/* Before IndexedDB answers, the project only looks empty: no
+            empty-state copy until it's known to be (#59). */}
+        {!hydrated ? null : assets.length === 0 ? <EmptyTable /> : <ImportAffordance armTextTool={armTextTool} />}
 
         <CanvasControls controls={controls} />
       </div>
@@ -479,7 +482,8 @@ function EmptyTable() {
  * pill (both are "add something to the canvas" actions); Undo/Redo get a
  * separate pill (both are history actions on whatever's already there) — an
  * 8px gap (`gap-2`) between the two groups makes that distinction visible
- * rather than reading as one long row of five buttons.
+ * rather than reading as one long row of five buttons. The buttons are
+ * `icon-sm`, the size the zoom cluster uses, so both toolbars match.
  */
 function ImportAffordance({ armTextTool }: { armTextTool: () => void }) {
   const progress = useEditorStore((state) => state.importProgress)
@@ -495,7 +499,7 @@ function ImportAffordance({ armTextTool }: { armTextTool: () => void }) {
   return (
     <TooltipProvider delay={TOOLTIP_DELAY_MS}>
       <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
-        <div className="flex items-center gap-2 rounded-xl border bg-background/90 p-1 shadow-sm backdrop-blur">
+        <div className="flex items-center gap-1 rounded-xl border bg-background/90 p-0.5 shadow-sm backdrop-blur">
           <ImportPhotosButton variant="icon" />
 
           <div className="h-4 w-px bg-border" />
@@ -505,7 +509,7 @@ function ImportAffordance({ armTextTool }: { armTextTool: () => void }) {
               render={
                 <Button
                   variant="ghost"
-                  size="icon-xs"
+                  size="icon-sm"
                   aria-label="Add text"
                   onClick={armTextTool}
                 >
@@ -524,7 +528,7 @@ function ImportAffordance({ armTextTool }: { armTextTool: () => void }) {
           </Tooltip>
         </div>
 
-        <div className="flex items-center gap-2 rounded-xl border bg-background/90 p-1 shadow-sm backdrop-blur">
+        <div className="flex items-center gap-0.5 rounded-xl border bg-background/90 p-0.5 shadow-sm backdrop-blur">
           <HistoryButton
             label="Undo"
             shortcut={shortcut("Z")}
@@ -544,7 +548,7 @@ function ImportAffordance({ armTextTool }: { armTextTool: () => void }) {
         </div>
 
         {progress && (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs tabular-nums text-muted-foreground">
             Importing {progress.done} of {progress.total}…
           </span>
         )}
@@ -572,7 +576,7 @@ function HistoryButton({
         render={
           <Button
             variant="ghost"
-            size="icon-xs"
+            size="icon-sm"
             aria-label={label}
             disabled={disabled}
             onClick={onClick}

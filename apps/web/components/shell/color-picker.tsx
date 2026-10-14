@@ -242,7 +242,7 @@ function ColorChannelField({
           if (Number.isNaN(next)) return
           onChange(Math.min(max, Math.max(0, Math.round(next))))
         }}
-        className="min-w-0 flex-1 bg-transparent text-right text-xs text-foreground outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="min-w-0 flex-1 bg-transparent text-right text-xs tabular-nums text-foreground outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
     </label>
   )

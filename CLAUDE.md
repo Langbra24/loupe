@@ -158,6 +158,10 @@ npm run verify:space-keys # build with test hooks; Space activates a Tab-focused
                      #   checkbox; after a click on empty canvas, Space+drag pans;
                      #   on a mouse-clicked button, tab or checkbox Space pans and
                      #   doesn't activate it; clicked text fields still type a space
+npm run verify:polish # build; Export/Import buttons keep one width while busy,
+                     #   changing numbers are tabular, small controls hit >= 24x24,
+                     #   no font synthesis, a reload never flashes the intro or
+                     #   empty canvas (every frame sampled); fresh users get the intro
 ```
 
 Verifiers live in `scripts/verify/` and drive the real production build with Playwright (pinned to 1.56.1 to match the cloud image's Chromium; locally run `npx playwright install chromium` once). `npm run e2e` drives the real Export dialog; its header comment states the contract the PDF must meet. Set `LOUPE_URL=http://localhost:3000` to point a verifier at an already-running server. `verify:text-selection` reads `window.__loupeCanvas`, which exists only in a build made with `LOUPE_TEST_HOOKS=1` (inlined via `next.config.ts`; ordinary builds compile it out).

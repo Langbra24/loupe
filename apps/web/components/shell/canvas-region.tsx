@@ -60,7 +60,10 @@ function BookOverview() {
   // each step goes straight to the store.
   useEscapeSelection({ enabled: true, selection, stepToFrame: selectFrame, stepToNothing: clearSelection })
 
+  const hydrated = useEditorStore((state) => state.hydrated)
   const frames = [...project.frames].sort((a, b) => a.position - b.position)
+
+  if (!hydrated) return null
 
   if (frames.length === 0) {
     return (

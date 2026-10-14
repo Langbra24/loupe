@@ -36,6 +36,7 @@ export function ErrorBanner() {
         variant="ghost"
         size="icon-xs"
         aria-label="Dismiss"
+        className="relative before:absolute before:-inset-1"
         onClick={dismissError}
       >
         <XIcon />

@@ -64,7 +64,7 @@ export function CanvasControls({ controls }: { controls: Controls }) {
                 // what pressing it does, which otherwise lives in the
                 // tooltip alone (#50).
                 aria-label={`Zoom ${Math.round(zoom * 100)}%, reset to 100%`}
-                className="min-w-14 rounded-lg px-2 py-1.5 text-xs text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-ring"
+                className="min-w-14 rounded-lg px-2 py-1.5 text-xs tabular-nums text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-ring"
               >
                 {Math.round(zoom * 100)}%
               </button>
