@@ -47,7 +47,7 @@ export function AppShell() {
         <TopNav />
 
         <div
-          className="relative grid min-h-0 flex-1 transition-[grid-template-columns] duration-200 ease-out"
+          className="relative grid min-h-0 flex-1 transition-[grid-template-columns] duration-200 ease-out motion-reduce:transition-none"
           style={{
             gridTemplateColumns: [
               leftPanelOpen ? LEFT_PANEL_WIDTH : "0rem",

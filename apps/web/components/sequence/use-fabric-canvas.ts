@@ -15,10 +15,12 @@ import {
 
 import {
   FRAME_DISPLAY_WIDTH,
+  addPageAnchors,
   frameGridOriginY,
   layoutFrames,
   layoutSpreadBoxes,
   nearestFrameIndex,
+  type AddPageAnchor,
   type FrameLayout,
   type SpreadBoxLayout,
 } from "@/components/sequence/frame-grid"
@@ -188,6 +190,26 @@ function fitChromeToZoom(object: ScreenChrome, zoom: number) {
     scaleY: scale / zoom,
   })
   object.setCoords()
+}
+
+/** Snaps a frame onto its grid slot. Tweens with ease-in-out (it is already
+ *  on screen, moving), unless the user asked for reduced motion: then it
+ *  lands there in one render. Read at tween time, not once on mount, so
+ *  changing the OS setting takes effect without a reload. */
+function snapFrameTo(
+  fabric: typeof import("fabric"),
+  object: FabricObject,
+  to: { left: number; top: number },
+  duration: number,
+  render: () => void,
+) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    object.set(to)
+    object.setCoords()
+    render()
+    return
+  }
+  object.animate(to, { duration, easing: fabric.util.ease.easeInOutQuad, onChange: render })
 }
 
 export interface CanvasControls {
@@ -959,9 +981,11 @@ export function useFabricCanvas(options: Options) {
       /**
        * The two "add a paired page" buttons beside a selected frame —
        * user-directed, shown only while that frame (not one of its elements)
-       * is the active object. Positioned at the frame's vertical midpoint —
+       * is the active object. Positioned at the row's vertical midpoint —
        * "center the buttons horizontally at half of the A5 [page] size" — on
-       * the outside of its left/right edges. Rebuilt from scratch on every
+       * the outside of its left/right edges: a solo frame's own, or the
+       * whole spread's for either half of one (#72, see `addPageAnchors`),
+       * so no button sits in the gutter. Rebuilt from scratch on every
        * call rather than diffed in place: the pair only exists for whichever
        * frame is currently selected, so there's no ongoing per-frame state
        * worth preserving across a resync the way `syncFrames`/`syncPrintOverlay`
@@ -981,13 +1005,12 @@ export function useFabricCanvas(options: Options) {
 
         const { frames: currentFrames, placements: currentPlacements, assets: pool } = latest.current
         const originY = frameGridOriginY(currentPlacements, pool)
-        const layout = layoutFrames(currentFrames, originY).find((l) => l.frameId === frameId)
-        if (!layout) return
+        const anchors = addPageAnchors(currentFrames, frameId, originY)
+        if (!anchors) return
 
         // Drawn at 100%-zoom screen size; `fitChromeToZoom` scales the group
         // by 1/zoom so it stays this size on screen.
         const size = ADD_PAGE_BUTTON_SIZE_PX
-        const centerY = layout.bounds.y + layout.bounds.height / 2
 
         // Solid black background with a white plus sign — a primary-button
         // treatment (direct follow-up) rather than the previous white-at-50%-
@@ -999,7 +1022,7 @@ export function useFabricCanvas(options: Options) {
         // usual primary-button hover treatment. Grouped into one object so
         // the tag/hover/click handling below only has to deal with a single
         // target.
-        const makeButton = (side: "before" | "after", edgeX: number, offsetX: number) => {
+        const makeButton = ({ frameId: targetId, side, edgeX }: AddPageAnchor, offsetX: number) => {
           const bg = new fabric.Rect({
             width: size,
             height: size,
@@ -1035,9 +1058,9 @@ export function useFabricCanvas(options: Options) {
             excludeFromExport: true,
           }) as unknown as ScreenChrome & { isAddPageButton?: boolean; frameId?: string; side?: "before" | "after" }
           group.isAddPageButton = true
-          group.frameId = frameId
+          group.frameId = targetId
           group.side = side
-          group.screenAnchor = { x: edgeX, y: centerY, offsetX, offsetY: 0, scale: 1 }
+          group.screenAnchor = { x: edgeX, y: anchors.centerY, offsetX, offsetY: 0, scale: 1 }
           fitChromeToZoom(group, target_canvas.getZoom())
           group.on("mouseover", () => {
             bg.set({ fill: ADD_PAGE_BUTTON_HOVER_FILL })
@@ -1051,8 +1074,8 @@ export function useFabricCanvas(options: Options) {
         }
 
         const offset = ADD_PAGE_BUTTON_GAP_PX + size / 2
-        const left = makeButton("before", layout.bounds.x, -offset)
-        const right = makeButton("after", layout.bounds.x + layout.bounds.width, offset)
+        const left = makeButton(anchors.before, -offset)
+        const right = makeButton(anchors.after, offset)
         target_canvas.add(left, right)
         pageButtonsRef.current = { left, right, frameId }
         target_canvas.requestRenderAll()
@@ -1294,9 +1317,12 @@ export function useFabricCanvas(options: Options) {
             // grid directly so it doesn't rest wherever the pointer let go.
             const own = layouts[from]
             if (own) {
-              placed.animate(
+              snapFrameTo(
+                fabric,
+                placed,
                 { left: own.bounds.x + own.bounds.width / 2, top: own.bounds.y + own.bounds.height / 2 },
-                { duration: 200, easing: fabric.util.ease.easeInOutQuad, onChange: () => canvasRef.current?.requestRenderAll() },
+                200,
+                () => canvasRef.current?.requestRenderAll(),
               )
             }
           }
@@ -1876,14 +1902,9 @@ export function useFabricCanvas(options: Options) {
 
       // Motion convention (see the `animations` skill): under 300ms,
       // ease-in-out, using Fabric's own tween rather than a hand-rolled RAF
-      // loop.
-      existing.animate(
-        { left: centerX, top: centerY },
-        {
-          duration: 250,
-          easing: fabric.util.ease.easeInOutQuad,
-          onChange: () => canvasRef.current?.requestRenderAll(),
-        },
+      // loop; none under reduced motion.
+      snapFrameTo(fabric, existing, { left: centerX, top: centerY }, 250, () =>
+        canvasRef.current?.requestRenderAll(),
       )
     }
 

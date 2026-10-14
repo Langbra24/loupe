@@ -81,6 +81,53 @@ const SCENES = {
     await page.keyboard.press("Tab")
     await page.keyboard.press("Tab")
   },
+  /** The shared focus ring (#53), reached by keyboard on three surfaces.
+   *  Two crops are saved alongside: focus-ring-inspector.png (a margin
+   *  field) and focus-ring-book.png (page 1 selected and focused in the
+   *  Book view). The full shot is the Export dialog with a format card
+   *  focused. */
+  "focus-ring": async (page) => {
+    await dismissIntroduction(page)
+    await importPhotos(page)
+    await setupBook(page, { preset: "A5 Portrait", pageCount: 8 })
+    await settle(page)
+    const spot = await firstPageCenter(page)
+    await page.mouse.click(spot.x, spot.y)
+    const inspector = page.getByRole("complementary").last()
+    const top = inspector.getByLabel("Top", { exact: true })
+    await top.focus()
+    await page.keyboard.press("Tab")
+    await page.keyboard.press("Shift+Tab")
+    await page.waitForTimeout(300)
+    const field = await top.locator("xpath=..").boundingBox()
+    await page.screenshot({
+      path: path.join(repoRoot, "screenshots", "focus-ring-inspector.png"),
+      clip: { x: field.x - 140, y: field.y - 60, width: 260, height: 140 },
+    })
+
+    // Page 1 is still selected from the canvas click above. Clicking a
+    // preview would leave the Book view (it reviews that page on the canvas),
+    // so focus page 2's and Shift+Tab back onto page 1's.
+    await page.getByRole("tab", { name: "Book" }).click()
+    // The previews carry aria-label; the left panel rows of the same names
+    // are aria-labelledby.
+    const preview = page.locator('button[aria-label="Page 1"]')
+    await page.locator('button[aria-label="Page 2"]').focus()
+    await page.keyboard.press("Shift+Tab")
+    await page.mouse.move(0, 0)
+    await page.waitForTimeout(300)
+    const card = await preview.boundingBox()
+    await page.screenshot({
+      path: path.join(repoRoot, "screenshots", "focus-ring-book.png"),
+      clip: { x: card.x - 24, y: card.y - 24, width: card.width + 48, height: card.height + 48 },
+    })
+
+    await page.getByRole("banner").getByRole("button", { name: "Export" }).click()
+    const dialog = page.getByRole("dialog", { name: "Export book" })
+    await dialog.getByRole("radio").first().focus()
+    await page.keyboard.press("ArrowDown")
+    await page.waitForTimeout(600)
+  },
   /** A placed text box after a single click: selected with handles, not
    *  editing, and the inspector showing its properties (issue #14). */
   "text-selected": async (page) => {

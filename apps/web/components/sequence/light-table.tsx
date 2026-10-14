@@ -309,7 +309,7 @@ function ImagePresetMenu({
           <button
             key={preset}
             onClick={() => onSelect(preset)}
-            className="block w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+            className="block w-full rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-muted focus-ring"
           >
             {IMAGE_PRESET_LABELS[preset]}
           </button>
@@ -317,14 +317,14 @@ function ImagePresetMenu({
         <div className="my-1 h-px bg-border" />
         <button
           onClick={() => onToggleCover(!isCover)}
-          className="block w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+          className="block w-full rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-muted focus-ring"
         >
           {isCover ? "Remove cover" : "Set as cover"}
         </button>
         <div className="my-1 h-px bg-border" />
         <button
           onClick={onDelete}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10"
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-destructive outline-none hover:bg-destructive/10 focus-ring"
         >
           <Trash2Icon className="size-3.5" />
           Delete page
@@ -362,7 +362,7 @@ function EmptyCanvasContextMenu({
       >
         <button
           onClick={onAddPage}
-          className="block w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+          className="block w-full rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-muted focus-ring"
         >
           Add new page
         </button>
@@ -407,14 +407,14 @@ function FrameContextMenu({
       >
         <button
           onClick={() => onToggleCover(!isCover)}
-          className="block w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+          className="block w-full rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-muted focus-ring"
         >
           {isCover ? "Remove cover" : "Set as cover"}
         </button>
         <div className="my-1 h-px bg-border" />
         <button
           onClick={onDelete}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10"
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-destructive outline-none hover:bg-destructive/10 focus-ring"
         >
           <Trash2Icon className="size-3.5" />
           Delete page

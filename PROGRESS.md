@@ -192,6 +192,51 @@ surprises). Newest entries at the bottom.
 - Combined, two verifiers broke on #65's renames: `book-overview.mjs` looked for the Color trigger as `#…` and `canvas-chrome.mjs` for the zoom readout as `N%`. Both now use the new names ("Color #…", "Zoom N%…"), committed on #65.
 - On the combined tree (identical to `main` after the merges): `npm run verify` passes; all 17 verifiers, including e2e 3/3, pass; all 13 screenshot scenes render.
 
+## 2026-10-13 — #56 four small fixes (`issue-56-small-fixes`)
+
+- **S9:** toasts moved to the top-right, 8px under the top nav (`top-14`), clear of the zoom controls and canvas toolbars. The shadcn stack math is mirrored: `top-0`/`origin-top`, peek and expanded offsets grow downward, enter/exit at `translateY(-150%)` with a fade (150% of a toast's height doesn't clear the screen from up there), `swipeDirection={["up", "right"]}`.
+- **S10:** Escape on the intro overlay dismisses it, like its X. Handled on the overlay's keydown, so Escape in the (still live) top nav is left alone.
+- **S11:** the empty project's "Add pages to get started." is muted, not destructive; an unstitchable count is still red.
+- **S13:** Cmd/Ctrl+Enter in the feedback textarea submits (respects `canSubmit`). The Submit button shows `⌘ ↵`/`Ctrl ↵` in a `<kbd>`; "Sending…" shares a grid cell with the idle label, so the button no longer changes width while sending.
+- `npm run verify:small-fixes` (new) passes; on main's app code it fails 8 checks across all four fixes.
+
+## 2026-10-13 — #52 honour reduced motion, drop the inspector's 150ms delay, no transition-all (`issue-52-motion`)
+
+- **S2:** one unlayered `@media (prefers-reduced-motion: reduce)` rule in `globals.css` resets tw-animate's `--tw-enter-*`/`--tw-exit-*` scale, translate, rotate and blur variables to identity, so every popup (Export dialog and backdrop, Color picker, Feedback, Select, Tooltip, DropdownMenu) keeps its opacity fade and loses its zoom/slide. The shell grid is `motion-reduce:transition-none`. Fabric frame snaps go through `snapFrameTo`, which reads `matchMedia` at tween time and sets the end position in one render under reduced motion.
+- **S3:** `InspectorPanel` renders the new variant in the same commit; the `phase`/`displayed` state and its 150ms `setTimeout` are gone. A wrapper keyed by variant replays `.inspector-fade-in` (150ms, opacity only, none under reduced motion), and the first render doesn't fade.
+- **S4:** Button transitions `color, background-color, border-color, box-shadow, opacity, translate` (`translate`, not `transform`: Tailwind v4's `translate-y-px` press nudge writes the `translate` property). Badge transitions its colors and shadow. No `transition-all` left anywhere in `apps/web/components`.
+- `npm run verify:motion` (new, test-hooks build) passes 22/22. It slows Chrome's animation clock to 2%, seeks each running animation to its start and compares the target's geometry with its end, so it judges what is drawn, not class names; the normal-motion half checks the same popups *do* move, so the reduced half can't pass vacuously. On `main` it fails 12.
+
+## 2026-10-13 — #53 one focus ring app-wide (`issue-53-focus-ring`)
+
+- Finding S1 from `todos/2026-10-13-emil-ui-review.md`. Focus is now one treatment: a 2px solid `--focus-ring` outline, 2px outside the control. `--focus-ring` is new (zinc-400, `oklch(0.705 0.015 286.067)`). `--ring` keeps its job for *selection* (chosen preset/format borders, `data-popup-open:border-ring`, the selected Book preview).
+- Measured WCAG ratios, recorded in `globals.css`: 5.66:1 on `--background`, 6.74:1 on `--card`/`--popover`, 4.83:1 on `--muted`, 4.20–6.01:1 on `bg-input/30`. The old ring (`--ring`/50) was 1.75:1. On white it would be 2.63:1. The offset keeps it off the paper: Book previews get it on `--background`, outside the page.
+- Shared utilities in `globals.css`: `focus-ring` (control), `focus-ring-within` (`:has(:focus-visible)`, for NumberField, channel fields and export cards), and `focus-ring-inset` (only the scroll viewport, which its panel clips). The base layer drops `outline-ring/50` and gives every element the ring's color, width and offset up front, so focus only flips `outline-style`. Nothing falls back to Chrome's `outline: auto` any more, and no `transition-*` animates the ring in. Every `focus-visible:ring-3 ring-ring/50`/`border-ring` string is replaced. The bare buttons get `focus-ring`: page rows, presets/Custom, previews, context-menu items. Destructive buttons no longer swap in a red ring.
+- Book preview selection moved from `outline-2 outline-ring` to `ring-2 ring-ring` (box-shadow on the paper's edge), so a focused selected page shows both.
+- `npm run verify:focus-ring` (new) keyboard-focuses 11 controls across nav, panels, inspector, popover, both dialogs and the Book view. It checks for one identical ring and ≥ 3:1 against the real surface under each. On main: 14 failures (4 distinct ring styles, 1.65–1.87:1). `color-picker-focus.mjs` and `book-setup.mjs` now accept an outline as the ring. New screenshot scene `focus-ring`.
+
+## 2026-10-13 — #51 Set as cover from the sidebar, by keyboard (`issue-51-cover-toggle`)
+
+- **Cover checkbox** in the page inspector's Layout section, under Position. It calls `setFrameCover`, the same action as the right-click menu (which keeps its item). Checking it sets `isCover` and moves the page to the front; unchecking clears the flag and leaves the page where it is. Either way it's one undo step, and undo puts the page back at its old index. A native `<input type="checkbox">`, because the canvas's window-level Space handler (hold to pan) skips inputs but swallows Space on buttons.
+- **Add page** button in the nothing-selected Book settings: `addFrame(pageSize)`, the empty-canvas menu's "Add new page".
+- Every other context-menu action already had a non-mouse route: image presets → the sidebar's Layout preset buttons; Delete page → Backspace/Delete on a selected page.
+- `npm run verify:cover-toggle` (new, test-hooks build) selects page 3, toggles Cover and adds a page using only the keyboard. It checks the stored order, the Position field, the Book list, the canvas badge and Ctrl+Z. It fails on main's app code (no Cover checkbox). `verify:a11y-names` now also expects "Cover" and "Add page".
+- Known gaps, not fixed here: Ctrl+Z does nothing while focus is on the checkbox itself (the undo shortcut leaves every `<input>` to the browser). Space can't press any button, app-wide (the pan handler). After a page is selected, the keyboard has no way back to nothing selected.
+
+## 2026-10-13 — wave 2 of Phase 2 merged (manager)
+
+- PRs #74 (#56), #68 (#52), #69 (#53), #67 (#51) merged in that order. `ui/button.tsx`, `ui/badge.tsx`, `ui/toast.tsx` and `feedback-control.tsx` conflicted between the behaviour PRs and #69. Resolution: keep #74's toast position, Cmd+Enter handler and #68's transition lists, with #69's `focus-ring` in place of the old ring classes. #67's Cover checkbox and Add page button were switched to `focus-ring` too; `verify:focus-ring` doesn't cover them.
+- `verify:cover-toggle` failed 5 checks on the combined tree. It took its baseline from IndexedDB before the debounced save had stored the new book, so `page3Id` was undefined. It now waits for all 8 pages to be stored (3/3 passes after).
+- On the combined tree (identical to `main` after the merges): `npm run verify` passes (118 core / 97 web tests); every verifier passes, including e2e; all screenshot scenes render.
+- Filed from the executor's notes on #67: #75 (Space is swallowed on focused buttons by the hold-to-pan handler) and #76 (no keyboard route back to "nothing selected"). #70–#72 (the maintainer's answers) are with the executor.
+
+## 2026-10-13 — #72 add-page buttons sit outside a spread (`issue-72-add-page-spread`)
+
+- **Canvas:** the two "+" buttons go on the outer edges of the selected frame's row: a solo frame's own edges, or a spread's section box for either of its pages. The left one calls `addPairedPage(leftPage, "before")`, the right one `addPairedPage(rightPage, "after")`, so nothing lands in the gutter. New pure helper `addPageAnchors` in `frame-grid.ts` (unit-tested) reuses `layoutRows`. Screen-sized chrome and hover fill unchanged.
+- **Sidebar:** a new "Pages" section after Layout (not inside it, so #67's Cover checkbox doesn't collide) with "Add page before" / "Add page after", styled like the image Layout preset buttons. They insert next to the selected page, so they can split a spread on purpose. Both are one undo step through `addPairedPage`.
+- `npm run verify:add-page` (new, test-hooks build) passes 19/19 on an 8-page book with a cover. Against main's app code it fails 10 checks (buttons across the spread, wrong insert positions, no sidebar control). `verify:a11y-names` now expects the two new buttons. `verify:canvas-chrome` unchanged: it uses the cover, a solo row.
+- After merging wave 2: the new buttons use #53's `focus-ring`; `npm run verify` and all 20 verifiers pass on a test-hooks build. Space on these buttons is still swallowed by hold-to-pan (#75); Enter works.
+
 ## 2026-10-13 — #71 Book setup dialog, centre it again (`issue-71-book-setup-centred`)
 
 - Maintainer's call, reversing one part of #57: the book-setup card is vertically centred again (overlay `flex items-center justify-center`, card in normal flow), and the card shifts up by half a row when Custom or an error line grows it. No transition added. Everything else from #57 is unchanged: the copy, `aria-pressed`, `FIELD_CLASS`, `aria-invalid`/`aria-describedby`, and the DOM depth `dialog-focus.mjs` relies on.

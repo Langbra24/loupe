@@ -148,6 +148,39 @@ export function layoutSpreadBoxes(frames: readonly Frame[], originY: number): Sp
     .filter((box): box is SpreadBoxLayout => box !== null)
 }
 
+/** One canvas "+" button: which frame `addPairedPage` inserts relative to,
+ *  on which side, and the scene x of the edge the button sits outside of. */
+export interface AddPageAnchor {
+  frameId: string
+  side: "before" | "after"
+  edgeX: number
+}
+
+/**
+ * Where the canvas's two "+" buttons go for the selected frame (issue #72).
+ * They sit on the outer edges of the frame's row: a solo frame's own edges,
+ * or a spread's section box, so neither lands in the gutter. The left one
+ * inserts before the row's first page and the right one after its last page,
+ * which is why selecting either half of a spread gives the same pair.
+ * `centerY` is the row's vertical middle. `null` if `frameId` isn't laid out.
+ */
+export function addPageAnchors(
+  frames: readonly Frame[],
+  frameId: string,
+  originY: number,
+): { before: AddPageAnchor; after: AddPageAnchor; centerY: number } | null {
+  const row = layoutRows(frames, originY).find((r) => r.frames.some((f) => f.frameId === frameId))
+  if (!row) return null
+  const first = row.frames[0]!
+  const last = row.frames[row.frames.length - 1]!
+  const bounds = row.spreadBox?.bounds ?? first.bounds
+  return {
+    before: { frameId: first.frameId, side: "before", edgeX: bounds.x },
+    after: { frameId: last.frameId, side: "after", edgeX: bounds.x + bounds.width },
+    centerY: bounds.y + bounds.height / 2,
+  }
+}
+
 /**
  * Where the frame grid begins, in scene units — below the pasteboard's
  * current loose-photo content. Reuses `boundingBoxOf`'s bounding-box logic

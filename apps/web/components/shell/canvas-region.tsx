@@ -86,8 +86,10 @@ function FramePreview({ frame, project }: { frame: Frame; project: Project }) {
         aria-label={`Page ${frame.position + 1}`}
         aria-current={isSelected || undefined}
         className={cn(
-          "relative block w-full cursor-pointer bg-white shadow-sm ring-1 ring-border transition-shadow hover:shadow-md",
-          isSelected && "outline-2 outline-ring",
+          "relative block w-full cursor-pointer bg-white shadow-sm ring-1 ring-border transition-shadow outline-none hover:shadow-md focus-ring",
+          // Selection is a ring on the paper's edge; focus is the shared
+          // outline 2px outside it, so a focused selected page shows both.
+          isSelected && "ring-2 ring-ring",
         )}
         style={{ aspectRatio: aspect }}
       >
