@@ -64,18 +64,14 @@ export function BookSetupDialog() {
   const customInvalid = useCustom && !customValidation.valid
 
   return (
-    <div className="absolute inset-0 z-30 bg-background/80 backdrop-blur-sm">
-      {/* Anchored from the top, not centred: choosing Custom or showing an
-          error line grows the card, and a centred card would move its top
-          edge (and the title, and the buttons under the pointer) up by half
-          of that. 12rem is about half the card's preset-state height, so in
-          that state it sits where centring would put it, and it only ever
-          grows downward. Reserving the custom row instead would leave an
-          empty band under the presets for most books. */}
+    <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+      {/* Centred, so the card shifts up by half a row when Custom or an error
+          line grows it. That shift is accepted (#71); the top-anchored
+          alternative from #57 kept the card off-centre in every state. */}
       <div
         role="dialog"
         aria-labelledby={titleId}
-        className="absolute inset-x-0 top-[max(1.5rem,calc(50%-12rem))] mx-auto w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg"
+        className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg"
       >
         <h2 id={titleId} className="font-heading text-base font-medium">
           Set up your book

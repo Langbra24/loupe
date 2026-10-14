@@ -1,4 +1,4 @@
-// Book setup dialog check (issue #57).
+// Book setup dialog check (issues #57, #71).
 //
 //   npm run verify:book-setup      # builds first
 //   LOUPE_URL=http://localhost:3000 node scripts/verify/book-setup.mjs
@@ -13,8 +13,10 @@
 //   4. An invalid custom size or page count sets aria-invalid="true" on its
 //      input(s), and aria-describedby points at the visible message. A valid
 //      value clears both.
-//   5. The card's top edge moves by 0px when Custom is toggled on and off and
-//      when an error line appears. The card does grow, so this isn't vacuous.
+//   5. The card is vertically centred in its overlay (within 1px) with a preset
+//      chosen, with Custom chosen, with an error line showing, and after
+//      toggling Custom off and on again (#71). The card does grow with Custom,
+//      so the centring is checked at more than one height.
 //   6. The book can still be created afterwards; no uncaught page errors.
 
 import path from "node:path"
@@ -57,8 +59,18 @@ try {
   const dialog = page.getByRole("dialog", { name: "Set up your book" })
   await dialog.waitFor()
   await page.waitForTimeout(100)
-  const top = async () => (await dialog.boundingBox()).y
   const height = async () => (await dialog.boundingBox()).height
+  // Card centre minus overlay centre, in px. The overlay is the dialog's parent.
+  const offCentre = () =>
+    dialog.evaluate((card) => {
+      const c = card.getBoundingClientRect()
+      const o = card.parentElement.getBoundingClientRect()
+      return c.top + c.height / 2 - (o.top + o.height / 2)
+    })
+  const checkCentred = async (state) => {
+    const off = await offCentre()
+    check(Math.abs(off) <= 1, `5. ${state}: the card is vertically centred in its overlay (off by ${off.toFixed(1)}px)`)
+  }
 
   // 1. Copy.
   const copy = "Page count can change later; page size is set for this book."
@@ -68,8 +80,8 @@ try {
     `1. the old "You can change this later" promise is gone`,
   )
 
-  const presetTop = await top()
   const presetHeight = await height()
+  await checkCentred("preset chosen")
 
   // 2. aria-pressed on Custom.
   const custom = dialog.getByRole("button", { name: "Custom", exact: true })
@@ -79,12 +91,8 @@ try {
   const pressedPresets = await dialog.locator('button[aria-pressed="true"]').count()
   check(pressedPresets === 1, `2. only one page size is pressed (${pressedPresets})`)
 
-  const customTop = await top()
   const customHeight = await height()
-  check(
-    customTop === presetTop,
-    `5. choosing Custom moves the top edge by ${customTop - presetTop}px (card grew ${customHeight - presetHeight}px)`,
-  )
+  await checkCentred("Custom chosen")
   check(customHeight > presetHeight, `5. the card does grow with the custom row (${presetHeight} → ${customHeight}px)`)
 
   // 3. One field style, one focus ring.
@@ -118,7 +126,7 @@ try {
       (ringShown && same(focusStyles) ? ` (${ringOf(focusStyles[0])})` : `: ${JSON.stringify(focusStyles)}`),
   )
 
-  // 4 + 5. Errors are tied to their inputs and don't move the card.
+  // 4 + 5. Errors are tied to their inputs and the card stays centred.
   const checkInvalid = async (inputs, label) => {
     for (const input of inputs) {
       const name = (await input.getAttribute("aria-label")) ?? "Starting page count"
@@ -144,13 +152,11 @@ try {
 
   await width.fill("0")
   await checkInvalid([width, heightField], "custom size 0 × 297")
-  const sizeErrorTop = await top()
-  check(sizeErrorTop === presetTop, `5. the custom size error moves the top edge by ${sizeErrorTop - presetTop}px`)
+  await checkCentred("custom size error showing")
 
   await count.fill("0")
   await checkInvalid([count], "page count 0")
-  const countErrorTop = await top()
-  check(countErrorTop === presetTop, `5. the page count error moves the top edge by ${countErrorTop - presetTop}px`)
+  await checkCentred("both errors showing")
 
   await width.fill("210")
   await count.fill("12")
@@ -159,11 +165,9 @@ try {
   const preset = dialog.getByRole("button", { name: "A5 Portrait", exact: true })
   await preset.click()
   check((await custom.getAttribute("aria-pressed")) === "false", `2. Custom goes back to aria-pressed="false" on a preset`)
-  const backTop = await top()
-  check(backTop === presetTop, `5. toggling Custom off moves the top edge by ${backTop - presetTop}px`)
+  await checkCentred("Custom toggled off")
   await custom.click()
-  const againTop = await top()
-  check(againTop === presetTop, `5. toggling Custom on again moves the top edge by ${againTop - presetTop}px`)
+  await checkCentred("Custom toggled on again")
 
   // 6. Still completes.
   await setupBook(page, { preset: "A5 Portrait", pageCount: 8 })

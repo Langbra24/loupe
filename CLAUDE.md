@@ -124,7 +124,8 @@ npm run verify:book-overview # build; a colored caption shows in the Book view
 npm run verify:book-setup # build; the book-setup dialog's copy, Custom's aria-pressed,
                      #   one field style and focus ring across all three inputs,
                      #   aria-invalid/aria-describedby on an invalid value, and a card
-                     #   top edge that doesn't move when the card grows
+                     #   vertically centred (within 1px) before and after Custom
+                     #   is chosen and with an error showing
 npm run verify:canvas-chrome # build with test hooks; at 10/50/100% zoom the
                      #   add-page button is >= 24px and the cover badge >= 16px
                      #   on screen; the selection color is >= 3:1 on both the
