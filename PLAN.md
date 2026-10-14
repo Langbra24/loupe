@@ -40,9 +40,9 @@ Reports: `todos/2026-10-13-emil-ui-review.md`, `todos/2026-10-13-emil-ui-polish.
 - [x] [#54](https://github.com/Langbra24/loupe/issues/54) Book overview: white pages, real text colors (S6) — PR #62, `npm run verify:book-overview` 5/5
 - [x] [#55](https://github.com/Langbra24/loupe/issues/55) Canvas chrome: one selection color, screen-sized add-page buttons and cover badge (S7, S8) — PR #64, `npm run verify:canvas-chrome` 16/16
 - [ ] [#59](https://github.com/Langbra24/loupe/issues/59) Polish: stable widths, tabular numbers, hit areas, no faux italic, no reload flash (P1–P5)
-- [ ] [#70](https://github.com/Langbra24/loupe/issues/70) Feedback: drop the Name field, keep Email
-- [ ] [#71](https://github.com/Langbra24/loupe/issues/71) Book setup dialog: centre it again (reverses #57's top anchor)
-- [ ] [#72](https://github.com/Langbra24/loupe/issues/72) Add-page buttons sit outside a spread; gutter insert is an explicit sidebar action
+- [x] [#70](https://github.com/Langbra24/loupe/issues/70) Feedback: drop the Name field, keep Email — PR #79, `npm run verify:feedback` PASS
+- [x] [#71](https://github.com/Langbra24/loupe/issues/71) Book setup dialog: centre it again (reverses #57's top anchor) — PR #78, `npm run verify:book-setup` PASS
+- [x] [#72](https://github.com/Langbra24/loupe/issues/72) Add-page buttons sit outside a spread; gutter insert is an explicit sidebar action — PR #80, `npm run verify:add-page` 19/19
 - [ ] [#75](https://github.com/Langbra24/loupe/issues/75) Space activates focused buttons; hold-Space pan only from the canvas
 - [ ] [#76](https://github.com/Langbra24/loupe/issues/76) Escape steps the selection back out to Book settings
 
