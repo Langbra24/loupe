@@ -5,7 +5,7 @@
 //
 // `npm run screenshot` builds first. To capture a server that is already
 // running (e.g. `npm run dev`), skip the build and point at it:
-//   LOUPE_URL=http://localhost:3000 node scripts/verify/screenshot.mjs
+//   SEQUENCE_URL=http://localhost:3000 node scripts/verify/screenshot.mjs
 //
 // Each scene starts from a fresh browser context, so an empty IndexedDB.
 

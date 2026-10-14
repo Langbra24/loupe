@@ -5,7 +5,7 @@ import {
   type Frame,
   type ImageElement,
   type TextElement,
-} from "@loupe/core"
+} from "@sequence/core"
 
 import { BLEED_MM, DEFAULT_TEXT_COLOR } from "@/components/shell/inspector-panel"
 import { resolveTextFontFamily } from "@/lib/fonts"

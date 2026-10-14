@@ -28,7 +28,7 @@ import {
   type Project,
   type Selection,
   type TextElement,
-} from "@loupe/core"
+} from "@sequence/core"
 
 import { BLEED_MM } from "@/components/shell/inspector-panel"
 import { DEFAULT_TEXT_FONT } from "@/lib/fonts"

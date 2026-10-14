@@ -1,4 +1,4 @@
-# Loupe — agent instructions
+# Sequence — agent instructions
 
 **Read [`docs/plans/00-initial-build-brief.md`](docs/plans/00-initial-build-brief.md) before starting any work.** It holds the full product context, tech stack, tier model, UX rationale, and open decisions. This file only records the rules that follow from it.
 
@@ -9,9 +9,9 @@ A browser-based photobook/zine layout tool for photographers and DIY bookmakers:
 ## Repo layout
 
 ```
-core/                   @loupe/core — data model, sequencing, typography, imposition math.
+core/                   @sequence/core — data model, sequencing, typography, imposition math.
                         Pure TypeScript. MIT, publicly shared. This is the licensing boundary.
-apps/web/               Next.js hosted app. Imports @loupe/core. Payment code lives HERE, never in core/.
+apps/web/               Next.js hosted app. Imports @sequence/core. Payment code lives HERE, never in core/.
 apps/download-builder/  (not built yet) packages core/ into the flat $15 zip. No payment code.
 marketing-site/         (not built yet) shadcn-based marketing site.
 docs/plans/             planning docs, incl. the build brief
@@ -62,6 +62,7 @@ The old `Edit` type — ordered lists of asset ids, promoted by right-click, com
 
 - The project record addresses the blobs, so it is flushed **immediately** after an import commits and on `pagehide`. Only placement and edit mutations use the debounce.
 - Load reconciles blob stores against the asset list and deletes orphans.
+- The database is named `sequence`. The app was called Loupe until October 2026, and `LEGACY_DB_NAME = "loupe"` in `lib/storage/db.ts` is the one place that old name is kept on purpose: on first open, a project saved under it is moved into `sequence` (one transaction), then the old database is deleted. Don't remove it in a rename sweep. `npm run verify:storage-migration` covers it. Renaming any stored key again needs the same kind of migration.
 - `navigator.storage.persist()` is requested on first import. IndexedDB is evicted LRU, and with no account and no backup that is silent total data loss. A denial degrades quietly — it is a browser policy the user cannot change. The real answer is the deferred project export.
 
 ## Fabric.js v7 gotchas
@@ -162,9 +163,12 @@ npm run verify:polish # build; Export/Import buttons keep one width while busy,
                      #   changing numbers are tabular, small controls hit >= 24x24,
                      #   no font synthesis, a reload never flashes the intro or
                      #   empty canvas (every frame sampled); fresh users get the intro
+npm run verify:storage-migration # build; a project saved under the pre-rename
+                     #   IndexedDB name "loupe" reopens intact under "sequence",
+                     #   and the old database is deleted
 ```
 
-Verifiers live in `scripts/verify/` and drive the real production build with Playwright (pinned to 1.56.1 to match the cloud image's Chromium; locally run `npx playwright install chromium` once). `npm run e2e` drives the real Export dialog; its header comment states the contract the PDF must meet. Set `LOUPE_URL=http://localhost:3000` to point a verifier at an already-running server. `verify:text-selection` reads `window.__loupeCanvas`, which exists only in a build made with `LOUPE_TEST_HOOKS=1` (inlined via `next.config.ts`; ordinary builds compile it out).
+Verifiers live in `scripts/verify/` and drive the real production build with Playwright (pinned to 1.56.1 to match the cloud image's Chromium; locally run `npx playwright install chromium` once). `npm run e2e` drives the real Export dialog; its header comment states the contract the PDF must meet. Set `SEQUENCE_URL=http://localhost:3000` to point a verifier at an already-running server. `verify:text-selection` reads `window.__sequenceCanvas`, which exists only in a build made with `SEQUENCE_TEST_HOOKS=1` (inlined via `next.config.ts`; ordinary builds compile it out).
 
 ## Cloud sessions
 

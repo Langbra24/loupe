@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import type { Asset, Page, PageSize, Project } from "@loupe/core"
+import type { Asset, Page, PageSize, Project } from "@sequence/core"
 
 /**
  * `db.ts` is mocked at the module boundary rather than pulling in a real

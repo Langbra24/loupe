@@ -1,5 +1,5 @@
 /**
- * The Loupe data model.
+ * The Sequence data model.
  *
  * A project is a flat, ordered list of pages. Spreads are *derived* from that
  * list rather than stored, because pagination is a consequence of page order —

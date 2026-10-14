@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import type { Frame, Selection } from "@loupe/core"
+import type { Frame, Selection } from "@sequence/core"
 
 interface Options {
   enabled: boolean
@@ -441,7 +441,7 @@ export function useUndoShortcut({ enabled, undo, redo }: UndoShortcutOptions): v
 
 /** What's currently selected, reduced to exactly what this hook needs to
  *  decide what Backspace/Delete should remove — the caller passes this
- *  derived shape rather than the raw `Selection` union from `@loupe/core`,
+ *  derived shape rather than the raw `Selection` union from `@sequence/core`,
  *  the same pattern `isFrameSelected`/`selectedFrameId` used before this
  *  hook covered elements too. `"placement"` is one or more pasteboard
  *  photographs that haven't been dropped onto a frame yet — an array, not a

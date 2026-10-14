@@ -43,7 +43,7 @@ These were raised at anchor 75–100 (verified, will be hit in practice) but are
 
 - "Open blockers: None" sits oddly next to the admittedly-unspecified migration path. *(scope-guardian)*
 - R23–R25 (feedback loop) have no dependency on R1–R22 and could ship as an earlier, separate increment. *(scope-guardian)*
-- The intro frames Loupe as an open community experiment; the $5/$15 paywall it never mentions arrives minutes later. *(product-lens)*
+- The intro frames Sequence as an open community experiment; the $5/$15 paywall it never mentions arrives minutes later. *(product-lens)*
 - The intro doesn't state that photos never leave the browser — the one moment the app has the user's attention to say so. *(security-lens)*
 - The Figma-shaped interaction model is unweighed against the brief's secondary DIY-scrapbook audience. *(product-lens)*
 - Which substrate hosts the unified canvas (extend Fabric.js, or a new DOM drag system) is still open — the largest technical unknown for planning.
@@ -51,4 +51,4 @@ These were raised at anchor 75–100 (verified, will be hit in practice) but are
 
 ## Why these weren't applied now
 
-Item 6–13 stake out product and architecture positions (what Loupe's engine simplicity means now, whether losing competing sequences is acceptable, how big a bite this rewrite should be) that are the user's call, not a doc-review autofix. Items 1–5 are the closest to mechanical but each still commits to a specific behavior (a truncation UX, a print-property allocation, a migration failure mode) worth a deliberate decision rather than a silent edit. Surfacing them here keeps them from being lost without forcing a decision mid-review.
+Item 6–13 stake out product and architecture positions (what Sequence's engine simplicity means now, whether losing competing sequences is acceptable, how big a bite this rewrite should be) that are the user's call, not a doc-review autofix. Items 1–5 are the closest to mechanical but each still commits to a specific behavior (a truncation UX, a print-property allocation, a migration failure mode) worth a deliberate decision rather than a silent edit. Surfacing them here keeps them from being lost without forcing a decision mid-review.

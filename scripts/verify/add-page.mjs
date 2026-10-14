@@ -4,9 +4,9 @@
 //
 //   npm run verify:add-page          # builds first, with test hooks on
 //
-// Positions and page order are read from `window.__loupeCanvas`, which exists
-// only in a build made with LOUPE_TEST_HOOKS=1 (the npm script does that).
-// With LOUPE_URL, the server must be such a build. Page identity is each
+// Positions and page order are read from `window.__sequenceCanvas`, which exists
+// only in a build made with SEQUENCE_TEST_HOOKS=1 (the npm script does that).
+// With SEQUENCE_URL, the server must be such a build. Page identity is each
 // frame's id, so the checks can tell which page is the new one.
 //
 // The contract, on an 8-page A5 book with page 1 set as the cover (rows:
@@ -41,7 +41,7 @@ const { browser, page, errors } = await openApp(app.url)
 /** Frame ids in reading order, plus each frame's scene bounds. */
 const frames = () =>
   page.evaluate(() =>
-    window.__loupeCanvas
+    window.__sequenceCanvas
       .getObjects()
       .filter((o) => o.frameId && !o.elementId && o.type === "rect")
       .map((o) => ({
@@ -58,7 +58,7 @@ const order = async () => (await frames()).map((f) => f.id)
 /** The add-page buttons: target frame, side, scene extent and screen center. */
 const buttons = () =>
   page.evaluate(() => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const v = canvas.viewportTransform
     const rect = canvas.upperCanvasEl.getBoundingClientRect()
     return canvas
@@ -84,7 +84,7 @@ const buttons = () =>
 /** Clicks the middle of a frame on screen, selecting it. */
 const selectFrame = async (id) => {
   const point = await page.evaluate((id) => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const frame = canvas.getObjects().find((o) => o.frameId === id && !o.elementId && o.type === "rect")
     const v = canvas.viewportTransform
     const rect = canvas.upperCanvasEl.getBoundingClientRect()
@@ -92,7 +92,7 @@ const selectFrame = async (id) => {
   }, id)
   await page.mouse.click(point.x, point.y)
   await page.waitForTimeout(300)
-  const active = await page.evaluate(() => window.__loupeCanvas.getActiveObject()?.frameId ?? null)
+  const active = await page.evaluate(() => window.__sequenceCanvas.getActiveObject()?.frameId ?? null)
   if (active !== id) throw new Error(`Clicking frame ${id} selected ${active} instead.`)
 }
 
@@ -122,10 +122,10 @@ const checkInsert = (label, before, after, expectedPage) => {
 
 try {
   await dismissIntroduction(page)
-  if (!(await page.evaluate(() => Boolean(window.__loupeCanvas)))) {
+  if (!(await page.evaluate(() => Boolean(window.__sequenceCanvas)))) {
     throw new Error(
-      "window.__loupeCanvas is missing: this build has no test hooks. Run `npm run verify:add-page`, " +
-        "or build with LOUPE_TEST_HOOKS=1 before pointing LOUPE_URL at it.",
+      "window.__sequenceCanvas is missing: this build has no test hooks. Run `npm run verify:add-page`, " +
+        "or build with SEQUENCE_TEST_HOOKS=1 before pointing SEQUENCE_URL at it.",
     )
   }
   await importPhotos(page)

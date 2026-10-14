@@ -12,9 +12,9 @@
  * feedback needs no GitHub account at all. See that route for the actual
  * API call and CLAUDE.md's "Hard rules" for why a backend exists here now.
  */
-export const GITHUB_REPO = "Langbra24/loupe"
+export const GITHUB_REPO = "Langbra24/sequence"
 
-export const FEEDBACK_ISSUE_TITLE = "Feedback from the Loupe app"
+export const FEEDBACK_ISSUE_TITLE = "Feedback from the Sequence app"
 
 /**
  * Optional contact a bookmaker can attach to their feedback, so the
@@ -38,10 +38,10 @@ export interface FeedbackContact {
 export const FEEDBACK_MAX_LENGTH = 2000
 
 const BODY_HEADER =
-  "Feedback submitted from within the Loupe app, via its bottom-left feedback control.\n\n---\n\n"
+  "Feedback submitted from within the Sequence app, via its bottom-left feedback control.\n\n---\n\n"
 
 const BODY_FOOTER =
-  "\n\n---\nSubmitted through Loupe's in-app feedback control. No project name, filenames, or other project state were included."
+  "\n\n---\nSubmitted through Sequence's in-app feedback control. No project name, filenames, or other project state were included."
 
 /**
  * The exact composed issue body: static template boilerplate, the

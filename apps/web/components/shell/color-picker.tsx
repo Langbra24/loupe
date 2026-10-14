@@ -19,7 +19,7 @@ import {
   type CmykColor,
   type HsvColor,
   type RgbColor,
-} from "@loupe/core"
+} from "@sequence/core"
 
 import { useSectionLabel } from "@/components/shell/section-label"
 import { Tabs, TabsIndicator, TabsList, TabsTab } from "@/components/ui/tabs"

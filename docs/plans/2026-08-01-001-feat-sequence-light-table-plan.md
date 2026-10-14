@@ -87,7 +87,7 @@ The current data model cannot express this. `pages[]` is the only home an image 
 
 - Fabric.js in Design view, replacing the DOM spread renderer.
 - Multi-select and marquee selection on the canvas.
-- Project export/import as a `.loupe` bundle (the brief's manual backup path).
+- Project export/import as a `.sequence` bundle (the brief's manual backup path).
 - Auto-arrange or clustering assistance on the canvas.
 
 ---
@@ -110,7 +110,7 @@ The current data model cannot express this. `pages[]` is the only home an image 
 
 - KTD7. **Whole-project state persists**, not only image blobs. (session-settled: user-approved — chosen over persisting imported files alone: losing a canvas arrangement on refresh mid-sequence destroys exactly the work this feature exists to support.)
 
-- KTD8. Loupe **intercepts `Ctrl`/`⌘` `+`, `-`, and `0`** and applies them to canvas zoom. (session-settled: user-approved — chosen over leaving native browser zoom: a tooltip advertising a shortcut that scales the entire interface instead of the photos would be actively wrong.)
+- KTD8. Sequence **intercepts `Ctrl`/`⌘` `+`, `-`, and `0`** and applies them to canvas zoom. (session-settled: user-approved — chosen over leaving native browser zoom: a tooltip advertising a shortcut that scales the entire interface instead of the photos would be actively wrong.)
 
 - KTD9. First run starts **empty**. The twelve-page sample project is removed. (session-settled: user-approved — chosen over keeping the fixture: a sample book with no real pixels cannot demonstrate sequencing once import exists.)
 
@@ -228,7 +228,7 @@ A placement stores no dimensions of its own, so `boundingBoxOf` takes the asset 
 
 **Patterns to follow.** The existing `core/src/sequence.ts` shape — exported pure functions over readonly arrays returning new arrays, no mutation, no classes. Keep the `noUncheckedIndexedAccess` discipline already enabled in `core/tsconfig.json`.
 
-Add a `test` script to `core/package.json` — the Verification Contract calls `npm test --workspace=@loupe/core` and the workspace has no such script today. Import `describe`/`it`/`expect` explicitly from `vitest` rather than enabling globals, so the new `*.test.ts` files typecheck under the existing `include: ["src/**/*.ts"]` without adding a `types` entry.
+Add a `test` script to `core/package.json` — the Verification Contract calls `npm test --workspace=@sequence/core` and the workspace has no such script today. Import `describe`/`it`/`expect` explicitly from `vitest` rather than enabling globals, so the new `*.test.ts` files typecheck under the existing `include: ["src/**/*.ts"]` without adding a `types` entry.
 
 **Test scenarios.**
 - `moveItem` moves an element forward and backward, and clamps a target index beyond either end rather than throwing.
@@ -557,7 +557,7 @@ Design and Print need empty states too, and this is the unit that owes them. Rem
 | Gate | Command | Applies to | Signal |
 |---|---|---|---|
 | Types | `npm run typecheck` | all units | Both workspaces compile clean |
-| Core tests | `npm test --workspace=@loupe/core` | U1, U2 | Vitest suite green |
+| Core tests | `npm test --workspace=@sequence/core` | U1, U2 | Vitest suite green |
 | Build | `npm run build` | U5 onward | Succeeds — proves no SSR access to `document` via Fabric |
 | Lint | `npm run lint` | all units | No new violations |
 | Core purity | see the two `rg` commands below | U1, U2 | No matches from either |

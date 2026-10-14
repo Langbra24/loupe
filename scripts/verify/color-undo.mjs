@@ -2,7 +2,7 @@
 // each, and undo/redo move the color everywhere (issue #27).
 //
 //   npm run verify:color-undo        # builds first
-//   LOUPE_URL=http://localhost:3000 node scripts/verify/color-undo.mjs
+//   SEQUENCE_URL=http://localhost:3000 node scripts/verify/color-undo.mjs
 //
 // The contract, on a new text box (default color #18181b):
 //   1. Type #37bf7b into the hex field, then drag the hue slider top to bottom.
@@ -33,7 +33,7 @@ const storedColor = (page) =>
   page.evaluate(
     () =>
       new Promise((resolve, reject) => {
-        const request = indexedDB.open("loupe")
+        const request = indexedDB.open("sequence")
         request.onerror = () => reject(request.error)
         request.onsuccess = () => {
           const get = request.result.transaction("project").objectStore("project").getAll()

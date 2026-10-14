@@ -25,7 +25,7 @@ surprises). Newest entries at the bottom.
 
 - **Reproduced on `main`:** with no token the route returns 500 "Feedback isn't configured on the server yet."; with a token GitHub rejects it returns 502. Either way the toast showed the same generic "Something went wrong on our end", because the client discarded the route's message. Without the deployed server's logs, there's no telling which of the two the live site hits. The new `[feedback]` log line will say.
 - **Route:** missing or blank token → 503. GitHub 401/403/404/410 → a "setup problem on our side" message, with a log line naming the exact fix. A 403 or 429 with an exhausted rate limit → 503 "try again in a few minutes". 422 and network errors get their own messages. `GITHUB_API_URL` (server-only, default api.github.com) exists only so the verifier can stand in for GitHub.
-- **Client:** the toast shows the route's message, or "Couldn't reach Loupe's server" when the browser can't reach it. The draft is kept on every failure. The popover fields now have accessible names.
+- **Client:** the toast shows the route's message, or "Couldn't reach Sequence's server" when the browser can't reach it. The draft is kept on every failure. The popover fields now have accessible names.
 - **Screenshot attachment:** removed deliberately before this PR (doc comment in `feedback-control.tsx`). The body is `{feedback, contact}`, which matches the route, so there's no body-size concern.
 - **Verification:** 15 route tests. `npm run verify:feedback` (new) drives the real control and route against a local stand-in GitHub, 11/11 pass. Screenshot scene `feedback-error` added.
 - **Not verified:** a real submission. No `GITHUB_FEEDBACK_TOKEN` exists in cloud sessions. The maintainer does the steps in README "Feedback setup" and confirms one issue lands.
@@ -35,7 +35,7 @@ surprises). Newest entries at the bottom.
 - Replaced the deliberate single-click-to-edit in `use-fabric-canvas.ts` with `SelectableTextbox` (`components/sequence/selectable-textbox.ts`). It's a `fabric.Textbox` subclass, because Fabric's own `IText` enters editing on any click on an already-selected box and selects a word on the double-click that starts editing. Once editing, double-click still selects a word.
 - Escape while editing returns to selected with handles (Fabric's own behavior). A second Escape now deselects; the handler skips typing targets, so the first Escape doesn't do both.
 - The `T` box still enters editing at once. `updateTextElement` no longer pushes an undo step when the content is unchanged; leaving editing always commits, so it used to add a junk step.
-- Test hook: `window.__loupeCanvas`, only when built with `LOUPE_TEST_HOOKS=1`. It's inlined via `next.config.ts` `env`, so an ordinary build has no trace of it (checked by grepping `.next/static`). A `NEXT_PUBLIC_` var alone was NOT compiled out when unset; Next left a runtime `process.env` lookup.
+- Test hook: `window.__sequenceCanvas`, only when built with `SEQUENCE_TEST_HOOKS=1`. It's inlined via `next.config.ts` `env`, so an ordinary build has no trace of it (checked by grepping `.next/static`). A `NEXT_PUBLIC_` var alone was NOT compiled out when unset; Next left a runtime `process.env` lookup.
 - `npm run verify:text-selection` passes 15/15. Negative control: with Fabric's stock `Textbox` it fails 5 checks.
 - New screenshot scene `text-selected`. It finds page 1 from the canvas pixels, since screenshot builds have no hooks.
 - Open question for the maintainer: Enter on a selected text box to start editing (Figma does). Not built.
@@ -81,7 +81,7 @@ surprises). Newest entries at the bottom.
 - **Merged today:** #11 (#5 rename), #12 (#6 feedback errors), #16 (#14 text select/edit), #17 (#15 picker focus rings), #22 (#19 `[`/`]` cycle page images), #23 (#20 Enter to edit), #24 (#21 picker arrow keys), #26 (#25 full-width sidebar dividers), and #4 (emil skills). `main` @ 870b248: `npm run verify` green, all 8 verifiers pass, 8 screenshot scenes. `e2e` fails only its 2 known export checks.
 - **Next up:** #27 (color undo), filed and not started. The executor session (`session_01Qfn3GngwN5fzJT6VYrzRkd`) is idle and can take it.
 - **Blocked on the maintainer:** #7 and #8 need `docs/design/paper/color-picker-TF-0.png` and `image-selected-1G2-0.png`; #9 follows them. #6's final tick needs a real `GITHUB_FEEDBACK_TOKEN` submission. The export backlog needs a decision: pad to a multiple of 4 with blanks, or warn and block.
-- **Known gap:** `verify:text-selection` and `verify:image-cycling` set `LOUPE_TEST_HOOKS=1` with POSIX syntax, so they don't run in a plain Windows shell.
+- **Known gap:** `verify:text-selection` and `verify:image-cycling` set `SEQUENCE_TEST_HOOKS=1` with POSIX syntax, so they don't run in a plain Windows shell.
 - Merged branches are NOT deleted: the cloud proxy refuses branch deletion (API and `git push --delete` both 403). All 11 code branches are fully merged into `main`, and the 4 `pr-assets/*` branches hold only PR screenshots. Delete them from a local machine.
 
 

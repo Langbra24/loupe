@@ -4,9 +4,9 @@
 //   npm run verify:text-selection    # builds first, with test hooks on
 //
 // Selection handles and the caret are pixels on the Fabric canvas, so this
-// reads them off `window.__loupeCanvas`. That hook exists only in a build made
-// with LOUPE_TEST_HOOKS=1 (the npm script does that); an ordinary
-// build compiles it out. With LOUPE_URL, the server must be such a build.
+// reads them off `window.__sequenceCanvas`. That hook exists only in a build made
+// with SEQUENCE_TEST_HOOKS=1 (the npm script does that); an ordinary
+// build compiles it out. With SEQUENCE_URL, the server must be such a build.
 //
 // The contract, on a frame, after placing a box with `T`, typing "Hello" and
 // pressing Escape:
@@ -42,7 +42,7 @@ const { browser, page, errors } = await openApp(app.url)
 /** What the canvas has selected, and whether it is being typed into. */
 const active = () =>
   page.evaluate(() => {
-    const object = window.__loupeCanvas.getActiveObject()
+    const object = window.__sequenceCanvas.getActiveObject()
     if (!object) return null
     return {
       kind: object.elementKind ?? null,
@@ -64,7 +64,7 @@ const active = () =>
  */
 const pointInTextbox = (charIndex) =>
   page.evaluate((charIndex) => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const object = canvas.getActiveObject()
     const x = -object.width / 2 + object.__charBounds[0][charIndex].left
     const y = -object.height / 2 + object.getHeightOfLine(0) / 2
@@ -78,7 +78,7 @@ const pointInTextbox = (charIndex) =>
 /** Screen point of the (one) text box's center, selected or not. */
 const textCenter = () =>
   page.evaluate(() => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const center = canvas
       .getObjects()
       .find((object) => object.elementKind === "text")
@@ -99,7 +99,7 @@ const storedTexts = () =>
   page.evaluate(
     () =>
       new Promise((resolve, reject) => {
-        const request = indexedDB.open("loupe")
+        const request = indexedDB.open("sequence")
         request.onerror = () => reject(request.error)
         request.onsuccess = () => {
           const get = request.result.transaction("project").objectStore("project").getAll()
@@ -117,10 +117,10 @@ const storedTexts = () =>
 
 try {
   await dismissIntroduction(page)
-  if (!(await page.evaluate(() => Boolean(window.__loupeCanvas)))) {
+  if (!(await page.evaluate(() => Boolean(window.__sequenceCanvas)))) {
     throw new Error(
-      "window.__loupeCanvas is missing: this build has no test hooks. Run `npm run verify:text-selection`, " +
-        "or build with LOUPE_TEST_HOOKS=1 before pointing LOUPE_URL at it.",
+      "window.__sequenceCanvas is missing: this build has no test hooks. Run `npm run verify:text-selection`, " +
+        "or build with SEQUENCE_TEST_HOOKS=1 before pointing SEQUENCE_URL at it.",
     )
   }
   await importPhotos(page)
@@ -131,7 +131,7 @@ try {
   // Zoom in on page 1 through the real wheel handler, so "Hello" is big
   // enough to double-click between two letters.
   const frame = await page.evaluate(() => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const rect = canvas.upperCanvasEl.getBoundingClientRect()
     const first = canvas
       .getObjects()
@@ -147,7 +147,7 @@ try {
   // Place a box with T, type, Escape. The `T` box enters editing at once.
   await page.keyboard.press("T")
   await page.mouse.click(frame.x - 150, frame.y - 150)
-  await page.waitForFunction(() => window.__loupeCanvas.getActiveObject()?.isEditing === true, null, { timeout: 5_000 })
+  await page.waitForFunction(() => window.__sequenceCanvas.getActiveObject()?.isEditing === true, null, { timeout: 5_000 })
   check(true, "T then a click on the frame places a box already in editing")
   await page.keyboard.type("Hello")
   await page.keyboard.press("Escape")
@@ -224,19 +224,19 @@ try {
 
   // 5. Persists across a reload.
   await page.reload({ waitUntil: "networkidle" })
-  await page.getByRole("banner").getByText("Loupe").waitFor()
+  await page.getByRole("banner").getByText("Sequence").waitFor()
   const texts = await page
-    .waitForFunction(() => window.__loupeCanvas?.getObjects().some((o) => o.elementKind === "text"), null, { timeout: 10_000 })
+    .waitForFunction(() => window.__sequenceCanvas?.getObjects().some((o) => o.elementKind === "text"), null, { timeout: 10_000 })
     .then(() => storedTexts())
     .catch(() => storedTexts())
-  const rendered = await page.evaluate(() => window.__loupeCanvas?.getObjects().find((o) => o.elementKind === "text")?.text)
+  const rendered = await page.evaluate(() => window.__sequenceCanvas?.getObjects().find((o) => o.elementKind === "text")?.text)
   check(
     texts.length === 1 && texts[0] === "He!llo" && rendered === "He!llo",
     `5. "He!llo" survives a reload (stored ${JSON.stringify(texts)}, rendered ${JSON.stringify(rendered)})`,
   )
 
   // 6. Enter on a selected box: caret at the end. Select it with a single click first.
-  await page.waitForFunction(() => window.__loupeCanvas?.getObjects().some((o) => o.elementKind === "text"))
+  await page.waitForFunction(() => window.__sequenceCanvas?.getObjects().some((o) => o.elementKind === "text"))
   const reloadedCenter = await textCenter()
   await page.mouse.click(reloadedCenter.x, reloadedCenter.y)
   state = await active()

@@ -5,7 +5,7 @@ import { FONT_VARIABLES } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
 
 export const metadata: Metadata = {
-  title: "Loupe",
+  title: "Sequence",
   description:
     "Sequence, design, and print-impose a photobook or zine in the browser.",
 }

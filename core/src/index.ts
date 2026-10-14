@@ -1,5 +1,5 @@
 /**
- * @loupe/core — the Loupe engine.
+ * @sequence/core — the Sequence engine.
  *
  * Pure TypeScript: no React, no Next, no Fabric.js, no Stripe, no DOM.
  * This is the MIT-licensed, publicly shared code, and that boundary is the

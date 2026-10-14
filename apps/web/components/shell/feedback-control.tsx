@@ -190,7 +190,7 @@ export function FeedbackControl() {
   )
 }
 
-const UNREACHABLE_MESSAGE = "Couldn't reach Loupe's server. Check your connection; your note is still here."
+const UNREACHABLE_MESSAGE = "Couldn't reach Sequence's server. Check your connection; your note is still here."
 
 /** A failure the route explained. Its message is written for the bookmaker
  *  (see `describeGitHubFailure` in the route), so the toast shows it as is. */

@@ -49,7 +49,7 @@ export function Introduction() {
     // belongs to whatever has focus there.
     <div
       role="dialog"
-      aria-label="About Loupe"
+      aria-label="About Sequence"
       onKeyDown={(event) => {
         if (event.key !== "Escape") return
         event.stopPropagation()
@@ -69,7 +69,7 @@ export function Introduction() {
         </Button>
 
         <div className="stagger-section flex flex-col gap-1.5" style={stagger(0)}>
-          <h1 className="font-heading text-lg font-medium">Loupe</h1>
+          <h1 className="font-heading text-lg font-medium">Sequence</h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
             A browser-based tool for sequencing, designing, and print-imposing a photobook or
             zine — no InDesign required.
@@ -109,7 +109,7 @@ export function IntroductionReopenButton() {
   const showIntroduction = useEditorStore((state) => state.showIntroduction)
 
   return (
-    <Button variant="secondary" size="icon-sm" aria-label="About Loupe" onClick={showIntroduction}>
+    <Button variant="secondary" size="icon-sm" aria-label="About Sequence" onClick={showIntroduction}>
       <BookOpenIcon />
     </Button>
   )

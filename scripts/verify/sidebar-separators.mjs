@@ -2,7 +2,7 @@
 // runs the panel's full inner width, edge to edge (issue #25).
 //
 //   npm run verify:separators        # builds first
-//   LOUPE_URL=http://localhost:3000 node scripts/verify/sidebar-separators.mjs
+//   SEQUENCE_URL=http://localhost:3000 node scripts/verify/sidebar-separators.mjs
 //
 // The contract, in each inspector state (book settings, page, image, text):
 // every horizontal separator's left edge is the panel's left edge after its

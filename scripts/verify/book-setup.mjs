@@ -1,7 +1,7 @@
 // Book setup dialog check (issues #57, #71).
 //
 //   npm run verify:book-setup      # builds first
-//   LOUPE_URL=http://localhost:3000 node scripts/verify/book-setup.mjs
+//   SEQUENCE_URL=http://localhost:3000 node scripts/verify/book-setup.mjs
 //
 // The contract:
 //   1. The copy says page count can change later and page size can't.

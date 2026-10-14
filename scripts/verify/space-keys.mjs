@@ -6,8 +6,8 @@
 //   npm run verify:space-keys      # builds first, with test hooks on
 //
 // Reads the viewport transform and frame positions from
-// `window.__loupeCanvas`, which exists only in a build made with
-// LOUPE_TEST_HOOKS=1 (the npm script does that). With LOUPE_URL, the server
+// `window.__sequenceCanvas`, which exists only in a build made with
+// SEQUENCE_TEST_HOOKS=1 (the npm script does that). With SEQUENCE_URL, the server
 // must be such a build.
 //
 // The contract, on an 8-page book. Every control is reached with Tab (so
@@ -85,7 +85,7 @@ const storedPageCount = () =>
   page.evaluate(
     () =>
       new Promise((resolve, reject) => {
-        const request = indexedDB.open("loupe")
+        const request = indexedDB.open("sequence")
         request.onerror = () => reject(request.error)
         request.onsuccess = () => {
           const get = request.result.transaction("project").objectStore("project").getAll()
@@ -106,12 +106,12 @@ async function pageCountReaching(expected, timeout = 3_000) {
   return count
 }
 
-const viewport = () => page.evaluate(() => [...window.__loupeCanvas.viewportTransform])
+const viewport = () => page.evaluate(() => [...window.__sequenceCanvas.viewportTransform])
 
 /** The first frame's scene position, and its center on screen. */
 const firstFrame = () =>
   page.evaluate(() => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const frame = canvas
       .getObjects()
       .filter((o) => o.frameId && !o.elementId && o.type === "rect")
@@ -129,7 +129,7 @@ const firstFrame = () =>
  *  control on top of it. */
 const emptyCanvasPoint = () =>
   page.evaluate(() => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const upper = canvas.upperCanvasEl
     const rect = upper.getBoundingClientRect()
     for (let y = rect.bottom - 60; y > rect.top + 60; y -= 20) {
@@ -154,7 +154,7 @@ const coverBox = inspector.getByRole("checkbox", { name: "Cover", exact: true })
 
 const frameCount = () =>
   page.evaluate(
-    () => window.__loupeCanvas.getObjects().filter((o) => o.frameId && !o.elementId && o.type === "rect").length,
+    () => window.__sequenceCanvas.getObjects().filter((o) => o.frameId && !o.elementId && o.type === "rect").length,
   )
 
 /** Holds Space and drags from the first page; returns how far the viewport
@@ -377,7 +377,7 @@ try {
     await page.waitForTimeout(200)
     return async () => {
       const selected = (await canvasTab.getAttribute("aria-selected")) === "true"
-      const mounted = await page.evaluate(() => window.__loupeCanvas.upperCanvasEl.isConnected)
+      const mounted = await page.evaluate(() => window.__sequenceCanvas.upperCanvasEl.isConnected)
       return [selected && mounted, `Canvas selected: ${selected}, canvas mounted: ${mounted}`]
     }
   })

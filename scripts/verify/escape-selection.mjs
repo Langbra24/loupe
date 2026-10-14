@@ -3,9 +3,9 @@
 //
 //   npm run verify:escape-selection    # builds first, with test hooks on
 //
-// Reads the Fabric active object off `window.__loupeCanvas`, which exists only
-// in a build made with LOUPE_TEST_HOOKS=1 (the npm script does that). With
-// LOUPE_URL, the server must be such a build.
+// Reads the Fabric active object off `window.__sequenceCanvas`, which exists only
+// in a build made with SEQUENCE_TEST_HOOKS=1 (the npm script does that). With
+// SEQUENCE_URL, the server must be such a build.
 //
 // The contract, on an 8-page A5 book:
 //   1. Image in a page (first, so the text box placed next sits above it):
@@ -53,7 +53,7 @@ const pagesList = page.getByRole("complementary").first()
 /** The Fabric active object, reduced to what tells the levels apart. */
 const active = () =>
   page.evaluate(() => {
-    const object = window.__loupeCanvas.getActiveObject()
+    const object = window.__sequenceCanvas.getActiveObject()
     if (!object) return null
     if (object.elementId) return { level: object.elementKind, editing: Boolean(object.isEditing) }
     if (object.frameId) return { level: "frame", frameId: object.frameId }
@@ -120,7 +120,7 @@ const checkPageLevel = async (label) => {
 /** Screen point of the one text box's center. */
 const textCenter = () =>
   page.evaluate(() => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const center = canvas
       .getObjects()
       .find((object) => object.elementKind === "text")
@@ -139,10 +139,10 @@ const selectText = async () => {
 
 try {
   await dismissIntroduction(page)
-  if (!(await page.evaluate(() => Boolean(window.__loupeCanvas)))) {
+  if (!(await page.evaluate(() => Boolean(window.__sequenceCanvas)))) {
     throw new Error(
-      "window.__loupeCanvas is missing: this build has no test hooks. Run `npm run verify:escape-selection`, " +
-        "or build with LOUPE_TEST_HOOKS=1 before pointing LOUPE_URL at it.",
+      "window.__sequenceCanvas is missing: this build has no test hooks. Run `npm run verify:escape-selection`, " +
+        "or build with SEQUENCE_TEST_HOOKS=1 before pointing SEQUENCE_URL at it.",
     )
   }
   await importPhotos(page)
@@ -162,7 +162,7 @@ try {
   const spot = await firstPageCenter(page)
   await page.keyboard.press("T")
   await page.mouse.click(spot.x, spot.y)
-  await page.waitForFunction(() => window.__loupeCanvas.getActiveObject()?.isEditing === true, null, { timeout: 5_000 })
+  await page.waitForFunction(() => window.__sequenceCanvas.getActiveObject()?.isEditing === true, null, { timeout: 5_000 })
   await page.keyboard.type("Ink")
   await pressEscape()
   object = await active()
@@ -234,11 +234,11 @@ try {
   await settle(page)
   check((await inspectorState()) === "page", `7. (setup) page 2 is selected from the Book view (${await inspectorState()})`)
   await page.keyboard.press("T")
-  const armed = await page.evaluate(() => window.__loupeCanvas.skipTargetFind === true)
+  const armed = await page.evaluate(() => window.__sequenceCanvas.skipTargetFind === true)
   check(armed, "7. T arms the text tool")
   await pressEscape()
   const disarmed = await page.evaluate(
-    () => window.__loupeCanvas.skipTargetFind === false && window.__loupeCanvas.defaultCursor === "default",
+    () => window.__sequenceCanvas.skipTargetFind === false && window.__sequenceCanvas.defaultCursor === "default",
   )
   check(disarmed, "7. Escape disarms the text tool")
   check((await inspectorState()) === "page", `7. ...and keeps page 2 selected (${await inspectorState()})`)

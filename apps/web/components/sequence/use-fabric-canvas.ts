@@ -11,7 +11,7 @@ import {
   type Box,
   type CanvasPlacement,
   type Frame,
-} from "@loupe/core"
+} from "@sequence/core"
 
 import {
   FRAME_DISPLAY_WIDTH,
@@ -727,10 +727,10 @@ export function useFabricCanvas(options: Options) {
 
       // Verifiers read selection and editing state off the live canvas
       // (scripts/verify/text-selection.mjs); handles and the caret are only
-      // pixels otherwise. `LOUPE_TEST_HOOKS` is inlined at build time
+      // pixels otherwise. `SEQUENCE_TEST_HOOKS` is inlined at build time
       // (next.config.ts), so an ordinary build compiles this out.
-      if (process.env.LOUPE_TEST_HOOKS === "1") {
-        ;(window as unknown as { __loupeCanvas?: Canvas }).__loupeCanvas = canvas
+      if (process.env.SEQUENCE_TEST_HOOKS === "1") {
+        ;(window as unknown as { __sequenceCanvas?: Canvas }).__sequenceCanvas = canvas
       }
 
       /**

@@ -3,7 +3,7 @@
 import { useRef, useState } from "react"
 import { Dialog } from "@base-ui/react/dialog"
 import { CircleNotchIcon, ExportIcon, FileArchiveIcon, FilePdfIcon, InfoIcon, type Icon } from "@phosphor-icons/react"
-import { checkPageCount } from "@loupe/core"
+import { checkPageCount } from "@sequence/core"
 
 import { Button } from "@/components/ui/button"
 import { useToastManager } from "@/components/ui/toast"
@@ -59,7 +59,7 @@ function slugify(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "")
-  return slug || "loupe-book"
+  return slug || "sequence-book"
 }
 
 /**
