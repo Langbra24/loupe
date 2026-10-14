@@ -122,6 +122,7 @@ try {
   await expectNames("page selected", inspector, {
     combobox: ["Position"],
     checkbox: ["Cover"],
+    button: ["Add page before", "Add page after"],
     spinbutton: ["Top", "Inner", "Outer", "Bottom"],
   })
   await page.getByRole("tab", { name: "Canvas" }).click()

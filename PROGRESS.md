@@ -229,3 +229,10 @@ surprises). Newest entries at the bottom.
 - `verify:cover-toggle` failed 5 checks on the combined tree. It took its baseline from IndexedDB before the debounced save had stored the new book, so `page3Id` was undefined. It now waits for all 8 pages to be stored (3/3 passes after).
 - On the combined tree (identical to `main` after the merges): `npm run verify` passes (118 core / 97 web tests); every verifier passes, including e2e; all screenshot scenes render.
 - Filed from the executor's notes on #67: #75 (Space is swallowed on focused buttons by the hold-to-pan handler) and #76 (no keyboard route back to "nothing selected"). #70–#72 (the maintainer's answers) are with the executor.
+
+## 2026-10-13 — #72 add-page buttons sit outside a spread (`issue-72-add-page-spread`)
+
+- **Canvas:** the two "+" buttons go on the outer edges of the selected frame's row: a solo frame's own edges, or a spread's section box for either of its pages. The left one calls `addPairedPage(leftPage, "before")`, the right one `addPairedPage(rightPage, "after")`, so nothing lands in the gutter. New pure helper `addPageAnchors` in `frame-grid.ts` (unit-tested) reuses `layoutRows`. Screen-sized chrome and hover fill unchanged.
+- **Sidebar:** a new "Pages" section after Layout (not inside it, so #67's Cover checkbox doesn't collide) with "Add page before" / "Add page after", styled like the image Layout preset buttons. They insert next to the selected page, so they can split a spread on purpose. Both are one undo step through `addPairedPage`.
+- `npm run verify:add-page` (new, test-hooks build) passes 19/19 on an 8-page book with a cover. Against main's app code it fails 10 checks (buttons across the spread, wrong insert positions, no sidebar control). `verify:a11y-names` now expects the two new buttons. `verify:canvas-chrome` unchanged: it uses the cover, a solo row.
+- After merging wave 2: the new buttons use #53's `focus-ring`; `npm run verify` and all 20 verifiers pass on a test-hooks build. Space on these buttons is still swallowed by hold-to-pan (#75); Enter works.
