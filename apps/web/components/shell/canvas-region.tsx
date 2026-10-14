@@ -12,6 +12,7 @@ import {
 
 import { BLEED_MM, DEFAULT_TEXT_COLOR } from "@/components/shell/inspector-panel"
 import { LightTable } from "@/components/sequence/light-table"
+import { useEscapeSelection } from "@/components/sequence/use-canvas-shortcuts"
 import { useThumbnail } from "@/components/sequence/use-thumbnail"
 import { cn } from "@/lib/utils"
 import { useEditorStore } from "@/state/editor-store"
@@ -52,6 +53,13 @@ export function CanvasRegion() {
 
 function BookOverview() {
   const project = useEditorStore((state) => state.project)
+  const selection = useEditorStore((state) => state.selection)
+  const selectFrame = useEditorStore((state) => state.selectFrame)
+  const clearSelection = useEditorStore((state) => state.clearSelection)
+  // Escape steps the selection out here too (#86). No canvas is mounted, so
+  // each step goes straight to the store.
+  useEscapeSelection({ enabled: true, selection, stepToFrame: selectFrame, stepToNothing: clearSelection })
+
   const frames = [...project.frames].sort((a, b) => a.position - b.position)
 
   if (frames.length === 0) {
