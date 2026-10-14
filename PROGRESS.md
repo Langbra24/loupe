@@ -273,6 +273,4 @@ surprises). Newest entries at the bottom.
 
 - PRs #82 (#75) and #83 (#76) merged in that order. They edit different functions in `use-fabric-canvas.ts`; only append lines conflicted.
 - On the combined tree (identical to `main` after the merges): `npm run verify` passes (118 core / 104 web tests); all 21 verifiers pass, including the new `space-keys` and `escape-selection`, plus e2e; all screenshot scenes render.
-- Open for the maintainer (executor's questions):
-  - should Space pan when a *mouse*-clicked button still holds focus (no `:focus-visible`), Figma-style?
-  - should Escape step the selection out in the Book panel view too?
+- The maintainer answered yes to both follow-ups: Figma-style Space pan when a control holds focus from a mouse click (#85), and Escape in the Book view (#86).
