@@ -23,7 +23,16 @@
 //   7. `T` armed with a page selected (from the Book view's list, so the
 //      canvas has no active object to lose): Escape disarms the tool and keeps
 //      the page selected. Escape again shows Book settings.
-//   8. No uncaught page errors.
+//   The Book view (left panel → Book tab, no canvas mounted; issue #86):
+//   8. Page 3 selected from its row: Escape shows Book settings (Saddle stitch
+//      and the Page size row; no aria-current row or preview anywhere).
+//   9. An image selected on the canvas (`]`), then the Book tab: the image
+//      stays selected; Escape selects its page (its row and preview carry
+//      aria-current), Escape again shows Book settings, checked as in 8.
+//   10. The text box selected on the canvas, then the Book tab, its Color
+//      popover open: Escape closes only the popover; Escape again selects
+//      its page.
+//   11. No uncaught page errors.
 
 import path from "node:path"
 
@@ -79,6 +88,26 @@ const checkBookSettings = async (label) => {
   check(current === 0, `${label}: no aria-current row in the Book view (${current})`)
   await page.getByRole("tab", { name: "Canvas" }).click()
   await settle(page)
+}
+
+const openBookView = async () => {
+  await page.getByRole("tab", { name: "Book" }).click()
+  await pagesList.getByRole("button", { name: "Page 1", exact: true }).waitFor()
+}
+
+const openCanvasView = async () => {
+  await page.getByRole("tab", { name: "Canvas" }).click()
+  await settle(page)
+}
+
+/** Book settings while the Book view is showing: the inspector, and no
+ *  aria-current on any row or preview. No canvas is mounted to ask. */
+const checkBookViewBookSettings = async (label) => {
+  check((await inspectorState()) === "book", `${label}: the inspector shows Book settings (${await inspectorState()})`)
+  const pageSizeRow = await inspector.getByText("Page size", { exact: true }).isVisible()
+  check(pageSizeRow, `${label}: the "Page size" row is visible`)
+  const current = await page.locator('[aria-current="true"]').count()
+  check(current === 0, `${label}: no aria-current row or preview anywhere (${current})`)
 }
 
 /** The page level: inspector, and the frame as Fabric's active object. */
@@ -148,9 +177,15 @@ try {
   check(await selectText(), "3. a click selects the text box again")
   await inspector.getByRole("button", { name: /^Color #[0-9a-f]{6}$/i }).click()
   const popover = page.getByRole("tablist", { name: "Color input mode" })
+  // The popover animates out; give it time before calling it stuck open.
+  const popoverStillOpen = () =>
+    popover.waitFor({ state: "hidden", timeout: 2_000 }).then(
+      () => false,
+      () => true,
+    )
   await popover.waitFor()
   await pressEscape()
-  const popoverOpen = await popover.isVisible()
+  const popoverOpen = await popoverStillOpen()
   object = await active()
   check(!popoverOpen, "3. Escape closes the Color popover")
   check(
@@ -210,7 +245,49 @@ try {
   await pressEscape()
   check((await inspectorState()) === "book", `7. Escape again shows Book settings (${await inspectorState()})`)
 
-  check(errors.length === 0, `8. no uncaught page errors${errors.length ? `: ${errors.join("; ")}` : ""}`)
+  // 8. The Book view (#86): page 3 selected from its row.
+  await openBookView()
+  await pagesList.getByRole("button", { name: "Page 3", exact: true }).click()
+  const page3Current = await page.locator('[aria-current="true"]').count()
+  check(
+    (await inspectorState()) === "page" && page3Current === 2,
+    `8. (setup) page 3 is selected from the Book view (${await inspectorState()}, ${page3Current} aria-current)`,
+  )
+  await pressEscape()
+  await checkBookViewBookSettings("8. Escape in the Book view")
+
+  // 9. The Book view, with an image in a page selected on the canvas first.
+  await openCanvasView()
+  await page.keyboard.press("]")
+  await page.waitForTimeout(200)
+  check((await active())?.level === "image", `9. (setup) ] selects the image on the canvas (${JSON.stringify(await active())})`)
+  await openBookView()
+  check((await inspectorState()) === "image", `9. the image stays selected in the Book view (${await inspectorState()})`)
+  await pressEscape()
+  const page1Current = await page
+    .getByRole("button", { name: "Page 1", exact: true })
+    .evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-current")))
+  check(
+    (await inspectorState()) === "page" && page1Current.length === 2 && page1Current.every((value) => value === "true"),
+    `9. Escape in the Book view selects its page: its row and preview are current (${await inspectorState()}, ${JSON.stringify(page1Current)})`,
+  )
+  await pressEscape()
+  await checkBookViewBookSettings("9. a second Escape in the Book view")
+
+  // 10. The Book view, with the text box's Color popover open.
+  await openCanvasView()
+  check(await selectText(), "10. (setup) a click selects the text box on the canvas")
+  await openBookView()
+  check((await inspectorState()) === "text", `10. the text box stays selected in the Book view (${await inspectorState()})`)
+  await inspector.getByRole("button", { name: /^Color #[0-9a-f]{6}$/i }).click()
+  await popover.waitFor()
+  await pressEscape()
+  check(!(await popoverStillOpen()), "10. Escape in the Book view closes the Color popover")
+  check((await inspectorState()) === "text", `10. ...and only the popover: the text box stays selected (${await inspectorState()})`)
+  await pressEscape()
+  check((await inspectorState()) === "page", `10. Escape again selects its page (${await inspectorState()})`)
+
+  check(errors.length === 0, `11. no uncaught page errors${errors.length ? `: ${errors.join("; ")}` : ""}`)
 } catch (error) {
   failures.push(error.message)
   console.error(`✗ ${error.message}`)
