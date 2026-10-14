@@ -85,7 +85,7 @@ try {
   await settle(page)
 
   // 1. Nothing selected: book settings.
-  await expectNames("book settings", inspector, {})
+  await expectNames("book settings", inspector, { button: ["Add page"] })
 
   // 4. Zoom readout.
   const zoom = await controls(page.locator("body"))
@@ -121,6 +121,8 @@ try {
   // 1. A page selected (still page 3).
   await expectNames("page selected", inspector, {
     combobox: ["Position"],
+    checkbox: ["Cover"],
+    button: ["Add page before", "Add page after"],
     spinbutton: ["Top", "Inner", "Outer", "Bottom"],
   })
   await page.getByRole("tab", { name: "Canvas" }).click()
