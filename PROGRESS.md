@@ -298,3 +298,9 @@ surprises). Newest entries at the bottom.
 - **P4:** `font-synthesis: none` on body; the intro's name is `not-italic font-medium text-foreground`. Audit: no other `italic`, `font-bold` or `font-semibold` in the app. Lora and Geist load as variable fonts, so `font-medium` (500) is real. Fabric text sets no weight or style.
 - **P5:** the store already had `hydrated`, set in both branches of `hydrate()`. Until it's set, the shell renders no intro (`useIntroductionShowing`), canvas empty state or toolbars, panel contents, book name, or Book overview. The top nav, tabs and zoom cluster stay.
 - New `npm run verify:polish`: PASS 40/40. Against main's app code it fails 23 checks, including 4 of 61 frames showing the intro and the empty canvas on reload, and focus landing on "Get started".
+
+## 2026-10-14 — #85, #86, #59 merged; Phase 2 complete (manager)
+
+- PRs #89 (#85), #88 (#86) and #90 (#59) merged in that order. In `canvas-region.tsx`, #88's Book-view `useEscapeSelection` and #90's `hydrated` gate were both kept; the hook runs before the `!hydrated` early return.
+- On the combined tree (identical to `main` after the merges): `npm run verify` passes (118 core / 104 web tests); all 22 verifiers pass, plus e2e; all screenshot scenes render.
+- Every Phase 2 item is ticked. Keyboard work is paused at the maintainer's request (see PLAN backlog). The one open product question is the Import button's resting width (PLAN backlog). The executor is idle.
