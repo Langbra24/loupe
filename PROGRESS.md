@@ -247,3 +247,9 @@ surprises). Newest entries at the bottom.
 - The feedback popover's only contact field is now **Email (optional)**, same style, same stagger slot. The filed issue is public, so it asks for no more than a reply needs (maintainer's call).
 - `composeFeedbackBody` writes only an `Email:` line; `/api/feedback` reads only `contact.email`. A `contact.name` from a tab opened before this change is ignored, not rejected. Unit tests cover that it never reaches the body.
 - `npm run verify:feedback` now asserts the popover has no textbox named like "Name" and that an entered email reaches the issue body the stand-in GitHub receives. On main's app code it fails: "no Name field (found 1)".
+
+## 2026-10-14 — #70, #71, #72 merged (manager)
+
+- PRs #80 (#72), #78 (#71), #79 (#70) merged in that order. `feedback-control.tsx` conflicted between #79's email-only field and #74/#69. Resolution: keep #79's single Email field and comments, plus #74's Cmd/Ctrl+Enter paragraph, handler and `<kbd>` hint, and #69's `focus-ring`.
+- Settled with the maintainer as-is: page 1 sits solo only when it's marked as the cover, so without a cover pages 1–2 are a normal spread with outer-edge "+" buttons. The Email placeholder carries no "public" note. The maintainer knows the repo, and so its issues, is public.
+- On the combined tree (identical to `main` after the merges): `npm run verify` passes (118 core / 100 web tests); every verifier passes, including `add-page` and e2e; all screenshot scenes render.
