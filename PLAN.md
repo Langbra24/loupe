@@ -39,17 +39,20 @@ Reports: `todos/2026-10-13-emil-ui-review.md`, `todos/2026-10-13-emil-ui-polish.
 - [x] [#53](https://github.com/Langbra24/loupe/issues/53) Focus ring: one treatment, ≥ 3:1 (S1) — PR #69, `npm run verify:focus-ring` PASS
 - [x] [#54](https://github.com/Langbra24/loupe/issues/54) Book overview: white pages, real text colors (S6) — PR #62, `npm run verify:book-overview` 5/5
 - [x] [#55](https://github.com/Langbra24/loupe/issues/55) Canvas chrome: one selection color, screen-sized add-page buttons and cover badge (S7, S8) — PR #64, `npm run verify:canvas-chrome` 16/16
-- [ ] [#59](https://github.com/Langbra24/loupe/issues/59) Polish: stable widths, tabular numbers, hit areas, no faux italic, no reload flash (P1–P5)
+- [x] [#59](https://github.com/Langbra24/loupe/issues/59) Polish: stable widths, tabular numbers, hit areas, no faux italic, no reload flash (P1–P5) — PR #90, `npm run verify:polish` 40/40
 - [x] [#70](https://github.com/Langbra24/loupe/issues/70) Feedback: drop the Name field, keep Email — PR #79, `npm run verify:feedback` PASS
 - [x] [#71](https://github.com/Langbra24/loupe/issues/71) Book setup dialog: centre it again (reverses #57's top anchor) — PR #78, `npm run verify:book-setup` PASS
 - [x] [#72](https://github.com/Langbra24/loupe/issues/72) Add-page buttons sit outside a spread; gutter insert is an explicit sidebar action — PR #80, `npm run verify:add-page` 19/19
 - [x] [#75](https://github.com/Langbra24/loupe/issues/75) Space activates focused buttons; hold-Space pan only from the canvas — PR #82, `npm run verify:space-keys` PASS
 - [x] [#76](https://github.com/Langbra24/loupe/issues/76) Escape steps the selection back out to Book settings — PR #83, `npm run verify:escape-selection` 34/34
-- [ ] [#85](https://github.com/Langbra24/loupe/issues/85) Space pans when a mouse-clicked control holds focus (Figma-style)
-- [ ] [#86](https://github.com/Langbra24/loupe/issues/86) Escape steps the selection out in the Book view too
+- [x] [#85](https://github.com/Langbra24/loupe/issues/85) Space pans when a mouse-clicked control holds focus (Figma-style) — PR #89, `npm run verify:space-keys` PASS
+- [x] [#86](https://github.com/Langbra24/loupe/issues/86) Escape steps the selection out in the Book view too — PR #88, `npm run verify:escape-selection` PASS
 
 Nits from both reports stay in the reports for a later pass.
 
 ## Backlog (no issue yet)
+
+- **Keyboard shortcuts are paused** (maintainer, 2026-10-14) after #85/#86. Don't start or propose more keyboard/shortcut changes until the maintainer lifts this.
+- Open question: should the resting Import button stay 156px wide (#90 reserves room for "Importing 888 of 888…"), or keep "Import photos" fixed and show progress on a line under it?
 
 - Nothing queued. Export padding and trim/bleed boxes moved to #31 and #30.
