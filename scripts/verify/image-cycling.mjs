@@ -3,8 +3,8 @@
 //
 //   npm run verify:image-cycling     # builds first, with test hooks on
 //
-// Reads canvas state from `window.__loupeCanvas`, which exists only in a build
-// made with LOUPE_TEST_HOOKS=1 (the npm script does that). With LOUPE_URL, the
+// Reads canvas state from `window.__sequenceCanvas`, which exists only in a build
+// made with SEQUENCE_TEST_HOOKS=1 (the npm script does that). With SEQUENCE_URL, the
 // server must be such a build.
 //
 // The contract, with three photos dragged onto two pages (two on page 1, one
@@ -38,7 +38,7 @@ const { browser, page, errors } = await openApp(app.url)
 /** Screen point of a scene point on the live canvas. */
 const screenOf = (selector) =>
   page.evaluate((selector) => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const objects = canvas.getObjects()
     const object =
       selector.placementIndex !== undefined
@@ -55,7 +55,7 @@ const storedBook = () =>
   page.evaluate(
     () =>
       new Promise((resolve, reject) => {
-        const request = indexedDB.open("loupe")
+        const request = indexedDB.open("sequence")
         request.onerror = () => reject(request.error)
         request.onsuccess = () => {
           const get = request.result.transaction("project").objectStore("project").getAll()
@@ -80,7 +80,7 @@ const storedBook = () =>
  *  isn't always possible; the pan centers it. */
 const selected = () =>
   page.evaluate(() => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const object = canvas.getActiveObject()
     if (!object) return null
     const v = canvas.viewportTransform
@@ -125,10 +125,10 @@ const drag = async (from, to) => {
 
 try {
   await dismissIntroduction(page)
-  if (!(await page.evaluate(() => Boolean(window.__loupeCanvas)))) {
+  if (!(await page.evaluate(() => Boolean(window.__sequenceCanvas)))) {
     throw new Error(
-      "window.__loupeCanvas is missing: this build has no test hooks. Run `npm run verify:image-cycling`, " +
-        "or build with LOUPE_TEST_HOOKS=1 before pointing LOUPE_URL at it.",
+      "window.__sequenceCanvas is missing: this build has no test hooks. Run `npm run verify:image-cycling`, " +
+        "or build with SEQUENCE_TEST_HOOKS=1 before pointing SEQUENCE_URL at it.",
     )
   }
   await importPhotos(page)
@@ -181,7 +181,7 @@ try {
   await page.keyboard.press("]")
   const before = await selected()
   const offScreenBefore = await page.evaluate((id) => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const object = canvas.getObjects().find((o) => o.elementId === id)
     const v = canvas.viewportTransform
     const center = object.getCenterPoint()
@@ -199,7 +199,7 @@ try {
 
   // 3. Fresh load: Tab reaches the UI; [ types in the name field.
   await page.reload({ waitUntil: "networkidle" })
-  await page.getByRole("banner").getByText("Loupe").waitFor()
+  await page.getByRole("banner").getByText("Sequence").waitFor()
   await settle(page)
   await page.keyboard.press("Tab")
   const first = await page.evaluate(() => {

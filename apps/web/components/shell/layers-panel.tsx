@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react"
 import { BookOpenIcon } from "@phosphor-icons/react"
-import { defaultFrameMargins, type Frame, type Margins } from "@loupe/core"
+import { defaultFrameMargins, type Frame, type Margins } from "@sequence/core"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsIndicator, TabsList, TabsTab } from "@/components/ui/tabs"

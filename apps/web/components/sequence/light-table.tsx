@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { ImagesIcon } from "@phosphor-icons/react"
 import { Redo2Icon, Trash2Icon, TypeIcon, Undo2Icon } from "lucide-react"
-import type { ImagePreset } from "@loupe/core"
+import type { ImagePreset } from "@sequence/core"
 
 import { BookSetupDialog } from "@/components/sequence/book-setup-dialog"
 import { ImportPhotosButton } from "@/components/sequence/import-photos"

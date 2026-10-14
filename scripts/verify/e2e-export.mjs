@@ -2,7 +2,7 @@
 // PDF through the real Export button, and verify the file with pdf-lib.
 //
 //   npm run e2e                      # builds first
-//   LOUPE_URL=http://localhost:3000 node scripts/verify/e2e-export.mjs
+//   SEQUENCE_URL=http://localhost:3000 node scripts/verify/e2e-export.mjs
 //
 // The contract this holds the export to:
 //   1. The top nav's "Export" button opens the "Export book" dialog; choosing
@@ -96,7 +96,7 @@ try {
     )
   }
 
-  const pdfPath = path.join(await mkdtemp(path.join(os.tmpdir(), "loupe-e2e-")), download.suggestedFilename())
+  const pdfPath = path.join(await mkdtemp(path.join(os.tmpdir(), "sequence-e2e-")), download.suggestedFilename())
   await download.saveAs(pdfPath)
   console.log(`✓ downloaded ${download.suggestedFilename()} → ${pdfPath}`)
   check(pdfPath.toLowerCase().endsWith(".pdf"), `download has a .pdf filename (${download.suggestedFilename()})`)

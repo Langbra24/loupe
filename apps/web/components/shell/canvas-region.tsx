@@ -8,7 +8,7 @@ import {
   type Margins,
   type PageElement,
   type Project,
-} from "@loupe/core"
+} from "@sequence/core"
 
 import { BLEED_MM, DEFAULT_TEXT_COLOR } from "@/components/shell/inspector-panel"
 import { LightTable } from "@/components/sequence/light-table"

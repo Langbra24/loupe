@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import type { Frame } from "@loupe/core"
+import type { Frame } from "@sequence/core"
 
 import {
   escapeStep,

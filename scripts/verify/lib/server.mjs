@@ -1,5 +1,5 @@
 // Starts the production web app (`next start`) on a free port for a verifier,
-// or reuses one that is already running when LOUPE_URL is set.
+// or reuses one that is already running when SEQUENCE_URL is set.
 //
 // Verifiers run against the production build rather than `next dev` so what
 // they check is what ships. The npm scripts that call them build first; a
@@ -15,11 +15,11 @@ export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)
 const webDir = path.join(repoRoot, "apps/web")
 
 /** `env` is added to the server's environment; a verifier that depends on it
- *  can't reuse a LOUPE_URL server it didn't start. */
+ *  can't reuse a SEQUENCE_URL server it didn't start. */
 export async function startApp({ env } = {}) {
-  if (process.env.LOUPE_URL) {
-    if (env) throw new Error("This verifier sets server environment variables, so it can't use LOUPE_URL. Unset it.")
-    return { url: process.env.LOUPE_URL, stop: async () => {} }
+  if (process.env.SEQUENCE_URL) {
+    if (env) throw new Error("This verifier sets server environment variables, so it can't use SEQUENCE_URL. Unset it.")
+    return { url: process.env.SEQUENCE_URL, stop: async () => {} }
   }
 
   if (!existsSync(path.join(webDir, ".next/BUILD_ID"))) {

@@ -1,4 +1,4 @@
-import { thumbnailTarget, type Asset } from "@loupe/core"
+import { thumbnailTarget, type Asset } from "@sequence/core"
 
 import { getDb, isQuotaError, requestPersistentStorage } from "@/lib/storage/db"
 

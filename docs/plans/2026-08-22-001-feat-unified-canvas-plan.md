@@ -13,7 +13,7 @@ execution: code
 
 ## Goal Capsule
 
-- **Objective:** Collapse Loupe's three-mode structure into a single canvas where pages are frames, selection drives a contextual sidebar, and the app invites its users to shape it.
+- **Objective:** Collapse Sequence's three-mode structure into a single canvas where pages are frames, selection drives a contextual sidebar, and the app invites its users to shape it.
 - **Product authority:** This plan supersedes the three-mode UX thesis in `docs/plans/00-initial-build-brief.md` and the funnel semantics in `CLAUDE.md`. Both documents are rewritten as part of this work.
 - **Open blockers:** None.
 - **Product Contract preservation:** unchanged by this enrichment pass. R13 and R14 were reworded during the requirements doc's own `ce-doc-review` round, before this planning pass began, to resolve a per-page/book-level print-property split; that resolution is carried forward as-is, not introduced here. Every other R/A/F/AE ID, Key Decision, and Scope Boundary is untouched by planning. This enrichment adds the Planning Contract, Implementation Units, Verification Contract, and Definition of Done below. Confirmed with the user this session: only two stages exist going forward — the unified canvas (sequencing, layout, and composition together) and the Book overview (high-level, per-page print specs) — with tighter integration between them left for a later session.
@@ -24,7 +24,7 @@ execution: code
 
 ### Summary
 
-Loupe becomes one canvas. Importing photographs prompts for book size and page count, which lays down page frames in a snap-to-flow grid with the photographs staged above them. Clicking anything — text, image, frame, or empty space — populates a persistent contextual sidebar, and the Sequence / Design / Print modes disappear. A feedback control files GitHub issues, and the empty canvas introduces the project as an open experiment in growing software with its users.
+Sequence becomes one canvas. Importing photographs prompts for book size and page count, which lays down page frames in a snap-to-flow grid with the photographs staged above them. Clicking anything — text, image, frame, or empty space — populates a persistent contextual sidebar, and the Sequence / Design / Print modes disappear. A feedback control files GitHub issues, and the empty canvas introduces the project as an open experiment in growing software with its users.
 
 ### Problem Frame
 
@@ -48,7 +48,7 @@ No book has been made with the tool yet, so none of this comes from observed fri
 
 - **Feedback opens a prefilled GitHub issue.** The control composes a title and body and hands the user to GitHub to submit under their own account. *(session-settled: user-approved — chosen over a serverless function holding a scoped token, and over a hybrid of both: no token can ship in client JS, and the prefill path adds no backend, no abuse surface, and no change to the no-backend rule.)*
 
-- **The introduction lives in the empty canvas, with a permanent way back.** First-time visitors read what Loupe is and why it exists in the space they are already looking at; it steps aside once they import, and a bottom-left control — beside the feedback control — brings it back at any time. *(session-settled: user-approved — chosen over a first-load modal and over a footer link alone: the canvas is already empty on arrival, so a modal explains the app in a box on top of a blank screen.)*
+- **The introduction lives in the empty canvas, with a permanent way back.** First-time visitors read what Sequence is and why it exists in the space they are already looking at; it steps aside once they import, and a bottom-left control — beside the feedback control — brings it back at any time. *(session-settled: user-approved — chosen over a first-load modal and over a footer link alone: the canvas is already empty on arrival, so a modal explains the app in a box on top of a blank screen.)*
 
 ### Actors
 
@@ -107,7 +107,7 @@ No book has been made with the tool yet, so none of this comes from observed fri
 
 - R23. A feedback control sits in the bottom-left corner of the application.
 - R24. Submitting composes the bookmaker's message into a prefilled GitHub issue URL and hands off to GitHub.
-- R25. The empty canvas introduces Loupe as an open experiment in growing software with its users, and disappears once photographs are imported.
+- R25. The empty canvas introduces Sequence as an open experiment in growing software with its users, and disappears once photographs are imported.
 - R32. The introduction is reachable again at any time from a persistent control in the bottom-left corner, alongside the feedback control (R23) — dismissal on import is not permanent.
 
 ### Structure of the canvas
@@ -136,7 +136,7 @@ Two object classes share the canvas under different rules: photographs on the pa
 ### Key Flows
 
 - F1. **First run to first frame**
-  - **Trigger:** A new visitor opens Loupe with an empty project.
+  - **Trigger:** A new visitor opens Sequence with an empty project.
   - **Actors:** A1
   - **Steps:** The empty canvas introduces the project and invites photographs. The bookmaker imports. The setup prompt asks for page size and page count. Frames appear in the grid; the photographs land on the pasteboard above them.
   - **Outcome:** A book of the requested length exists as frames, with every imported photograph staged and unplaced.
@@ -159,13 +159,13 @@ Two object classes share the canvas under different rules: photographs on the pa
 - F4. **Sending feedback**
   - **Trigger:** The bookmaker activates the feedback control.
   - **Actors:** A1, A2
-  - **Steps:** The bookmaker writes what they want. Loupe composes a prefilled GitHub issue URL and opens it. The bookmaker submits under their own account. The maintainer receives the issue.
+  - **Steps:** The bookmaker writes what they want. Sequence composes a prefilled GitHub issue URL and opens it. The bookmaker submits under their own account. The maintainer receives the issue.
   - **Outcome:** Attributed feedback lands in the repo's issue tracker with no backend involved.
   - **Covered by:** R23, R24
 
 ```mermaid
 flowchart LR
-  A["Bookmaker<br/>writes feedback"] --> B["Loupe composes<br/>prefilled issue URL"]
+  A["Bookmaker<br/>writes feedback"] --> B["Sequence composes<br/>prefilled issue URL"]
   B --> C["GitHub<br/>bookmaker submits"]
   C --> D["Maintainer<br/>reviews issue"]
   D -.->|"deferred — separate artifact"| E["Approve triggers<br/>build pipeline"]
@@ -176,9 +176,9 @@ flowchart LR
 - AE1. **Covers R7.** Given a twelve-page book, when the bookmaker drags the frame at position 9 and drops it between positions 2 and 3, then it becomes page 3 and the frames formerly at 3 through 8 each shift one position later.
 - AE2. **Covers R14.** Given a photograph is selected and the sidebar shows its properties, when the bookmaker clicks empty canvas, then the sidebar transitions to book-level settings rather than emptying.
 - AE3. **Covers R14.** Given a book of 10 pages, when the bookmaker views book-level settings, then saddle-stitch validation reports that the page count is not a multiple of four.
-- AE4. **Covers R25.** Given a returning visitor with photographs already imported, when they open Loupe, then the introduction does not appear and the canvas shows their work.
+- AE4. **Covers R25.** Given a returning visitor with photographs already imported, when they open Sequence, then the introduction does not appear and the canvas shows their work.
 - AE5. **Covers R4, R26.** Given a book set up at page size A5 with a photograph and a caption already placed on one frame, when the bookmaker changes the page size to a custom dimension with a different aspect ratio, then the frame re-proportions, the caption keeps its normalized position, and the photograph re-fits to its own aspect rather than distorting.
-- AE6. **Covers R24.** Given the bookmaker has written feedback, when they submit, then GitHub opens with the issue form already populated and nothing has been sent from Loupe itself.
+- AE6. **Covers R24.** Given the bookmaker has written feedback, when they submit, then GitHub opens with the issue form already populated and nothing has been sent from Sequence itself.
 - AE7. **Covers R16.** Given a text box on the canvas has editing focus, when the bookmaker types a sentence containing the letter "t", then no new text box is created.
 - AE8. **Covers R29.** Given the bookmaker is mid-edit in a sidebar field, when they click a different frame, then the in-progress edit commits before the sidebar switches to the new selection.
 - AE9. **Covers R32.** Given a bookmaker has already imported photographs and dismissed the introduction, when they click the bottom-left introduction control, then the introduction reappears.
@@ -354,7 +354,7 @@ Worktree 1 runs alone first — everything else depends on the frame data model 
 - Edge case: hit-test with an element center exactly on a frame's boundary pixel.
 - Edge case: hit-test with no frame under the element (stays on pasteboard).
 
-**Verification:** `core/src/frames.test.ts` passes under `npm test --workspace=@loupe/core`; `rg "from ['\"]edit" core/src apps/web` returns nothing outside this unit's own deletions; the core purity gates in `CLAUDE.md` (`rg` for React/Next/Fabric/Stripe imports and DOM globals in `core/src`) still return nothing.
+**Verification:** `core/src/frames.test.ts` passes under `npm test --workspace=@sequence/core`; `rg "from ['\"]edit" core/src apps/web` returns nothing outside this unit's own deletions; the core purity gates in `CLAUDE.md` (`rg` for React/Next/Fabric/Stripe imports and DOM globals in `core/src`) still return nothing.
 
 ---
 
@@ -619,7 +619,7 @@ Note: the Edits UI (`workflow-tree.tsx`, `edit-stage.tsx`) is deleted in U1, not
 **Approach:** The GitHub issue URL uses `github.com/<owner>/<repo>/issues/new?title=...&body=...` with `encodeURIComponent` on both fields; the 2,000-character cap (KTD9) is enforced in the control's textarea itself (a `maxLength`-equivalent with a visible counter), not just at submit time, so the bookmaker never types past the limit and discovers truncation after the fact.
 
 **Test scenarios:**
-- Happy path (AE6): submitting opens GitHub with the issue form prefilled and confirms nothing was sent from Loupe itself (no network call from the app).
+- Happy path (AE6): submitting opens GitHub with the issue form prefilled and confirms nothing was sent from Sequence itself (no network call from the app).
 - Happy path (AE9): clicking the reopen control after dismissal and after import brings the introduction back.
 - Edge case: feedback text containing `&`, `#`, or newlines round-trips correctly through the encoded URL.
 - Edge case: feedback text at exactly the 2,000-character cap composes successfully; input beyond it is prevented, not silently truncated.
@@ -676,7 +676,7 @@ Note: the Edits UI (`workflow-tree.tsx`, `edit-stage.tsx`) is deleted in U1, not
 
 | Scope | Command / Method | Applies to |
 |---|---|---|
-| `core/` unit tests | `npm test --workspace=@loupe/core` | U1, U2, U5 (extension), U9 |
+| `core/` unit tests | `npm test --workspace=@sequence/core` | U1, U2, U5 (extension), U9 |
 | `core/` purity gates | `rg "from ['\"](react\|next\|fabric\|stripe)" core/src` and `rg "document\.\|window\.\|localStorage\|navigator" core/src` — both must return nothing | U1–U9 (any core/ change) |
 | Typecheck | `npm run typecheck` | All units |
 | Lint | `npm run lint` | All units |

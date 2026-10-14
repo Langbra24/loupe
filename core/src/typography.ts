@@ -1,7 +1,7 @@
 /**
  * Modular type scale and page-margin canon.
  *
- * Every size in a Loupe book derives from one base size and one ratio, rather
+ * Every size in a Sequence book derives from one base size and one ratio, rather
  * than being picked per element. That constraint is the point: it is what
  * keeps a first-time bookmaker's captions and titles in proportion without
  * them having to know why.

@@ -6,7 +6,7 @@
 // The GitHub call happens on the server, out of the browser's reach, so it is
 // intercepted by pointing the route's GITHUB_API_URL at a local HTTP server
 // that answers each scenario's way. Nothing here touches the real GitHub.
-// This verifier starts its own servers, so LOUPE_URL can't be used.
+// This verifier starts its own servers, so SEQUENCE_URL can't be used.
 //
 // The contract:
 //   1. A 201 from GitHub shows "Feedback sent", closes the popover, and the
@@ -30,7 +30,7 @@ const SETUP_PROBLEM =
 const SCENARIOS = [
   {
     name: "201 created",
-    github: { status: 201, body: { html_url: "https://github.com/Langbra24/loupe/issues/999" } },
+    github: { status: 201, body: { html_url: "https://github.com/Langbra24/sequence/issues/999" } },
     route: 201,
     email: "reader@example.com",
     toast: ["Feedback sent", "We'll review your feedback in 2–3 business days."],
@@ -82,12 +82,12 @@ const NO_TOKEN_SCENARIO = {
   toast: ["Couldn't send feedback", "Feedback isn't set up on this server yet, so it couldn't be sent. Your note is still here."],
 }
 
-/** The browser never reaches Loupe's own server (offline, server down). */
+/** The browser never reaches Sequence's own server (offline, server down). */
 const OFFLINE_SCENARIO = {
   name: "browser can't reach /api/feedback",
   offline: true,
   route: null,
-  toast: ["Couldn't send feedback", "Couldn't reach Loupe's server. Check your connection; your note is still here."],
+  toast: ["Couldn't send feedback", "Couldn't reach Sequence's server. Check your connection; your note is still here."],
 }
 
 const failures = []
@@ -177,11 +177,11 @@ try {
       const issue = received[0]
       check(
         received.length === 1 &&
-          issue.url === "/repos/Langbra24/loupe/issues" &&
+          issue.url === "/repos/Langbra24/sequence/issues" &&
           issue.authorization === `Bearer ${FAKE_TOKEN}` &&
-          issue.body.title === "Feedback from the Loupe app" &&
+          issue.body.title === "Feedback from the Sequence app" &&
           issue.body.body.includes(note),
-        `GitHub received one issue on Langbra24/loupe with the note, title, and bearer token`,
+        `GitHub received one issue on Langbra24/sequence with the note, title, and bearer token`,
       )
       check(
         Boolean(issue?.body.body.includes(`Email: ${scenario.email}`)) && !/^Name:/m.test(issue?.body.body ?? ""),

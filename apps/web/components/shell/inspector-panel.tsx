@@ -14,7 +14,7 @@ import {
   type Selection,
   type TextElement,
   type TypeRole,
-} from "@loupe/core"
+} from "@sequence/core"
 
 import { ColorField } from "@/components/shell/color-picker"
 import { NumberField } from "@/components/shell/number-field"

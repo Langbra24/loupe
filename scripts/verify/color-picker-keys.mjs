@@ -2,7 +2,7 @@
 // slider and the saturation/value square (issue #21).
 //
 //   npm run verify:picker-keys       # builds first
-//   LOUPE_URL=http://localhost:3000 node scripts/verify/color-picker-keys.mjs
+//   SEQUENCE_URL=http://localhost:3000 node scripts/verify/color-picker-keys.mjs
 //
 // The contract, starting from #37bf7b (saturated, so a few degrees of hue
 // always change the hex):
@@ -33,7 +33,7 @@ const storedColor = (page) =>
   page.evaluate(
     () =>
       new Promise((resolve, reject) => {
-        const request = indexedDB.open("loupe")
+        const request = indexedDB.open("sequence")
         request.onerror = () => reject(request.error)
         request.onsuccess = () => {
           const get = request.result.transaction("project").objectStore("project").getAll()

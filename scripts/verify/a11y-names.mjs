@@ -2,7 +2,7 @@
 // label, and selected state is exposed (issue #50).
 //
 //   npm run verify:a11y-names        # builds first
-//   LOUPE_URL=http://localhost:3000 node scripts/verify/a11y-names.mjs
+//   SEQUENCE_URL=http://localhost:3000 node scripts/verify/a11y-names.mjs
 //
 // The contract, read from Playwright's accessibility snapshot:
 //   1. In all four inspector states (nothing, a page, an image, a text box

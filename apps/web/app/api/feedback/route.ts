@@ -84,7 +84,7 @@ export async function POST(request: Request) {
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         "Content-Type": "application/json",
-        "User-Agent": "loupe-feedback-control",
+        "User-Agent": "sequence-feedback-control",
       },
       body: JSON.stringify({
         title: FEEDBACK_ISSUE_TITLE,

@@ -4,7 +4,7 @@ import {
   type LegacyProject,
   type MigrationFailureReason,
   type Project,
-} from "@loupe/core"
+} from "@sequence/core"
 
 import { getDb, getOpenedDb, isQuotaError, PROJECT_KEY } from "@/lib/storage/db"
 
@@ -157,7 +157,7 @@ export async function loadProject(): Promise<LoadProjectResult> {
   await deleteOrphanedBlobs(project)
   return {
     project,
-    migrationError: `This project was saved by an older version of Loupe and could not be upgraded (${describeMigrationFailure(result.reason)}). Changes will not be saved until this is resolved.`,
+    migrationError: `This project was saved by an older version of Sequence and could not be upgraded (${describeMigrationFailure(result.reason)}). Changes will not be saved until this is resolved.`,
   }
 }
 

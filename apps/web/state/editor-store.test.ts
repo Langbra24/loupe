@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { A5_PORTRAIT, type CanvasPlacement } from "@loupe/core"
+import { A5_PORTRAIT, type CanvasPlacement } from "@sequence/core"
 
 import { useEditorStore } from "@/state/editor-store"
 

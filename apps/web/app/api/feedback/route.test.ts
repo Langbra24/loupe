@@ -80,7 +80,7 @@ describe("POST /api/feedback", () => {
 
   it("files an issue on the configured repo and returns its URL on success", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ html_url: "https://github.com/Langbra24/loupe/issues/42" }), {
+      new Response(JSON.stringify({ html_url: "https://github.com/Langbra24/sequence/issues/42" }), {
         status: 201,
       }),
     )
@@ -90,14 +90,14 @@ describe("POST /api/feedback", () => {
     const json = (await response.json()) as { url?: string }
 
     expect(response.status).toBe(201)
-    expect(json.url).toBe("https://github.com/Langbra24/loupe/issues/42")
+    expect(json.url).toBe("https://github.com/Langbra24/sequence/issues/42")
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toBe(`https://api.github.com/repos/${GITHUB_REPO}/issues`)
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer test-token")
     const sentBody = JSON.parse(init.body as string) as { title: string; body: string }
-    expect(sentBody.title).toBe("Feedback from the Loupe app")
+    expect(sentBody.title).toBe("Feedback from the Sequence app")
     expect(sentBody.body).toContain("It would be great if I could export a PDF.")
   })
 

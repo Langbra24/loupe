@@ -1,14 +1,16 @@
-# [Working name: Loupe] — Build Brief for Claude Code
+# Sequence — Build Brief for Claude Code
 
 ## One-liner
 A browser-based photobook/zine layout tool for photographers and DIY bookmakers — sequence, design, and print-impose a booklet without opening InDesign. Free/open-source core, paid hosted + downloadable tiers.
 
-## Name candidates (pending decision)
-1. **Loupe** — the tool photographers use over a contact sheet/light table to review and sequence negatives. Top pick: specific, tactile, true to audience vocabulary.
-2. **Signature** — bookbinding term for a folded group of pages; also reads as "artistic signature."
-3. **Gathering** — bookbinding term for collating folded signatures into a book block.
-4. **Quire** — old paper-craft term for a set of folded sheets. Quieter, more obscure.
-5. **Chapbook** — historically a small, cheaply-bound pamphlet; maps directly to what a zine is.
+## Name
+**Sequence** — decided in October 2026, replacing the earlier working name, which was too close to another product. Sequencing is the photobook maker's core act: deciding the order of images across the whole book. The other candidates are kept below for the record.
+
+## Other name candidates
+1. **Signature** — bookbinding term for a folded group of pages; also reads as "artistic signature."
+2. **Gathering** — bookbinding term for collating folded signatures into a book block.
+3. **Quire** — old paper-craft term for a set of folded sheets. Quieter, more obscure.
+4. **Chapbook** — historically a small, cheaply-bound pamphlet; maps directly to what a zine is.
 
 ## Glossary (bookmaking terms used throughout this brief)
 - **Sequencing** — deciding the order of images/pages across the whole book (pacing, narrative rhythm). Whole-book task → Sequence view.

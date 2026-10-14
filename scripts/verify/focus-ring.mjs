@@ -2,7 +2,7 @@
 // against the surface it is drawn on (issue #53).
 //
 //   npm run verify:focus-ring      # builds first
-//   LOUPE_URL=http://localhost:3000 node scripts/verify/focus-ring.mjs
+//   SEQUENCE_URL=http://localhost:3000 node scripts/verify/focus-ring.mjs
 //
 // Every control below is reached with the keyboard (Tab, then Shift+Tab back,
 // or the reverse), so `:focus-visible` applies the way it does for a user.

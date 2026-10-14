@@ -2,7 +2,7 @@
 // no ui/ component transitions `all` (issue #52).
 //
 //   npm run verify:motion            # builds first
-//   LOUPE_URL=http://localhost:3000 node scripts/verify/motion.mjs
+//   SEQUENCE_URL=http://localhost:3000 node scripts/verify/motion.mjs
 //
 // The contract:
 //   1. Under `prefers-reduced-motion: reduce`, nothing that opens moves,
@@ -27,8 +27,8 @@
 //   5. No uncaught page errors.
 //   6. Canvas: a page dragged a little and dropped back in its own slot is
 //      on that slot by the next frame under reduced motion, and still
-//      mid-tween with normal motion. Reads `window.__loupeCanvas`, so the
-//      build needs LOUPE_TEST_HOOKS=1.
+//      mid-tween with normal motion. Reads `window.__sequenceCanvas`, so the
+//      build needs SEQUENCE_TEST_HOOKS=1.
 
 import { readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
@@ -169,11 +169,11 @@ async function openEachPopup(page) {
 /**
  * Drags the first page a short way, staying in its own slot, and lets go.
  * Returns how far (scene units) it still is from its slot on the next frame:
- * 0 under reduced motion, mid-tween otherwise. Needs `window.__loupeCanvas`.
+ * 0 under reduced motion, mid-tween otherwise. Needs `window.__sequenceCanvas`.
  */
 async function frameSnapGap(page) {
   const frame = await page.evaluate(() => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const rect = canvas.getObjects().find((o) => o.frameId && !o.elementId && o.type === "rect")
     const box = canvas.upperCanvasEl.getBoundingClientRect()
     const [zoom, , , , panX, panY] = canvas.viewportTransform
@@ -192,7 +192,7 @@ async function frameSnapGap(page) {
     ({ frameId, slot }) =>
       new Promise((resolve) =>
         requestAnimationFrame(() => {
-          const rect = window.__loupeCanvas.getObjects().find((o) => o.frameId === frameId && !o.elementId && o.type === "rect")
+          const rect = window.__sequenceCanvas.getObjects().find((o) => o.frameId === frameId && !o.elementId && o.type === "rect")
           resolve(Math.hypot(rect.left - slot.x, rect.top - slot.y))
         }),
       ),

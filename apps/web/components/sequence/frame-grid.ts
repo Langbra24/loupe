@@ -19,7 +19,7 @@
  * is gone; there's no fixed column count left to name.
  */
 
-import { boundingBoxOf, groupFramesIntoSpreads, type Asset, type Bounds, type CanvasPlacement, type Frame } from "@loupe/core"
+import { boundingBoxOf, groupFramesIntoSpreads, type Asset, type Bounds, type CanvasPlacement, type Frame } from "@sequence/core"
 
 /**
  * Scene-unit width a single page renders at, regardless of its real-world

@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react"
 
-import { PAGE_SIZE_PRESETS, validateCustomPageSize, type PageSize } from "@loupe/core"
+import { PAGE_SIZE_PRESETS, validateCustomPageSize, type PageSize } from "@sequence/core"
 
 import { Button } from "@/components/ui/button"
 import { useEditorStore } from "@/state/editor-store"

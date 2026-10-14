@@ -1,7 +1,7 @@
 {
-  "name": "@loupe/core",
+  "name": "@sequence/core",
   "version": "0.0.1",
-  "description": "Loupe engine: data model, sequencing logic, typography scale, imposition math. Pure TypeScript, no UI framework.",
+  "description": "Sequence engine: data model, sequencing logic, typography scale, imposition math. Pure TypeScript, no UI framework.",
   "license": "MIT",
   "type": "module",
   "main": "./src/index.ts",

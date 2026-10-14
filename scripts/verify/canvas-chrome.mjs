@@ -5,9 +5,9 @@
 //   npm run verify:canvas-chrome     # builds first, with test hooks on
 //
 // Sizes and colors are measured from the canvas's own pixels. The exact zoom
-// levels are set through `window.__loupeCanvas`, which exists only in a build
-// made with LOUPE_TEST_HOOKS=1 (the npm script does that); the zoom buttons
-// step by 1.25x and can't land on 10% or 50%. With LOUPE_URL, the server must
+// levels are set through `window.__sequenceCanvas`, which exists only in a build
+// made with SEQUENCE_TEST_HOOKS=1 (the npm script does that); the zoom buttons
+// step by 1.25x and can't land on 10% or 50%. With SEQUENCE_URL, the server must
 // be such a build.
 //
 // The contract, with page 1 set as the cover and selected:
@@ -76,7 +76,7 @@ const zoomAround = (point, zoom) =>
   page.evaluate(
     ({ point, zoom }) =>
       new Promise((resolve) => {
-        const canvas = window.__loupeCanvas
+        const canvas = window.__sequenceCanvas
         canvas.setViewportTransform([
           zoom,
           0,
@@ -94,7 +94,7 @@ const zoomAround = (point, zoom) =>
 /** The selected frame's left edge midpoint and its top-left bleed corner, in scene units. */
 const selectedFrameAnchors = () =>
   page.evaluate(() => {
-    const frame = window.__loupeCanvas.getActiveObject()
+    const frame = window.__sequenceCanvas.getActiveObject()
     if (!frame?.frameId || frame.elementId) return null
     const left = frame.left - frame.width / 2
     const top = frame.top - frame.height / 2
@@ -163,7 +163,7 @@ const pixelAt = (point) =>
  */
 const patchAt = (point) =>
   page.evaluate((point) => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const v = canvas.viewportTransform
     const x = Math.round(v[0] * point.x + v[4]) - 12
     const y = Math.round(v[3] * point.y + v[5]) - 4
@@ -207,15 +207,15 @@ const pasteboardColor = () =>
 
 const frameCount = () =>
   page.evaluate(
-    () => window.__loupeCanvas.getObjects().filter((o) => o.frameId && !o.elementId && o.type === "rect").length,
+    () => window.__sequenceCanvas.getObjects().filter((o) => o.frameId && !o.elementId && o.type === "rect").length,
   )
 
 try {
   await dismissIntroduction(page)
-  if (!(await page.evaluate(() => Boolean(window.__loupeCanvas)))) {
+  if (!(await page.evaluate(() => Boolean(window.__sequenceCanvas)))) {
     throw new Error(
-      "window.__loupeCanvas is missing: this build has no test hooks. Run `npm run verify:canvas-chrome`, " +
-        "or build with LOUPE_TEST_HOOKS=1 before pointing LOUPE_URL at it.",
+      "window.__sequenceCanvas is missing: this build has no test hooks. Run `npm run verify:canvas-chrome`, " +
+        "or build with SEQUENCE_TEST_HOOKS=1 before pointing SEQUENCE_URL at it.",
     )
   }
   await importPhotos(page)
@@ -296,13 +296,13 @@ try {
   await page.getByRole("button", { name: "Fit to view" }).click()
   await settle(page)
   const frameColors = await page.evaluate(() => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const frame = canvas.getObjects().find((o) => o.frameId && !o.elementId && o.type === "rect")
     return { borderColor: frame.borderColor, borderScaleFactor: frame.borderScaleFactor }
   })
   await placeTextOnFirstPage(page)
   const text = await page.evaluate(() => {
-    const object = window.__loupeCanvas.getActiveObject()
+    const object = window.__sequenceCanvas.getActiveObject()
     return {
       kind: object?.elementKind,
       borderColor: object?.borderColor,
@@ -313,7 +313,7 @@ try {
   await page.keyboard.press("Escape")
   await placePhotoOnFirstPage(page)
   const image = await page.evaluate(() => {
-    const object = window.__loupeCanvas.getActiveObject()
+    const object = window.__sequenceCanvas.getActiveObject()
     return { kind: object?.elementKind, borderColor: object?.borderColor, cornerColor: object?.cornerColor }
   })
   const reference = outline ? hex(outline.rgb) : null
@@ -330,7 +330,7 @@ try {
 
   // The insertion indicator only exists mid-drag: drag page 2 over page 3 and read it.
   const indicator = await page.evaluate(() => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const frames = canvas.getObjects().filter((o) => o.frameId && !o.elementId && o.type === "rect")
     const v = canvas.viewportTransform
     const rect = canvas.upperCanvasEl.getBoundingClientRect()
@@ -343,7 +343,7 @@ try {
   await page.mouse.move((indicator.from.x + indicator.to.x) / 2, indicator.from.y, { steps: 6 })
   await page.mouse.move(indicator.to.x, indicator.to.y, { steps: 6 })
   const indicatorStroke = await page.evaluate(() =>
-    window.__loupeCanvas
+    window.__sequenceCanvas
       .getObjects()
       .filter((o) => o.type === "rect" && o.strokeDashArray && !o.evented && o.stroke && !o.frameId)
       .map((o) => o.stroke)

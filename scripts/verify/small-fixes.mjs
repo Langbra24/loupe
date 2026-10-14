@@ -4,7 +4,7 @@
 //
 // Feedback goes through the real /api/feedback route with GitHub replaced by
 // a local stand-in, as in feedback.mjs, so this starts its own server and
-// can't use LOUPE_URL. Nothing here touches the real GitHub.
+// can't use SEQUENCE_URL. Nothing here touches the real GitHub.
 //
 // The contract:
 //   1. Toasts sit at the top-right, below the 48px top nav, clear of the
@@ -45,7 +45,7 @@ const github = http.createServer((request, response) => {
     issues++
     const ok = JSON.parse(body || "{}").body?.includes("[ok]")
     response.writeHead(ok ? 201 : 422, { "Content-Type": "application/json" })
-    response.end(JSON.stringify(ok ? { html_url: "https://github.com/Langbra24/loupe/issues/999" } : { message: "Validation Failed" }))
+    response.end(JSON.stringify(ok ? { html_url: "https://github.com/Langbra24/sequence/issues/999" } : { message: "Validation Failed" }))
   })
 })
 await new Promise((resolve) => github.listen(0, "127.0.0.1", resolve))
@@ -144,7 +144,7 @@ try {
   })
 
   await scenario("Escape dismisses the intro", async (page) => {
-    const intro = page.getByRole("dialog", { name: "About Loupe" })
+    const intro = page.getByRole("dialog", { name: "About Sequence" })
     await intro.waitFor()
     await page.waitForTimeout(300)
     const focusInside = await intro.evaluate((node) => node.contains(document.activeElement))

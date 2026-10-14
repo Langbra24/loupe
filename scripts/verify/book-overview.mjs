@@ -2,7 +2,7 @@
 // (issue #54).
 //
 //   npm run verify:book-overview     # builds first
-//   LOUPE_URL=http://localhost:3000 node scripts/verify/book-overview.mjs
+//   SEQUENCE_URL=http://localhost:3000 node scripts/verify/book-overview.mjs
 //
 // The contract: place a caption on page 1, give it a color through the
 // sidebar's Color field, then open the Book view. Page 1's preview has a

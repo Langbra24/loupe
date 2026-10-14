@@ -1,7 +1,7 @@
 // Top-nav check: the fixed frame carries no dead controls (issue #58).
 //
 //   npm run verify:top-nav           # builds first
-//   LOUPE_URL=http://localhost:3000 node scripts/verify/top-nav.mjs
+//   SEQUENCE_URL=http://localhost:3000 node scripts/verify/top-nav.mjs
 //
 // The contract:
 //   1. The banner holds exactly one button, and it is "Export". A control

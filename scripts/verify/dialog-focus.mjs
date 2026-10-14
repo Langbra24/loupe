@@ -2,7 +2,7 @@
 // reaches what a dialog covers (issue #45).
 //
 //   npm run verify:dialog-focus      # builds first
-//   LOUPE_URL=http://localhost:3000 node scripts/verify/dialog-focus.mjs
+//   SEQUENCE_URL=http://localhost:3000 node scripts/verify/dialog-focus.mjs
 //
 // Tab and Shift+Tab are pressed 20 times each with no pause between presses:
 // Base UI's own trap redirects on the next animation frame, so fast presses
@@ -61,7 +61,7 @@ const { browser, page, errors } = await openApp(app.url)
 
 try {
   // 1. Introduction overlay.
-  const intro = page.getByRole("dialog", { name: "About Loupe" })
+  const intro = page.getByRole("dialog", { name: "About Sequence" })
   await intro.waitFor()
   await page.waitForTimeout(100)
   const introStart = await focusIn(page, (element) => element?.textContent?.trim() === "Get started")
@@ -73,7 +73,7 @@ try {
     page,
     (element) =>
       element === document.body ||
-      !!element?.closest('[role="dialog"][aria-label="About Loupe"]') ||
+      !!element?.closest('[role="dialog"][aria-label="About Sequence"]') ||
       !!element?.closest("header, [role=banner]"),
   )
   check(

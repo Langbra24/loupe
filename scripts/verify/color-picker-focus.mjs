@@ -2,7 +2,7 @@
 // popover shows a visible focus ring (issue #15).
 //
 //   npm run verify:picker-focus      # builds first
-//   LOUPE_URL=http://localhost:3000 node scripts/verify/color-picker-focus.mjs
+//   SEQUENCE_URL=http://localhost:3000 node scripts/verify/color-picker-focus.mjs
 //
 // The contract: Tab into each RGB channel field, then each CMYK one, and the
 // focused field's wrapper shows a ring, meaning a visible outline (the shared

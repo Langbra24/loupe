@@ -1,6 +1,6 @@
 import JSZip from "jszip"
 
-import type { Asset, Frame } from "@loupe/core"
+import type { Asset, Frame } from "@sequence/core"
 
 import { renderExportPages } from "@/lib/export/render-frame"
 

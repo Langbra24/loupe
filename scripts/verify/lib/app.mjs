@@ -32,14 +32,14 @@ export async function openApp(url, { acceptDownloads = false } = {}) {
   page.on("pageerror", (error) => errors.push(error.message))
 
   await page.goto(url, { waitUntil: "networkidle" })
-  await page.getByRole("banner").getByText("Loupe").waitFor()
+  await page.getByRole("banner").getByText("Sequence").waitFor()
   await page.evaluate(() => document.fonts.ready)
 
   return { browser, page, errors }
 }
 
 export async function dismissIntroduction(page) {
-  const intro = page.getByRole("dialog", { name: "About Loupe" })
+  const intro = page.getByRole("dialog", { name: "About Sequence" })
   await intro.waitFor()
   await intro.getByRole("button", { name: "Get started" }).click()
   await intro.waitFor({ state: "detached" })

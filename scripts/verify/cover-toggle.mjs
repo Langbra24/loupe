@@ -4,9 +4,9 @@
 //
 //   npm run verify:cover-toggle      # builds first, with test hooks on
 //
-// Reads the cover badge from `window.__loupeCanvas`, which exists only in a
-// build made with LOUPE_TEST_HOOKS=1 (the npm script does that). With
-// LOUPE_URL, the server must be such a build.
+// Reads the cover badge from `window.__sequenceCanvas`, which exists only in a
+// build made with SEQUENCE_TEST_HOOKS=1 (the npm script does that). With
+// SEQUENCE_URL, the server must be such a build.
 //
 // The contract, on an 8-page book:
 //   1. Page 3 can be selected with the keyboard alone: Tab to the left
@@ -48,7 +48,7 @@ const storedBook = () =>
   page.evaluate(
     () =>
       new Promise((resolve, reject) => {
-        const request = indexedDB.open("loupe")
+        const request = indexedDB.open("sequence")
         request.onerror = () => reject(request.error)
         request.onsuccess = () => {
           const get = request.result.transaction("project").objectStore("project").getAll()
@@ -85,7 +85,7 @@ async function tabTo(locator, max = 80) {
 /** Cover badges on the canvas: the bookmark paths, with the frame each sits on. */
 const badges = () =>
   page.evaluate(() => {
-    const canvas = window.__loupeCanvas
+    const canvas = window.__sequenceCanvas
     const objects = canvas.getObjects()
     const frames = objects.filter((o) => o.frameId && !o.elementId && o.type === "rect")
     return objects
@@ -184,7 +184,7 @@ try {
 
   // 5. Add page from the book settings. Nothing is selected after a reload.
   await page.reload({ waitUntil: "networkidle" })
-  await page.getByRole("banner").getByText("Loupe").waitFor()
+  await page.getByRole("banner").getByText("Sequence").waitFor()
   await settle(page)
   const addPage = inspector.getByRole("button", { name: "Add page", exact: true })
   const reachedAdd = await tabTo(addPage)

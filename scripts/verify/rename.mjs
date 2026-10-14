@@ -2,7 +2,7 @@
 // UI, and hold it to the contract below.
 //
 //   npm run verify:rename            # builds first
-//   LOUPE_URL=http://localhost:3000 node scripts/verify/rename.mjs
+//   SEQUENCE_URL=http://localhost:3000 node scripts/verify/rename.mjs
 //
 // The contract:
 //   1. Clicking the name swaps in a focused text field. Escape cancels the
@@ -48,7 +48,7 @@ const storedProject = () =>
   page.evaluate(
     () =>
       new Promise((resolve, reject) => {
-        const request = indexedDB.open("loupe")
+        const request = indexedDB.open("sequence")
         request.onerror = () => reject(request.error)
         request.onsuccess = () => {
           const get = request.result.transaction("project").objectStore("project").getAll()
@@ -124,7 +124,7 @@ try {
 
   // 3. An immediate reload keeps it — no waiting out the save debounce.
   await page.reload({ waitUntil: "networkidle" })
-  await page.getByRole("banner").getByText("Loupe").waitFor()
+  await page.getByRole("banner").getByText("Sequence").waitFor()
   const persisted = await nameButton(NEW_NAME)
     .waitFor({ timeout: 10_000 })
     .then(() => true)

@@ -1,6 +1,6 @@
 import { PDFDocument } from "pdf-lib"
 
-import type { Asset, Frame } from "@loupe/core"
+import type { Asset, Frame } from "@sequence/core"
 
 import { EXPORT_BLEED_MM, renderExportPages } from "@/lib/export/render-frame"
 

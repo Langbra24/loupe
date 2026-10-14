@@ -8,9 +8,9 @@ describe("composeFeedbackBody", () => {
     const body = composeFeedbackBody(feedback)
 
     expect(body).toBe(
-      "Feedback submitted from within the Loupe app, via its bottom-left feedback control.\n\n---\n\n" +
+      "Feedback submitted from within the Sequence app, via its bottom-left feedback control.\n\n---\n\n" +
         feedback +
-        "\n\n---\nSubmitted through Loupe's in-app feedback control. No project name, filenames, or other project state were included.",
+        "\n\n---\nSubmitted through Sequence's in-app feedback control. No project name, filenames, or other project state were included.",
     )
   })
 

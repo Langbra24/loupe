@@ -189,7 +189,7 @@ const FRAME_SAMPLER = () => {
     const text = document.body?.innerText ?? ""
     window.__frames.push({
       t: Math.round(performance.now()),
-      intro: !!document.querySelector('[aria-label="About Loupe"][role="dialog"]'),
+      intro: !!document.querySelector('[aria-label="About Sequence"][role="dialog"]'),
       empty: text.includes("Bring in your photographs"),
       getStarted: document.activeElement?.textContent === "Get started",
       // The left panel's count line is the first sign of the real project.
@@ -205,7 +205,7 @@ try {
     // 4. No synthesized styles; the name is upright.
     const synthesis = await page.evaluate(() => getComputedStyle(document.body).fontSynthesis)
     check(synthesis === "none", `body font-synthesis is "${synthesis}"`)
-    const intro = page.getByRole("dialog", { name: "About Loupe" })
+    const intro = page.getByRole("dialog", { name: "About Sequence" })
     await intro.waitFor()
     const nameStyle = await intro.getByText("Brandon Lang").evaluate((node) => getComputedStyle(node).fontStyle)
     check(nameStyle === "normal", `the intro's "Brandon Lang" is font-style ${nameStyle}, not a faux italic`)
@@ -386,7 +386,7 @@ try {
     await page.addInitScript(FRAME_SAMPLER)
     await page.reload({ waitUntil: "networkidle" })
     const intro = await page
-      .getByRole("dialog", { name: "About Loupe" })
+      .getByRole("dialog", { name: "About Sequence" })
       .waitFor({ timeout: 5_000 })
       .then(() => true, () => false)
     check(intro, "after a reload with empty IndexedDB, the intro shows")
