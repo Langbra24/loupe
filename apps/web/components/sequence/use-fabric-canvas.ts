@@ -598,7 +598,8 @@ export function useFabricCanvas(options: Options) {
      * *drag* cursor reads "grabbing" instead of "grab" — the pan itself
      * doesn't need it once `skipTargetFind` is on.
      *
-     * Guarded against typing targets and an actively-edited text box (Space
+     * Only armed with focus on the canvas or nowhere (`spaceCanPan`). Also
+     * guarded against typing targets and an actively-edited text box (Space
      * has to type a literal space there, not arm panning) and against an
      * armed text placement (which already owns `skipTargetFind` for its own
      * reason — space released mid-placement must not clear it out from
@@ -624,9 +625,17 @@ export function useFabricCanvas(options: Options) {
       canvas.upperCanvasEl.style.cursor = cursor
     }
 
+    /* Space arms the pan only with focus on the canvas or on nothing in
+       particular. Anywhere else it keeps its native meaning: it activates a
+       focused button, tab, Select trigger or checkbox, and cancelling its
+       keydown would swallow that (#75). A click on the canvas leaves focus on
+       `document.body`, since no Fabric element is focusable. */
+    const spaceCanPan = (focus: EventTarget | null) =>
+      focus === document.body || (focus instanceof Node && Boolean(containerRef.current?.contains(focus)))
+
     const onSpaceKeyDown = (event: KeyboardEvent) => {
       if (event.code !== "Space" || event.repeat || spacePressed) return
-      if (isTypingTarget(event.target)) return
+      if (!spaceCanPan(event.target) || isTypingTarget(event.target)) return
       if (placingTextRef.current) return
       const target_canvas = canvasRef.current
       if (!target_canvas) return
