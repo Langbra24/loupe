@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import type { Frame } from "@loupe/core"
+import type { Frame, Selection } from "@loupe/core"
 
 interface Options {
   enabled: boolean
@@ -276,6 +276,82 @@ export function useTextToolShortcut({ enabled, isTextboxEditing, armTextTool }: 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [enabled, isTextboxEditing, armTextTool])
+}
+
+/** Where one Escape takes the selection (issue #76): an element in a page
+ *  steps out to that page, a page (or anything else the canvas has selected,
+ *  such as pasteboard photographs) steps out to nothing, which is Book
+ *  settings. `null` when there is nothing to step out of. */
+export type EscapeStep = { kind: "select-frame"; frameId: string } | { kind: "clear" } | null
+
+export function escapeStep(selection: Selection, hasCanvasSelection: boolean): EscapeStep {
+  if (selection?.kind === "text-element" || selection?.kind === "image-element") {
+    return { kind: "select-frame", frameId: selection.frameId }
+  }
+  if (selection || hasCanvasSelection) return { kind: "clear" }
+  return null
+}
+
+/** Whether an open dialog, popover, listbox or menu is on screen. Base UI's
+ *  popups already stop the Escape that closes them before it reaches
+ *  `window`; this is the backstop for anything open that didn't. Base UI
+ *  keeps a closed Select's listbox mounted, marked `data-closed`. */
+const OPEN_POPUP = ["dialog", "alertdialog", "listbox", "menu"]
+  .map((role) => `[role="${role}"]:not([data-closed])`)
+  .join(", ")
+
+function hasOpenPopup(): boolean {
+  return document.querySelector(OPEN_POPUP) !== null
+}
+
+export interface EscapeSelectionOptions {
+  enabled: boolean
+  selection: Selection
+  isTextEditing: () => boolean
+  isTextToolArmed: () => boolean
+  hasCanvasSelection: () => boolean
+  selectFrameOnCanvas: (frameId: string) => void
+  clearCanvasSelection: () => void
+}
+
+/**
+ * Escape steps the selection out one level, the keyboard route back to Book
+ * settings (issue #76): element, then its page, then nothing. Each step goes
+ * through the canvas the way the matching click does (on the page's
+ * background, then on empty canvas).
+ *
+ * Escape belongs to whatever has it first, so this only acts on one nothing
+ * else claimed: not `defaultPrevented` (a closing popup, the canvas context
+ * menus, an armed `T` placement cancelling), not from a typing target, not
+ * while a text box is being edited (Fabric's own Escape leaves editing and
+ * keeps the box selected), and not while any popup is open.
+ */
+export function useEscapeSelection({
+  enabled,
+  selection,
+  isTextEditing,
+  isTextToolArmed,
+  hasCanvasSelection,
+  selectFrameOnCanvas,
+  clearCanvasSelection,
+}: EscapeSelectionOptions): void {
+  useEffect(() => {
+    if (!enabled) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return
+      if (isTypingTarget(event.target) || isTextEditing() || isTextToolArmed() || hasOpenPopup()) return
+
+      const step = escapeStep(selection, hasCanvasSelection())
+      if (!step) return
+      event.preventDefault()
+      if (step.kind === "select-frame") selectFrameOnCanvas(step.frameId)
+      else clearCanvasSelection()
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [enabled, selection, isTextEditing, isTextToolArmed, hasCanvasSelection, selectFrameOnCanvas, clearCanvasSelection])
 }
 
 export interface CopyPasteShortcutOptions {

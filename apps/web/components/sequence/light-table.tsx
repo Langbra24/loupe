@@ -12,6 +12,7 @@ import { useFabricCanvas } from "@/components/sequence/use-fabric-canvas"
 import {
   useCopyPasteShortcut,
   useDeleteSelectionShortcut,
+  useEscapeSelection,
   useFrameKeyboardShortcuts,
   useTextToolShortcut,
   useUndoShortcut,
@@ -113,7 +114,18 @@ export function LightTable() {
   const [frameMenu, setFrameMenu] = useState<FrameMenuTarget | null>(null)
   const [emptyCanvasMenu, setEmptyCanvasMenu] = useState<EmptyCanvasMenuTarget | null>(null)
 
-  const { containerRef, canvasElementRef, controls, armTextTool, isTextEditing, selectElementOnCanvas } = useFabricCanvas({
+  const {
+    containerRef,
+    canvasElementRef,
+    controls,
+    armTextTool,
+    isTextEditing,
+    selectElementOnCanvas,
+    isTextToolArmed,
+    hasCanvasSelection,
+    selectFrameOnCanvas,
+    clearCanvasSelection,
+  } = useFabricCanvas({
     placements,
     assets,
     frames,
@@ -155,6 +167,16 @@ export function LightTable() {
   })
   // `T` arms the text tool; the next click/drag on the canvas places it (U6).
   useTextToolShortcut({ enabled: true, isTextboxEditing: isTextEditing, armTextTool })
+  // Escape steps the selection out: element, its page, Book settings (#76).
+  useEscapeSelection({
+    enabled: true,
+    selection,
+    isTextEditing,
+    isTextToolArmed,
+    hasCanvasSelection,
+    selectFrameOnCanvas,
+    clearCanvasSelection,
+  })
   // Cmd/Ctrl+Z undoes the last reorder/move/create/delete/text-edit (U8);
   // Cmd/Ctrl+Shift+Z / Cmd/Ctrl+Y redoes it.
   useUndoShortcut({ enabled: true, undo, redo })
@@ -287,10 +309,14 @@ function ImagePresetMenu({
 }) {
   useEffect(() => {
     const dismiss = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onDismiss()
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      onDismiss()
     }
-    window.addEventListener("keydown", dismiss)
-    return () => window.removeEventListener("keydown", dismiss)
+    // Capture phase, and spent: one Escape closes the menu only, before
+    // `useEscapeSelection` would step the selection out (#76).
+    window.addEventListener("keydown", dismiss, { capture: true })
+    return () => window.removeEventListener("keydown", dismiss, { capture: true })
   }, [onDismiss])
 
   return (
@@ -347,10 +373,14 @@ function EmptyCanvasContextMenu({
 }) {
   useEffect(() => {
     const dismiss = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onDismiss()
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      onDismiss()
     }
-    window.addEventListener("keydown", dismiss)
-    return () => window.removeEventListener("keydown", dismiss)
+    // Capture phase, and spent: one Escape closes the menu only, before
+    // `useEscapeSelection` would step the selection out (#76).
+    window.addEventListener("keydown", dismiss, { capture: true })
+    return () => window.removeEventListener("keydown", dismiss, { capture: true })
   }, [onDismiss])
 
   return (
@@ -392,10 +422,14 @@ function FrameContextMenu({
 }) {
   useEffect(() => {
     const dismiss = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onDismiss()
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      onDismiss()
     }
-    window.addEventListener("keydown", dismiss)
-    return () => window.removeEventListener("keydown", dismiss)
+    // Capture phase, and spent: one Escape closes the menu only, before
+    // `useEscapeSelection` would step the selection out (#76).
+    window.addEventListener("keydown", dismiss, { capture: true })
+    return () => window.removeEventListener("keydown", dismiss, { capture: true })
   }, [onDismiss])
 
   return (

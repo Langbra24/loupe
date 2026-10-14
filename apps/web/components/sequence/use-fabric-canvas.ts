@@ -546,40 +546,32 @@ export function useFabricCanvas(options: Options) {
     /* Escape cancels an armed text placement without creating anything — the
        same "changed my mind" escape hatch a right-click gives it in the
        mouse:down handler below. Window-level (not a Fabric canvas event)
-       since the tool can be armed with focus anywhere.
-
-       Otherwise Escape deselects whatever the canvas has selected, but only
-       when focus is on the canvas or nowhere in particular, so closing a
-       dialog or popover with Escape leaves the selection alone. Leaving a
-       text box's editing is Fabric's own Escape on its hidden textarea, a
-       typing target here, so the box stays selected; only a second Escape
-       deselects.
+       since the tool can be armed with focus anywhere. `preventDefault`
+       marks the Escape as spent, so stepping out of the selection
+       (`useEscapeSelection`, issue #76) leaves it alone.
 
        Enter on a selected text box starts editing with the caret at the end
-       (issue #20), under the same focus rule, so Enter in a field, dialog or
-       popover keeps its own meaning. While editing, Enter belongs to Fabric's
-       textarea and stays a newline. */
+       (issue #20), but only when focus is on the canvas or nowhere in
+       particular, so Enter in a field, dialog or popover keeps its own
+       meaning. While editing, Enter belongs to Fabric's textarea and stays a
+       newline. */
     const onCanvasKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" && event.key !== "Enter") return
       if (event.key === "Escape" && placingTextRef.current) {
+        event.preventDefault()
         disarmTextPlacement()
         return
       }
+      if (event.key !== "Enter") return
       const target_canvas = canvasRef.current
       const focus = event.target
       const onCanvas = focus instanceof Node && Boolean(target_canvas?.wrapperEl.contains(focus))
       if (isTypingTarget(focus) || (focus !== document.body && !onCanvas)) return
       const active = target_canvas?.getActiveObject() as PlacedTextbox | undefined
-      if (!target_canvas || !active || active.isEditing) return
-      if (event.key === "Enter") {
-        if (!("enterEditing" in active)) return
-        // Cancelled, or Chrome delivers the Enter itself to the textarea
-        // that just took focus and the text gains a newline.
-        event.preventDefault()
-        editAtEnd(active as unknown as Textbox)
-      } else {
-        target_canvas.discardActiveObject()
-      }
+      if (!target_canvas || !active || active.isEditing || !("enterEditing" in active)) return
+      // Cancelled, or Chrome delivers the Enter itself to the textarea
+      // that just took focus and the text gains a newline.
+      event.preventDefault()
+      editAtEnd(active as unknown as Textbox)
       target_canvas.requestRenderAll()
     }
     window.addEventListener("keydown", onCanvasKey)
@@ -2469,9 +2461,52 @@ export function useFabricCanvas(options: Options) {
     canvas.requestRenderAll()
   }, [])
 
+  /* Escape's step-out targets (issue #76, `useEscapeSelection`). Each one
+     goes through Fabric the way a click does, so `notifyFrameSelection` and
+     the `selection:cleared` handler keep the store, the add-page buttons and
+     the sidebar in step. */
+
+  const isTextToolArmed = useCallback(() => placingTextRef.current, [])
+
+  const hasCanvasSelection = useCallback(() => Boolean(canvasRef.current?.getActiveObject()), [])
+
+  /** Selects a page the way a click on its background does. */
+  const selectFrameOnCanvas = useCallback((frameId: string) => {
+    const canvas = canvasRef.current
+    const object = framesRef.current.get(frameId)
+    if (!canvas || !object) return
+    canvas.setActiveObject(object)
+    canvas.requestRenderAll()
+  }, [])
+
+  /** Clears the selection the way a click on empty canvas does. A page
+   *  selected from outside the canvas (`reviewFrame`) has no Fabric active
+   *  object to discard, so that selection is cleared through the same
+   *  handler `selection:cleared` calls. */
+  const clearCanvasSelection = useCallback(() => {
+    const canvas = canvasRef.current
+    if (canvas?.getActiveObject()) {
+      canvas.discardActiveObject()
+      canvas.requestRenderAll()
+    } else {
+      handlers.current.onSelectFrame(null)
+    }
+  }, [])
+
   const controls: CanvasControls = { zoom, ready, zoomIn, zoomOut, resetZoom, fitToView }
 
-  return { containerRef, canvasElementRef, controls, armTextTool, isTextEditing, selectElementOnCanvas }
+  return {
+    containerRef,
+    canvasElementRef,
+    controls,
+    armTextTool,
+    isTextEditing,
+    selectElementOnCanvas,
+    isTextToolArmed,
+    hasCanvasSelection,
+    selectFrameOnCanvas,
+    clearCanvasSelection,
+  }
 }
 
 function clampZoom(value: number): number {

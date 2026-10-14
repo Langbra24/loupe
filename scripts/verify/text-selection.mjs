@@ -15,7 +15,8 @@
 //   2. Dragging the box moves it.
 //   3. A double click edits with a collapsed caret at the click point; "!"
 //      inserts there ("He!llo") and replaces nothing.
-//   4. Escape returns to selected-with-handles; a second Escape deselects.
+//   4. Escape returns to selected-with-handles; a second Escape selects the
+//      box's page and a third deselects (#76).
 //   5. The text survives a reload (IndexedDB).
 //   6. Enter on the selected box (issue #20) edits with a collapsed caret at
 //      the end, so "?" appends; Escape returns to selected; Enter while the
@@ -156,8 +157,12 @@ try {
     `Escape after typing leaves "Hello" selected with handles (${JSON.stringify(state)})`,
   )
 
+  // Escape steps out one level at a time (issue #76): box, its page, nothing.
   await page.keyboard.press("Escape")
-  check((await active()) === null, "a second Escape deselects")
+  state = await active()
+  check(state !== null && state.kind === null && state.elementId === null, "a second Escape selects the box's page")
+  await page.keyboard.press("Escape")
+  check((await active()) === null, "a third Escape deselects")
 
   // 1. Single click selects, no caret; typing doesn't edit.
   const center = await textCenter()

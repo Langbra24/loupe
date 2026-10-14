@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { Frame } from "@loupe/core"
 
 import {
+  escapeStep,
   handleFrameKeyDown,
   nextPageImage,
   pageImagesInReadingOrder,
@@ -221,5 +222,31 @@ describe("shouldCreateTextbox", () => {
 
   it("is inert when a Fabric textbox already has editing focus — typing 'The' must not spawn a second box", () => {
     expect(shouldCreateTextbox({ ...base, isTextboxEditing: true })).toBe(false)
+  })
+})
+
+describe("escapeStep", () => {
+  it("steps a text or image element out to its page", () => {
+    expect(escapeStep({ kind: "text-element", frameId: "f1", elementId: "e1" }, true)).toEqual({
+      kind: "select-frame",
+      frameId: "f1",
+    })
+    expect(escapeStep({ kind: "image-element", frameId: "f2", elementId: "e2" }, false)).toEqual({
+      kind: "select-frame",
+      frameId: "f2",
+    })
+  })
+
+  it("steps a page out to nothing, whether or not the canvas holds it", () => {
+    expect(escapeStep({ kind: "frame", frameId: "f1" }, true)).toEqual({ kind: "clear" })
+    expect(escapeStep({ kind: "frame", frameId: "f1" }, false)).toEqual({ kind: "clear" })
+  })
+
+  it("clears a canvas-only selection, such as pasteboard photographs", () => {
+    expect(escapeStep(null, true)).toEqual({ kind: "clear" })
+  })
+
+  it("does nothing with nothing selected", () => {
+    expect(escapeStep(null, false)).toBeNull()
   })
 })
