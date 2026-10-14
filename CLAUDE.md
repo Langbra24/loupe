@@ -132,6 +132,9 @@ npm run verify:canvas-chrome # build with test hooks; at 10/50/100% zoom the
                      #   pasteboard and a white page, and shared by everything
 npm run verify:a11y-names # build; every inspector control is named after its
                      #   visible label in all four states; selected page/preset exposed
+npm run verify:escape-selection # build with test hooks; Escape steps out one level
+                     #   (text/image → its page → Book settings); an open popover,
+                     #   listbox, context menu, dialog or armed T takes it first
 npm run verify:small-fixes # build; toasts top-right under the nav (stack, hover,
                      #   swipe), Escape closes the intro, empty saddle-stitch
                      #   line not red, Cmd/Ctrl+Enter submits feedback
